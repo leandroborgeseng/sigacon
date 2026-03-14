@@ -15,8 +15,6 @@ const MAP_STATUS: Record<string, StatusItem> = {
   CABECALHO: StatusItem.CABECALHO,
   SIM: StatusItem.ATENDE,
   NÃO: StatusItem.NAO_ATENDE,
-  "NÃO": StatusItem.NAO_ATENDE,
-  "SIM": StatusItem.ATENDE,
 };
 
 function parseStatus(val: unknown): StatusItem | null {
