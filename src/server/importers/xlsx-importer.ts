@@ -51,7 +51,7 @@ export async function importarPlanilhaXLSX(
     return result;
   }
 
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+  const rows = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: "",
   }) as unknown[][];
