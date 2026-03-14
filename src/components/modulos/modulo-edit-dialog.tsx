@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,13 +34,25 @@ export function ModuloEditDialog({ modulo }: { modulo: Modulo }) {
   const form = useForm<ModuloInput>({
     resolver: zodResolver(moduloSchema),
     defaultValues: {
-      contratoId: modulo.contratoId,
-      nome: modulo.nome,
-      descricao: modulo.descricao ?? "",
-      implantado: modulo.implantado,
-      ativo: modulo.ativo,
+      contratoId: modulo?.contratoId ?? "",
+      nome: modulo?.nome ?? "",
+      descricao: modulo?.descricao ?? "",
+      implantado: modulo?.implantado ?? false,
+      ativo: modulo?.ativo ?? true,
     },
   });
+
+  useEffect(() => {
+    if (open && modulo) {
+      form.reset({
+        contratoId: modulo.contratoId,
+        nome: modulo.nome,
+        descricao: modulo.descricao ?? "",
+        implantado: modulo.implantado,
+        ativo: modulo.ativo,
+      });
+    }
+  }, [open, modulo]);
 
   async function onSubmit(data: ModuloInput) {
     const res = await fetch(`/api/modulos/${modulo.id}`, {
@@ -56,6 +68,8 @@ export function ModuloEditDialog({ modulo }: { modulo: Modulo }) {
     setOpen(false);
     router.refresh();
   }
+
+  if (!modulo?.id) return null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

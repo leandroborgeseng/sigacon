@@ -105,10 +105,10 @@ export default async function ModuloDetailPage({
         </CardHeader>
         <CardContent className="p-0">
           <ModuloItensStatus
-            itens={modulo.itens.map((i) => ({
+            itens={(modulo.itens ?? []).map((i) => ({
               id: i.id,
               numeroItem: i.numeroItem,
-              descricao: i.descricao,
+              descricao: i.descricao ?? "",
               statusAtual: i.statusAtual,
             }))}
           />

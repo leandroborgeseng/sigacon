@@ -135,7 +135,7 @@ export function ItemDetailTabs({
               <CardTitle>Dados do item</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-muted-foreground">{item.descricao}</p>
+              <p className="text-muted-foreground whitespace-pre-wrap break-words">{item.descricao ?? "—"}</p>
               <div className="flex flex-wrap gap-4">
                 <div>
                   <Label>Alterar status</Label>

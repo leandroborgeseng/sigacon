@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label";
 
 type Contrato = { id: string; nome: string };
 
-export function ModuloFilterSelect({ contratos }: { contratos: Contrato[] }) {
+export function ModuloFilterSelect({ contratos = [] }: { contratos?: Contrato[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const contratoId = searchParams.get("contratoId") ?? "";
+  const list = Array.isArray(contratos) ? contratos : [];
 
   function onValueChange(value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -36,7 +37,7 @@ export function ModuloFilterSelect({ contratos }: { contratos: Contrato[] }) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="todos">Todos os contratos</SelectItem>
-          {contratos.map((c) => (
+          {list.map((c) => (
             <SelectItem key={c.id} value={c.id}>
               {c.nome}
             </SelectItem>

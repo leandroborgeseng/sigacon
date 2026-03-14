@@ -137,9 +137,12 @@ export function ItensTable() {
       cell: ({ row }) => {
         const desc = row.original.descricao ?? "";
         return (
-          <span className="max-w-xs truncate block" title={desc}>
+          <div
+            className="max-w-md text-sm line-clamp-4 whitespace-pre-wrap break-words"
+            title={desc}
+          >
             {desc}
-          </span>
+          </div>
         );
       },
     },

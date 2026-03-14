@@ -21,14 +21,20 @@ import { ModuloEditDialog } from "@/components/modulos/modulo-edit-dialog";
 import { ModuloDeleteButton } from "@/components/modulos/modulo-delete-button";
 
 type PageProps = {
-  searchParams: Promise<{ contratoId?: string }>;
+  searchParams?: Promise<{ contratoId?: string }>;
 };
 
 export default async function ModulosPage({ searchParams }: PageProps) {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const { contratoId } = await searchParams;
+  let contratoId: string | undefined;
+  try {
+    const sp = searchParams ? await searchParams : {};
+    contratoId = (sp as { contratoId?: string }).contratoId;
+  } catch {
+    contratoId = undefined;
+  }
 
   const modulos = await prisma.modulo.findMany({
     where: contratoId ? { contratoId } : undefined,
