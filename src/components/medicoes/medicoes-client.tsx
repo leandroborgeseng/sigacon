@@ -53,9 +53,9 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
       `/api/medicoes?contratoId=${contratoId}&ano=${ano}&mes=${mes}`
     )
       .then((r) => r.json())
-      .then((list: { id?: string }[]) => {
+      .then((list: { id?: string; ano?: number; mes?: number }[]) => {
         const found = Array.isArray(list)
-          ? list.find((m: { ano?: number; mes?: number }) => m.ano === ano && m.mes === mes)
+          ? list.find((m) => m.ano === ano && m.mes === mes)
           : null;
         if (found && "id" in found) {
           return fetch(`/api/medicoes/${(found as { id: string }).id}`).then((r) => r.json());
