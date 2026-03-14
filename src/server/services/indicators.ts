@@ -56,11 +56,11 @@ export async function getDashboardIndicators() {
   let totalNaoAtendidos = 0;
 
   for (const g of itensAgg) {
-    totalItensValidos += g._count.statusAtual;
-    if (g.statusAtual === STATUS_ATENDIDO) totalAtendidos = g._count.statusAtual;
-    else if (g.statusAtual === STATUS_PARCIAL) totalParciais = g._count.statusAtual;
-    else if (STATUS_NAO_ATENDE.includes(g.statusAtual))
-      totalNaoAtendidos += g._count.statusAtual;
+    const count = g._count;
+    totalItensValidos += count;
+    if (g.statusAtual === STATUS_ATENDIDO) totalAtendidos = count;
+    else if (g.statusAtual === STATUS_PARCIAL) totalParciais = count;
+    else if (STATUS_NAO_ATENDE.includes(g.statusAtual)) totalNaoAtendidos += count;
   }
 
   const percentualGeral =
