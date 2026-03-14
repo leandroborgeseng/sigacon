@@ -15,12 +15,25 @@ const MAP_STATUS: Record<string, StatusItem> = {
   CABECALHO: StatusItem.CABECALHO,
   SIM: StatusItem.ATENDE,
   NÃO: StatusItem.NAO_ATENDE,
+  NAO: StatusItem.NAO_ATENDE,
+  S: StatusItem.ATENDE,
+  N: StatusItem.NAO_ATENDE,
+  ATENDIDO: StatusItem.ATENDE,
+  "NÃO ATENDIDO": StatusItem.NAO_ATENDE,
+  NAO_ATENDIDO: StatusItem.NAO_ATENDE,
+  CUMPRIDO: StatusItem.ATENDE,
+  "NÃO CUMPRIDO": StatusItem.NAO_ATENDE,
+  NAO_CUMPRIDO: StatusItem.NAO_ATENDE,
+  OK: StatusItem.ATENDE,
+  "NÃO OK": StatusItem.NAO_ATENDE,
+  "1": StatusItem.ATENDE,
+  "0": StatusItem.NAO_ATENDE,
 };
 
 function parseStatus(val: unknown): StatusItem | null {
   if (val == null || val === "") return null;
-  const s = String(val).toUpperCase().trim();
-  return MAP_STATUS[s] ?? null;
+  const s = String(val).toUpperCase().trim().replace(/\s+/g, " ");
+  return MAP_STATUS[s] ?? MAP_STATUS[s.replace(/\s/g, "_")] ?? null;
 }
 
 export interface ImportResult {
@@ -183,7 +196,8 @@ export async function importarPlanilhaXLSX(
     const obsVal = getVal(row, colObs);
     const conformeVal = getVal(row, colConforme).toLowerCase();
     const requisitoVal = getVal(row, colRequisito).toLowerCase();
-    const atendeVal = colAtende >= 0 ? row[colAtende] : null;
+    const atendeValRaw = colAtende >= 0 ? row[colAtende] : null;
+    const atendeVal = atendeValRaw != null && atendeValRaw !== "" ? String(atendeValRaw).trim() : "";
     const cabVal = getVal(row, colCab).toLowerCase() === "sim";
 
     if (!descVal) {
@@ -205,8 +219,9 @@ export async function importarPlanilhaXLSX(
     }
 
     let statusAtual: StatusItem = StatusItem.INCONCLUSIVO;
-    if (atendeVal != null && atendeVal !== "") {
-      const st = parseStatus(atendeVal);
+    if (atendeVal) {
+      const num = Number(atendeVal);
+      const st = parseStatus(atendeVal) ?? (Number.isNaN(num) ? null : parseStatus(num === 1 ? "1" : num === 0 ? "0" : atendeVal));
       if (st) statusAtual = st;
     } else if (conformeVal === "sim" || requisitoVal === "sim") {
       statusAtual = StatusItem.ATENDE;

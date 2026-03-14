@@ -210,7 +210,7 @@ export function ItemDetailTabs({
                       </TableCell>
                     </TableRow>
                   ) : (
-                    (item.avaliacoes ?? []).map((a) => (
+                    {(item.avaliacoes ?? []).map((a) => (
                       <TableRow key={a.id}>
                         <TableCell>{formatDateTime(a.dataAvaliacao)}</TableCell>
                         <TableCell>
@@ -225,7 +225,7 @@ export function ItemDetailTabs({
                         <TableCell>{a.usuario?.nome ?? "—"}</TableCell>
                         <TableCell>{a.origem}</TableCell>
                       </TableRow>
-                    ))
+                    ))}
                   )}
                 </TableBody>
               </Table>
@@ -243,7 +243,7 @@ export function ItemDetailTabs({
                 <p className="p-4 text-muted-foreground">Nenhuma pendência.</p>
               ) : (
                 <ul className="divide-y">
-                  (item.pendencias ?? []).map((p) => (
+                  {(item.pendencias ?? []).map((p) => (
                     <li key={p.id} className="p-4">
                       <p className="font-medium">{p.descricao}</p>
                       <p className="text-sm text-muted-foreground">
@@ -268,7 +268,7 @@ export function ItemDetailTabs({
                 <p className="p-4 text-muted-foreground">Nenhum anexo.</p>
               ) : (
                 <ul className="divide-y">
-                  (item.anexos ?? []).map((a) => (
+                  {(item.anexos ?? []).map((a) => (
                     <li key={a.id} className="flex items-center justify-between p-4">
                       <span>{a.nomeOriginal}</span>
                       <Badge variant="outline">{a.tipoAnexo}</Badge>
