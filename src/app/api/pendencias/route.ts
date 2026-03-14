@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { pendenciaSchema } from "@/lib/validators";
 import { registerAudit } from "@/server/services/audit";
 
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const contratoId = searchParams.get("contratoId");
 
-  const where: Parameters<typeof prisma.pendencia.findMany>[0]["where"] = {};
+  const where: Prisma.PendenciaWhereInput = {};
   if (status) where.status = status as "ABERTA" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA" | "VENCIDA";
   if (contratoId) where.item = { contratoId };
 

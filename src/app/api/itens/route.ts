@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { StatusItem } from "@prisma/client";
+import { Prisma, StatusItem } from "@prisma/client";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const pageSize = Math.min(50, Math.max(10, parseInt(searchParams.get("pageSize") ?? "20", 10)));
   const search = searchParams.get("search")?.trim();
 
-  const where: Parameters<typeof prisma.itemContratual.findMany>[0]["where"] = {};
+  const where: Prisma.ItemContratualWhereInput = {};
   if (contratoId) where.contratoId = contratoId;
   if (moduloId) where.moduloId = moduloId;
   if (status) where.statusAtual = status as StatusItem;
