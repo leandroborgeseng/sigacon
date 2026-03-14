@@ -68,81 +68,136 @@ export async function importarPlanilhaXLSX(
     colIndex[key] = i;
   });
 
-  const getModulo = (nome: string) => {
-    const n = String(nome || "").trim();
-    if (!n) return null;
-    return n;
+  const colId = colIndex["id"] ?? -1;
+  const colItem = colIndex["item"] ?? colIndex["numeroitem"] ?? -1;
+  const colDesc = colIndex["descrição"] ?? colIndex["descricao"] ?? -1;
+  const colMod = colIndex["módulo"] ?? colIndex["modulo"] ?? -1;
+  const colLote = colIndex["lote"] ?? -1;
+  const colObs = colIndex["observação"] ?? colIndex["observacao"] ?? -1;
+  const colConforme =
+    colIndex["conforme contrato eddydata"] ??
+    colIndex["conforme contrato eddy data"] ??
+    colIndex["conforme eddydata"] ??
+    -1;
+  const colRequisito = colIndex["requisito"] ?? -1;
+  const colAtende = colIndex["atende?"] ?? colIndex["atende"] ?? -1;
+  const colCab = colIndex["cabeçalho"] ?? colIndex["cabecalho"] ?? -1;
+
+  const DEFAULT_MODULO = "Requisitos do Projeto";
+
+  const getVal = (row: unknown[], col: number) =>
+    col >= 0 && row[col] != null ? String(row[col]).trim() : "";
+  const isEmpty = (s: string) => s === "";
+
+  type LogicalRow = {
+    moduloNome: string;
+    lote: string;
+    numeroItem: number;
+    descricao: string;
+    observacao: string | null;
+    status: StatusItem;
+    cabecalhoLogico: boolean;
   };
 
-  const modulosCriados = new Map<string, string>();
+  const logicalRows: LogicalRow[] = [];
+  let current: LogicalRow | null = null;
+  let rowIndex = 0;
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
-    const colMod = colIndex["módulo"] ?? colIndex["modulo"] ?? -1;
-    const moduloNome = getModulo(colMod >= 0 ? String(row[colMod] ?? "") : "");
-    const colLote = colIndex["lote"] ?? -1;
-    const lote = (colLote >= 0 ? String(row[colLote] ?? "") : "").trim() || "";
-    const colItem = colIndex["item"] ?? colIndex["numeroitem"] ?? -1;
-    const numeroItemRaw = colItem >= 0 ? row[colItem] : undefined;
-    const numeroItem = numeroItemRaw !== undefined && numeroItemRaw !== "" ? Number(numeroItemRaw) : i;
-    const colDesc = colIndex["descrição"] ?? colIndex["descricao"] ?? -1;
-    const descricao = (colDesc >= 0 ? String(row[colDesc] ?? "") : "").trim();
+    const idVal = getVal(row, colId);
+    const itemVal = getVal(row, colItem);
+    const descVal = getVal(row, colDesc);
+    const modVal = getVal(row, colMod);
+    const loteVal = colLote >= 0 ? getVal(row, colLote) : "";
+    const obsVal = getVal(row, colObs);
+    const conformeVal = getVal(row, colConforme).toLowerCase();
+    const requisitoVal = getVal(row, colRequisito).toLowerCase();
+    const atendeVal = colAtende >= 0 ? row[colAtende] : null;
+    const cabVal = getVal(row, colCab).toLowerCase() === "sim";
 
-    if (!moduloNome || !descricao) {
+    const isContinuation = isEmpty(idVal) && isEmpty(itemVal);
+    if (isContinuation && current && descVal) {
+      current.descricao += "\n" + descVal;
+      if (obsVal) current.observacao = (current.observacao || "") + (current.observacao ? "\n" : "") + obsVal;
+      continue;
+    }
+
+    if (!descVal) {
       result.linhasIgnoradas++;
       continue;
     }
 
-    if (isNaN(numeroItem) || numeroItem < 1) {
+    let numeroItem: number;
+    if (itemVal && !Number.isNaN(Number(itemVal))) {
+      numeroItem = Math.floor(Number(itemVal));
+    } else if (idVal && !Number.isNaN(parseInt(idVal, 10))) {
+      numeroItem = parseInt(idVal, 10);
+    } else {
+      rowIndex += 1;
+      numeroItem = rowIndex;
+    }
+    if (numeroItem < 1) {
       result.linhasIgnoradas++;
       continue;
     }
+    rowIndex = numeroItem;
 
-    let moduloId = modulosCriados.get(moduloNome);
+    let statusAtual: StatusItem = StatusItem.INCONCLUSIVO;
+    if (atendeVal != null && atendeVal !== "") {
+      const st = parseStatus(atendeVal);
+      if (st) statusAtual = st;
+    } else if (conformeVal === "sim" || requisitoVal === "sim") {
+      statusAtual = StatusItem.ATENDE;
+    }
+    for (let c = header.length - 1; c >= 0; c--) {
+      const colName = String(header[c] ?? "").trim().toLowerCase();
+      const val = row[c];
+      const st = parseStatus(val);
+      if (st && colName.includes("consolidado")) {
+        statusAtual = st;
+        break;
+      }
+    }
+
+    const moduloNome = modVal || DEFAULT_MODULO;
+    current = {
+      moduloNome,
+      lote: loteVal,
+      numeroItem,
+      descricao: descVal,
+      observacao: obsVal || null,
+      status: statusAtual,
+      cabecalhoLogico: cabVal || statusAtual === StatusItem.CABECALHO,
+    };
+    logicalRows.push(current);
+  }
+
+  const getModulo = (nome: string) => {
+    const n = String(nome || "").trim();
+    return n || null;
+  };
+  const modulosCriados = new Map<string, string>();
+
+  for (const logical of logicalRows) {
+    const { moduloNome, lote, numeroItem, descricao, observacao, status: statusAtual, cabecalhoLogico } = logical;
+    const modNome = getModulo(moduloNome) || DEFAULT_MODULO;
+
+    let moduloId = modulosCriados.get(modNome);
     if (!moduloId) {
       const existente = await prisma.modulo.findUnique({
-        where: {
-          contratoId_nome: { contratoId, nome: moduloNome },
-        },
+        where: { contratoId_nome: { contratoId, nome: modNome } },
       });
       if (existente) {
         moduloId = existente.id;
       } else {
         const novo = await prisma.modulo.create({
-          data: { contratoId, nome: moduloNome, ativo: true },
+          data: { contratoId, nome: modNome, ativo: true },
         });
         moduloId = novo.id;
       }
-      modulosCriados.set(moduloNome, moduloId);
+      modulosCriados.set(modNome, moduloId);
     }
-
-    let statusAtual: StatusItem = StatusItem.INCONCLUSIVO;
-    const colAtende = colIndex["atende?"] ?? colIndex["atende"] ?? -1;
-    let valorAtende = colAtende >= 0 ? row[colAtende] : null;
-
-    for (let c = header.length - 1; c >= 0; c--) {
-      const colName = String(header[c] ?? "").trim();
-      const val = row[c];
-      const st = parseStatus(val);
-      if (st && colName.toLowerCase().includes("consolidado")) {
-        statusAtual = st;
-        break;
-      }
-    }
-    if (valorAtende != null && valorAtende !== "") {
-      const st = parseStatus(valorAtende);
-      if (st) statusAtual = st;
-    }
-
-    const colObs = colIndex["observação"] ?? colIndex["observacao"] ?? -1;
-    const observacao = (colObs >= 0 ? String(row[colObs] ?? "") : "").trim();
-
-    const colCab = colIndex["cabeçalho"] ?? colIndex["cabecalho"] ?? -1;
-    const cabecalhoLogico =
-      (colCab >= 0 ? String(row[colCab] ?? "") : "")
-        .trim()
-        .toLowerCase() === "sim" ||
-      statusAtual === StatusItem.CABECALHO;
 
     const existing = await prisma.itemContratual.findUnique({
       where: {
@@ -157,11 +212,11 @@ export async function importarPlanilhaXLSX(
     const itemData = {
       contratoId,
       moduloId,
-      lote,
+      lote: lote || "",
       numeroItem,
       descricao,
       statusAtual,
-      observacaoAtual: observacao || null,
+      observacaoAtual: observacao,
       cabecalhoLogico,
       considerarNaMedicao: !cabecalhoLogico && statusAtual !== StatusItem.CABECALHO,
     };
@@ -180,10 +235,7 @@ export async function importarPlanilhaXLSX(
       result.itensAtualizados++;
     } else {
       await prisma.itemContratual.create({
-        data: {
-          ...itemData,
-          lote: itemData.lote || "",
-        },
+        data: itemData,
       });
       result.itensCriados++;
     }
@@ -207,7 +259,7 @@ export async function importarPlanilhaXLSX(
           competenciaAno: now.getFullYear(),
           competenciaMes: now.getMonth() + 1,
           status: statusAtual,
-          observacao: observacao || null,
+          observacao,
           usuarioId,
           origem: OrigemAvaliacao.IMPORTACAO,
         },

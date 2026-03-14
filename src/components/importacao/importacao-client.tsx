@@ -20,6 +20,7 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
   const router = useRouter();
   const [contratoId, setContratoId] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     itensCriados: number;
@@ -30,15 +31,18 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const canSubmit = contratoId && (file || (url && url.trim().length > 0));
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || !contratoId) return;
+    if (!canSubmit) return;
     setLoading(true);
     setResult(null);
     try {
       const formData = new FormData();
-      formData.set("file", file);
       formData.set("contratoId", contratoId);
+      if (file) formData.set("file", file);
+      if (url && url.trim()) formData.set("url", url.trim());
       const res = await fetch("/api/importacao", {
         method: "POST",
         body: formData,
@@ -47,6 +51,7 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
       if (res.ok) {
         setResult(data);
         setFile(null);
+        setUrl("");
         if (inputRef.current) inputRef.current.value = "";
         router.refresh();
       } else {
@@ -76,9 +81,10 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
       <CardHeader>
         <CardTitle>Enviar planilha</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Estrutura esperada: colunas Módulo, Lote, Item, Descrição, Atende?, colunas
-          Consolidado (ex.: Consolidado 22/05), Observação. Itens com mesmo
-          contrato + módulo + número serão atualizados.
+          Envie um arquivo .xlsx/.xls ou informe a URL da planilha. Colunas aceitas: ID ou Item,
+          Descrição, Observação; opcionais: Módulo (senão usa &quot;Requisitos do Projeto&quot;),
+          Lote, Conforme Contrato EddyData / Requisito (sim = Atende), Atende?, Cabeçalho. Linhas
+          com ID e Item vazios são unidas à descrição do item anterior.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -99,7 +105,17 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Arquivo .xlsx</Label>
+            <Label>URL da planilha (opcional)</Label>
+            <input
+              type="url"
+              placeholder="https://..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex h-9 w-full max-w-md rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Ou arquivo .xlsx / .xls</Label>
             <input
               ref={inputRef}
               type="file"
@@ -108,7 +124,7 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
               className="block w-full max-w-md text-sm"
             />
           </div>
-          <Button type="submit" disabled={!contratoId || !file || loading}>
+          <Button type="submit" disabled={!canSubmit || loading}>
             <Upload className="mr-2 h-4 w-4" />
             {loading ? "Importando..." : "Importar"}
           </Button>

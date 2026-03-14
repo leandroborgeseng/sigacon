@@ -37,3 +37,6 @@ prisma/migrations/**/migration_lock.toml
 # Uploads temporários (não persistir em produção)
 uploads
 tmp
+
+# Planilha grande para importação (rodar script localmente com DATABASE_URL)
+scripts/planilha-eddydata.xlsx

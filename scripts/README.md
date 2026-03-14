@@ -2,18 +2,32 @@
 
 ## Seed do contrato Eddydata
 
-Os itens do contrato **Eddydata** (projeto de implantação da solução de gestão de contratos) são carregados a partir de `dados-eddydata.json`.
+### Opção 1: Importar planilha XLSX (recomendado para muitos itens, ex.: 1048)
 
-- **No deploy (Railway):** o script `seed-eddydata.js` roda automaticamente no startup do container. O contrato "Eddydata" é criado (se não existir) e os itens de `dados-eddydata.json` são inseridos ou atualizados.
-- **Localmente:** use `DATABASE_URL="sua_url" npm run db:seed-eddydata` para rodar só o seed do Eddydata.
+1. Salve sua planilha como **XLSX** com:
+   - **Coluna A:** número do item (1, 2, 3 … ou 1.1, 1.2 …)
+   - **Coluna B:** descrição do item
+   - **Coluna C:** (opcional) observação ou categoria
+   - A primeira linha pode ser cabeçalho (será ignorada).
 
-### Formato de `dados-eddydata.json`
+2. Coloque o arquivo em `scripts/planilha-eddydata.xlsx` ou passe o caminho como argumento.
 
-Array de objetos com:
+3. Rode (use a `DATABASE_URL` do Railway ou do seu banco):
 
-- `numero`: número/código do item (ex.: "1.0", "1.1.1") — aparece na descrição.
-- `descricao`: texto do requisito/item.
-- `categoria`: opcional (ex.: "Front-end", "Back-end") — vai para observação.
-- `valor`: opcional (ex.: esforço ou peso).
+   ```bash
+   DATABASE_URL="postgresql://..." node scripts/importar-eddydata-xlsx.js
+   # ou com caminho explícito:
+   DATABASE_URL="postgresql://..." node scripts/importar-eddydata-xlsx.js /caminho/para/sua-planilha.xlsx
+   ```
 
-Para incluir novos itens ou alterar textos, edite `dados-eddydata.json` e faça um novo deploy (ou rode o script localmente com a `DATABASE_URL` de produção).
+   Ou: `DATABASE_URL="..." npm run db:import-eddydata-xlsx`
+
+O script cria o contrato e o módulo "Requisitos do Projeto" se não existirem e importa todos os itens (criando ou atualizando por número).
+
+### Opção 2: Seed via JSON (poucos itens, deploy automático)
+
+Os itens em `dados-eddydata.json` são carregados **no deploy (Railway)** pelo `seed-eddydata.js`.
+
+- **Localmente:** `DATABASE_URL="sua_url" npm run db:seed-eddydata`
+
+Formato de `dados-eddydata.json`: array com `numero`, `descricao`, `categoria`, `valor`.
