@@ -31,4 +31,4 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --schema=./prisma/schema.prisma --skip-generate || true && (npx tsx prisma/seed.ts || true) && node server.js"]
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --schema=./prisma/schema.prisma --skip-generate || true && (node prisma/seed.js || true) && node server.js"]
