@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { OrigemAvaliacao } from "@prisma/client";
+import { OrigemAvaliacao, Prisma } from "@prisma/client";
 import { registerAudit } from "@/server/services/audit";
 
 export async function GET(
@@ -47,7 +47,7 @@ export async function PATCH(
 
     const item = await prisma.itemContratual.update({
       where: { id },
-      data: updateData as Parameters<typeof prisma.itemContratual.update>[0]["data"],
+      data: updateData as Prisma.ItemContratualUpdateInput,
     });
 
     if (statusAtual !== undefined && statusAtual !== existing.statusAtual) {

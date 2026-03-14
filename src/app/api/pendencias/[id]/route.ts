@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { registerAudit } from "@/server/services/audit";
 
 export async function PATCH(
@@ -29,7 +30,7 @@ export async function PATCH(
 
     const pendencia = await prisma.pendencia.update({
       where: { id },
-      data: data as Parameters<typeof prisma.pendencia.update>[0]["data"],
+      data: data as Prisma.PendenciaUpdateInput,
     });
 
     await registerAudit({

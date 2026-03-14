@@ -6,10 +6,10 @@ import {
   toDecimal,
 } from "@/lib/finance";
 
-const STATUS_CONSIDERADO_ATENDIDO = [StatusItem.ATENDE];
-const STATUS_CONSIDERADO_PARCIAL = [StatusItem.PARCIAL];
-const STATUS_CONSIDERADO_NAO_ATENDIDO = [StatusItem.NAO_ATENDE, StatusItem.INCONCLUSIVO];
-const STATUS_EXCLUIDOS_MEDICAO = [StatusItem.CABECALHO, StatusItem.DESCONSIDERADO, StatusItem.NAO_SE_APLICA];
+const STATUS_CONSIDERADO_ATENDIDO: StatusItem[] = [StatusItem.ATENDE];
+const STATUS_CONSIDERADO_PARCIAL: StatusItem[] = [StatusItem.PARCIAL];
+const STATUS_CONSIDERADO_NAO_ATENDIDO: StatusItem[] = [StatusItem.NAO_ATENDE, StatusItem.INCONCLUSIVO];
+const STATUS_EXCLUIDOS_MEDICAO: StatusItem[] = [StatusItem.CABECALHO, StatusItem.DESCONSIDERADO, StatusItem.NAO_SE_APLICA];
 
 export async function getOrCreateMedicao(contratoId: string, ano: number, mes: number) {
   const contrato = await prisma.contrato.findUniqueOrThrow({
