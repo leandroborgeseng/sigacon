@@ -50,8 +50,7 @@ export async function PATCH(
     const valorAnual = parsed.data.valorAnual ?? Number(existing.valorAnual);
     const valorMensal =
       parsed.data.valorMensalReferencia ??
-      Number(existing.valorMensalReferencia) ||
-      calcularValorMensalReferencia(valorAnual);
+      (Number(existing.valorMensalReferencia) || calcularValorMensalReferencia(valorAnual));
 
     const contrato = await prisma.contrato.update({
       where: { id },

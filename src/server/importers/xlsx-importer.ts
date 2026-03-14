@@ -80,11 +80,15 @@ export async function importarPlanilhaXLSX(
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
-    const moduloNome = getModulo(String(row[colIndex["módulo"] ?? row[colIndex["modulo"] ?? ""] ?? ""));
-    const lote = String(row[colIndex["lote"] ?? ""] ?? "").trim() || "";
-    const numeroItemRaw = row[colIndex["item"] ?? colIndex["numeroitem"] ?? -1];
+    const colMod = colIndex["módulo"] ?? colIndex["modulo"] ?? -1;
+    const moduloNome = getModulo(colMod >= 0 ? String(row[colMod] ?? "") : "");
+    const colLote = colIndex["lote"] ?? -1;
+    const lote = (colLote >= 0 ? String(row[colLote] ?? "") : "").trim() || "";
+    const colItem = colIndex["item"] ?? colIndex["numeroitem"] ?? -1;
+    const numeroItemRaw = colItem >= 0 ? row[colItem] : undefined;
     const numeroItem = numeroItemRaw !== undefined && numeroItemRaw !== "" ? Number(numeroItemRaw) : i;
-    const descricao = String(row[colIndex["descrição"] ?? colIndex["descricao"] ?? ""] ?? "").trim();
+    const colDesc = colIndex["descrição"] ?? colIndex["descricao"] ?? -1;
+    const descricao = (colDesc >= 0 ? String(row[colDesc] ?? "") : "").trim();
 
     if (!moduloNome || !descricao) {
       result.linhasIgnoradas++;
@@ -132,14 +136,14 @@ export async function importarPlanilhaXLSX(
       if (st) statusAtual = st;
     }
 
-    const observacao = String(
-      row[colIndex["observação"] ?? colIndex["observacao"] ?? ""] ?? ""
-    ).trim();
+    const colObs = colIndex["observação"] ?? colIndex["observacao"] ?? -1;
+    const observacao = (colObs >= 0 ? String(row[colObs] ?? "") : "").trim();
 
+    const colCab = colIndex["cabeçalho"] ?? colIndex["cabecalho"] ?? -1;
     const cabecalhoLogico =
-      String(row[colIndex["cabeçalho"] ?? colIndex["cabecalho"] ?? ""] ?? "")
-        .toLowerCase()
-        .trim() === "sim" ||
+      (colCab >= 0 ? String(row[colCab] ?? "") : "")
+        .trim()
+        .toLowerCase() === "sim" ||
       statusAtual === StatusItem.CABECALHO;
 
     const existing = await prisma.itemContratual.findUnique({
