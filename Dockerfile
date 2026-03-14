@@ -4,6 +4,7 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+COPY prisma ./prisma
 RUN npm install --legacy-peer-deps
 
 FROM base AS builder
