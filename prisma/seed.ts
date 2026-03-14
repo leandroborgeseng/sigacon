@@ -3,15 +3,18 @@ import * as bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+const ADMIN_EMAIL = "admin@sigacon.local";
+const ADMIN_SENHA = "admin123";
+
 async function main() {
-  const senhaHash = await bcrypt.hash("admin123", 10);
+  const senhaHash = await bcrypt.hash(ADMIN_SENHA, 10);
 
   const admin = await prisma.usuario.upsert({
-    where: { email: "admin@sigacon.local" },
-    update: {},
+    where: { email: ADMIN_EMAIL },
+    update: { senhaHash, ativo: true },
     create: {
       nome: "Administrador",
-      email: "admin@sigacon.local",
+      email: ADMIN_EMAIL,
       senhaHash,
       perfil: PerfilUsuario.ADMIN,
       ativo: true,
@@ -19,7 +22,7 @@ async function main() {
   });
 
   console.log("Seed executado com sucesso.");
-  console.log("Usuário admin criado/atualizado:", admin.email);
+  console.log("Usuário admin:", admin.email, "| Use a senha:", ADMIN_SENHA);
 }
 
 main()
