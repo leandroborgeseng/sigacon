@@ -81,10 +81,10 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
       <CardHeader>
         <CardTitle>Enviar planilha</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Envie um arquivo .xlsx/.xls ou informe a URL da planilha. Colunas aceitas: ID ou Item,
-          Descrição, Observação; opcionais: Módulo (senão usa &quot;Requisitos do Projeto&quot;),
-          Lote, Conforme Contrato EddyData / Requisito (sim = Atende), Atende?, Cabeçalho. Linhas
-          com ID e Item vazios são unidas à descrição do item anterior.
+          Envie um arquivo .xlsx/.xls ou informe a URL da planilha. Colunas: ID ou Item (número),
+          Descrição (obrigatório), Observação; opcionais: Módulo (senão &quot;Requisitos do Projeto&quot;),
+          Lote, Conforme Contrato EddyData / Requisito (sim = Atende), Atende?, Cabeçalho. Cada linha
+          com descrição vira um item (linhas sem ID/Item recebem número sequencial).
         </p>
       </CardHeader>
       <CardContent className="space-y-4">

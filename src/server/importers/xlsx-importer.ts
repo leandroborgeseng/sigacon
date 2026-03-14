@@ -127,7 +127,6 @@ export async function importarPlanilhaXLSX(
 
   const logicalRows: LogicalRow[] = [];
   let current: LogicalRow | null = null;
-  let rowIndex = 0;
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i] as unknown[];
@@ -142,13 +141,6 @@ export async function importarPlanilhaXLSX(
     const atendeVal = colAtende >= 0 ? row[colAtende] : null;
     const cabVal = getVal(row, colCab).toLowerCase() === "sim";
 
-    const isContinuation = isEmpty(idVal) && isEmpty(itemVal);
-    if (isContinuation && current && descVal) {
-      current.descricao += "\n" + descVal;
-      if (obsVal) current.observacao = (current.observacao || "") + (current.observacao ? "\n" : "") + obsVal;
-      continue;
-    }
-
     if (!descVal) {
       result.linhasIgnoradas++;
       continue;
@@ -157,17 +149,15 @@ export async function importarPlanilhaXLSX(
     let numeroItem: number;
     if (itemVal && !Number.isNaN(Number(itemVal))) {
       numeroItem = Math.floor(Number(itemVal));
-    } else if (idVal && !Number.isNaN(parseInt(idVal, 10))) {
-      numeroItem = parseInt(idVal, 10);
+    } else if (idVal && !Number.isNaN(parseInt(idVal.replace(/\D/g, ""), 10))) {
+      numeroItem = parseInt(idVal.replace(/\D/g, ""), 10);
     } else {
-      rowIndex += 1;
-      numeroItem = rowIndex;
+      numeroItem = logicalRows.length + 1;
     }
     if (numeroItem < 1) {
       result.linhasIgnoradas++;
       continue;
     }
-    rowIndex = numeroItem;
 
     let statusAtual: StatusItem = StatusItem.INCONCLUSIVO;
     if (atendeVal != null && atendeVal !== "") {
