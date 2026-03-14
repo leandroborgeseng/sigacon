@@ -12,7 +12,6 @@ const STATUS_VALIDOS_MEDICAO = [
 ];
 const STATUS_ATENDIDO = StatusItem.ATENDE;
 const STATUS_PARCIAL = StatusItem.PARCIAL;
-const STATUS_NAO_ATENDE = [StatusItem.NAO_ATENDE, StatusItem.INCONCLUSIVO];
 
 export async function getDashboardIndicators() {
   const [contratos, itensAgg, pendenciasAbertas, medicoesAtual] = await Promise.all([
@@ -60,7 +59,8 @@ export async function getDashboardIndicators() {
     totalItensValidos += count;
     if (g.statusAtual === STATUS_ATENDIDO) totalAtendidos = count;
     else if (g.statusAtual === STATUS_PARCIAL) totalParciais = count;
-    else if (STATUS_NAO_ATENDE.includes(g.statusAtual)) totalNaoAtendidos += count;
+    else if (g.statusAtual === StatusItem.NAO_ATENDE || g.statusAtual === StatusItem.INCONCLUSIVO)
+      totalNaoAtendidos += count;
   }
 
   const percentualGeral =
@@ -126,7 +126,9 @@ export async function getIndicadoresPorModulo(contratoId?: string) {
     const total = m.itens.length;
     const atendidos = m.itens.filter((i) => i.statusAtual === STATUS_ATENDIDO).length;
     const parciais = m.itens.filter((i) => i.statusAtual === STATUS_PARCIAL).length;
-    const naoAtendidos = m.itens.filter((i) => STATUS_NAO_ATENDE.includes(i.statusAtual)).length;
+    const naoAtendidos = m.itens.filter(
+      (i) => i.statusAtual === StatusItem.NAO_ATENDE || i.statusAtual === StatusItem.INCONCLUSIVO
+    ).length;
     const percentual = total > 0 ? (atendidos / total) * 100 : 0;
     return {
       id: m.id,
