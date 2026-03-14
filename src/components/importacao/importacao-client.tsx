@@ -27,6 +27,8 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
     itensAtualizados: number;
     avaliacoesCriadas: number;
     linhasIgnoradas: number;
+    linhasLidas?: number;
+    abasProcessadas?: number;
     erros: string[];
   } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -134,6 +136,9 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
           <div className="rounded-lg border p-4 space-y-2">
             <p className="font-medium">Resumo da importação</p>
             <ul className="text-sm text-muted-foreground">
+              {result.linhasLidas != null && (
+                <li>Linhas lidas da planilha: {result.linhasLidas} {result.abasProcessadas != null && result.abasProcessadas > 1 ? `(${result.abasProcessadas} abas)` : ""}</li>
+              )}
               <li>Itens criados: {result.itensCriados}</li>
               <li>Itens atualizados: {result.itensAtualizados}</li>
               <li>Avaliações criadas: {result.avaliacoesCriadas}</li>

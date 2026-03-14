@@ -28,6 +28,8 @@ export interface ImportResult {
   itensAtualizados: number;
   avaliacoesCriadas: number;
   linhasIgnoradas: number;
+  linhasLidas: number;
+  abasProcessadas: number;
   erros: string[];
 }
 
@@ -41,27 +43,70 @@ export async function importarPlanilhaXLSX(
     itensAtualizados: 0,
     avaliacoesCriadas: 0,
     linhasIgnoradas: 0,
+    linhasLidas: 0,
+    abasProcessadas: 0,
     erros: [],
   };
 
-  const workbook = XLSX.read(buffer, { type: "buffer" });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) {
+  const workbook = XLSX.read(buffer, { type: "buffer", cellStyles: false });
+  const sheetNames = workbook.SheetNames || [];
+  if (sheetNames.length === 0) {
     result.erros.push("Planilha vazia");
     return result;
   }
 
-  const rows = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-  }) as unknown[][];
+  let header: string[] = [];
+  const allDataRows: unknown[][] = [];
+
+  function getSheetRows(sheet: XLSX.WorkSheet): unknown[][] {
+    const keys = Object.keys(sheet).filter((k) => /^[A-Z]+\d+$/.test(k));
+    const ref = (sheet as { "!ref"?: string })["!ref"];
+    if (ref && keys.length > 0) {
+      const maxRowFromCells = Math.max(
+        ...keys.map((k) => parseInt(k.replace(/^[A-Z]+/, ""), 10))
+      );
+      const range = XLSX.utils.decode_range(ref);
+      if (maxRowFromCells > range.e.r + 1 && maxRowFromCells <= 50000) {
+        range.e.r = maxRowFromCells - 1;
+        (sheet as { "!ref"?: string })["!ref"] = XLSX.utils.encode_range(range);
+      }
+    }
+    return XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+    }) as unknown[][];
+  }
+
+  for (let s = 0; s < sheetNames.length; s++) {
+    const sheet = workbook.Sheets[sheetNames[s]];
+    if (!sheet) continue;
+    const sheetRows = getSheetRows(sheet);
+    if (sheetRows.length === 0) continue;
+    if (s === 0) {
+      header = (sheetRows[0] as string[]).map((h) => String(h ?? "").trim());
+      for (let r = 1; r < sheetRows.length; r++) {
+        allDataRows.push(sheetRows[r] as unknown[]);
+      }
+    } else {
+      const firstRow = (sheetRows[0] as unknown[]).map((c) => String(c ?? "").trim());
+      const looksLikeHeader = firstRow.some((c) => c.length > 0 && c.length < 50 && !/^\d+$/.test(c));
+      const start = looksLikeHeader ? 1 : 0;
+      for (let r = start; r < sheetRows.length; r++) {
+        allDataRows.push(sheetRows[r] as unknown[]);
+      }
+    }
+  }
+
+  result.linhasLidas = allDataRows.length;
+  result.abasProcessadas = sheetNames.length;
+
+  const rows = [header, ...allDataRows];
 
   if (rows.length < 2) {
     result.erros.push("Planilha sem dados (apenas cabeçalho ou vazia)");
     return result;
   }
-
-  const header = rows[0] as string[];
   const colIndex: Record<string, number> = {};
   const headerNorm: { n: string; i: number }[] = [];
   header.forEach((h, i) => {
