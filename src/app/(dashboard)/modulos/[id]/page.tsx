@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
+import { ModuloItensStatus } from "@/components/modulos/modulo-itens-status";
 
 export default async function ModuloDetailPage({
   params,
@@ -98,44 +99,24 @@ export default async function ModuloDetailPage({
       <Card>
         <CardHeader>
           <CardTitle>Itens ({modulo.itens.length})</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Altere o status de cada item (Cumprido, Não cumprido, Inconclusivo, etc.) no dropdown.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
-          {modulo.itens.length === 0 ? (
-            <p className="p-4 text-muted-foreground">Nenhum item neste módulo.</p>
-          ) : (
-            <ul className="divide-y max-h-96 overflow-y-auto">
-              {modulo.itens.slice(0, 50).map((item) => (
-                <li key={item.id} className="flex items-center justify-between p-3">
-                  <div>
-                    <Link
-                      href={`/itens/${item.id}`}
-                      className="font-medium hover:underline text-primary"
-                    >
-                      {item.numeroItem}. {item.descricao.slice(0, 60)}
-                      {item.descricao.length > 60 ? "…" : ""}
-                    </Link>
-                  </div>
-                  <Badge
-                    variant={
-                      item.statusAtual === "NAO_ATENDE" || item.statusAtual === "PARCIAL"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
-                    {item.statusAtual}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-          {modulo.itens.length > 50 && (
-            <p className="p-2 text-center text-sm text-muted-foreground">
-              Exibindo 50 de {modulo.itens.length}.{" "}
-              <Link href={`/itens?moduloId=${id}`} className="underline">
-                Ver todos
-              </Link>
-            </p>
-          )}
+          <ModuloItensStatus
+            itens={modulo.itens.map((i) => ({
+              id: i.id,
+              numeroItem: i.numeroItem,
+              descricao: i.descricao,
+              statusAtual: i.statusAtual,
+            }))}
+          />
+          <p className="p-2 text-center text-sm text-muted-foreground border-t">
+            <Link href={`/itens?moduloId=${id}`} className="underline">
+              Ver todos os itens na listagem completa
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

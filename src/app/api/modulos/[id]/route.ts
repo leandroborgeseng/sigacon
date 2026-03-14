@@ -73,3 +73,33 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+
+  const { id } = await params;
+  const existing = await prisma.modulo.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ message: "Módulo não encontrado" }, { status: 404 });
+
+  try {
+    await prisma.modulo.delete({ where: { id } });
+    await registerAudit({
+      entidade: "Modulo",
+      entidadeId: id,
+      acao: "EXCLUSAO",
+      valorAnterior: existing,
+      usuarioId: session.id,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Delete modulo error:", e);
+    return NextResponse.json(
+      { message: "Erro ao excluir módulo (pode haver itens vinculados)" },
+      { status: 500 }
+    );
+  }
+}

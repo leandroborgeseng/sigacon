@@ -37,15 +37,15 @@ import { cn } from "@/lib/utils";
 type ItemRow = {
   id: string;
   numeroItem: number;
-  descricao: string;
-  statusAtual: StatusItem;
-  criticidade: Criticidade;
-  pesoPercentual: string | null;
-  considerarNaMedicao: boolean;
-  atualizadoEm: string;
-  modulo: { nome: string };
-  contrato: { nome: string };
-  pendenciasAbertas: number;
+  descricao?: string | null;
+  statusAtual?: StatusItem;
+  criticidade?: Criticidade;
+  pesoPercentual?: string | null;
+  considerarNaMedicao?: boolean;
+  atualizadoEm?: string | null;
+  modulo?: { nome: string } | null;
+  contrato?: { nome: string } | null;
+  pendenciasAbertas?: number;
 };
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "warning"> = {
@@ -77,8 +77,10 @@ export function ItensTable() {
   useEffect(() => {
     fetch("/api/contratos")
       .then((r) => r.json())
-      .then(setContratos)
-      .catch(() => {});
+      .then((data: unknown) => {
+        setContratos(Array.isArray(data) ? data as { id: string; nome: string }[] : []);
+      })
+      .catch(() => setContratos([]));
   }, []);
 
   useEffect(() => {
@@ -88,9 +90,10 @@ export function ItensTable() {
     }
     fetch(`/api/modulos?contratoId=${contratoId}`)
       .then((r) => r.json())
-      .then((m: { id: string; nome: string; contratoId: string }[]) =>
-        setModulos(m)
-      )
+      .then((data: unknown) => {
+        const arr = Array.isArray(data) ? (data as { id: string; nome: string; contratoId: string }[]) : [];
+        setModulos(arr);
+      })
       .catch(() => setModulos([]));
   }, [contratoId]);
 
@@ -105,11 +108,12 @@ export function ItensTable() {
     if (search.trim()) params.set("search", search.trim());
     fetch(`/api/itens?${params}`)
       .then((r) => r.json())
-      .then((d: { itens: ItemRow[]; total: number; totalPages: number }) => {
+      .then((d: unknown) => {
+        const obj = d as { itens?: ItemRow[]; total?: number; totalPages?: number };
         setData({
-          itens: d.itens,
-          total: d.total ?? 0,
-          totalPages: d.totalPages ?? 1,
+          itens: Array.isArray(obj?.itens) ? obj.itens : [],
+          total: typeof obj?.total === "number" ? obj.total : 0,
+          totalPages: typeof obj?.totalPages === "number" ? obj.totalPages : 1,
         });
       })
       .catch(() => setData({ itens: [], total: 0, totalPages: 0 }))
@@ -120,7 +124,7 @@ export function ItensTable() {
     {
       accessorKey: "modulo.nome",
       header: "Módulo",
-      cell: ({ row }) => row.original.modulo.nome,
+      cell: ({ row }) => row.original.modulo?.nome ?? "—",
     },
     {
       accessorKey: "numeroItem",
@@ -130,18 +134,21 @@ export function ItensTable() {
     {
       accessorKey: "descricao",
       header: "Descrição",
-      cell: ({ row }) => (
-        <span className="max-w-xs truncate block" title={row.original.descricao}>
-          {row.original.descricao}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const desc = row.original.descricao ?? "";
+        return (
+          <span className="max-w-xs truncate block" title={desc}>
+            {desc}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "statusAtual",
       header: "Status",
       cell: ({ row }) => {
-        const s = row.original.statusAtual;
-        const hasPendencia = row.original.pendenciasAbertas > 0;
+        const s = row.original.statusAtual ?? "INCONCLUSIVO";
+        const hasPendencia = (row.original.pendenciasAbertas ?? 0) > 0;
         return (
           <Badge
             variant={statusVariant[s] ?? "secondary"}
@@ -160,19 +167,19 @@ export function ItensTable() {
       accessorKey: "criticidade",
       header: "Criticidade",
       cell: ({ row }) => (
-        <Badge variant="outline">{row.original.criticidade}</Badge>
+        <Badge variant="outline">{row.original.criticidade ?? "MEDIA"}</Badge>
       ),
     },
     {
       accessorKey: "considerarNaMedicao",
       header: "Na medição",
       cell: ({ row }) =>
-        row.original.considerarNaMedicao ? "Sim" : "Não",
+        row.original.considerarNaMedicao === true ? "Sim" : "Não",
     },
     {
       accessorKey: "atualizadoEm",
       header: "Atualizado",
-      cell: ({ row }) => formatDate(row.original.atualizadoEm),
+      cell: ({ row }) => formatDate(row.original.atualizadoEm ?? null),
     },
     {
       id: "acoes",
@@ -186,7 +193,7 @@ export function ItensTable() {
   ];
 
   const table = useReactTable({
-    data: data.itens,
+    data: data?.itens ?? [],
     columns,
     state: { sorting },
     onSortingChange: setSorting,
