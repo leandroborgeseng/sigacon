@@ -63,25 +63,51 @@ export async function importarPlanilhaXLSX(
 
   const header = rows[0] as string[];
   const colIndex: Record<string, number> = {};
+  const headerNorm: { n: string; i: number }[] = [];
   header.forEach((h, i) => {
     const key = String(h ?? "").trim().toLowerCase();
     colIndex[key] = i;
+    const n = key
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, " ");
+    headerNorm.push({ n, i });
   });
 
-  const colId = colIndex["id"] ?? -1;
-  const colItem = colIndex["item"] ?? colIndex["numeroitem"] ?? -1;
-  const colDesc = colIndex["descrição"] ?? colIndex["descricao"] ?? -1;
-  const colMod = colIndex["módulo"] ?? colIndex["modulo"] ?? -1;
-  const colLote = colIndex["lote"] ?? -1;
-  const colObs = colIndex["observação"] ?? colIndex["observacao"] ?? -1;
-  const colConforme =
-    colIndex["conforme contrato eddydata"] ??
-    colIndex["conforme contrato eddy data"] ??
-    colIndex["conforme eddydata"] ??
-    -1;
-  const colRequisito = colIndex["requisito"] ?? -1;
-  const colAtende = colIndex["atende?"] ?? colIndex["atende"] ?? -1;
-  const colCab = colIndex["cabeçalho"] ?? colIndex["cabecalho"] ?? -1;
+  function findCol(exactKeys: string[], ...substrings: string[]): number {
+    for (const k of exactKeys) {
+      if (colIndex[k] !== undefined) return colIndex[k];
+    }
+    for (const sub of substrings) {
+      const s = sub.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+      for (const { n, i } of headerNorm) {
+        if (n.includes(s) || s.includes(n)) return i;
+      }
+    }
+    return -1;
+  }
+
+  let colId = findCol(["id"], "id");
+  let colItem = findCol(["item", "numeroitem", "numero item"], "item", "numero");
+  let colDesc = findCol(["descrição", "descricao", "description"], "descricao", "descrição", "description");
+  const colMod = findCol(["módulo", "modulo"], "modulo", "módulo");
+  const colLote = colIndex["lote"] ?? findCol(["lote"], "lote");
+  let colObs = findCol(["observação", "observacao", "observation"], "observacao", "observação", "observation");
+  const colConforme = findCol(
+    ["conforme contrato eddydata", "conforme contrato eddy data", "conforme eddydata"],
+    "conforme",
+    "eddydata"
+  );
+  const colRequisito = colIndex["requisito"] ?? findCol(["requisito"], "requisito");
+  const colAtende = findCol(["atende?", "atende"], "atende");
+  const colCab = findCol(["cabeçalho", "cabecalho"], "cabeçalho");
+
+  if (colDesc < 0 && header.length >= 3) {
+    colDesc = 2;
+    if (colItem < 0) colItem = 1;
+    if (colId < 0) colId = 0;
+    if (colObs < 0 && header.length > 12) colObs = 12;
+  }
 
   const DEFAULT_MODULO = "Requisitos do Projeto";
 
@@ -171,6 +197,12 @@ export async function importarPlanilhaXLSX(
       cabecalhoLogico: cabVal || statusAtual === StatusItem.CABECALHO,
     };
     logicalRows.push(current);
+  }
+
+  if (logicalRows.length === 0 && rows.length > 1) {
+    result.erros.push(
+      "Nenhuma linha com descrição encontrada. Use colunas ID ou Item, Descrição (coluna com texto). Cabeçalho na primeira linha."
+    );
   }
 
   const getModulo = (nome: string) => {
