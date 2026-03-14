@@ -5,12 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(value: number | string): string {
-  const num = typeof value === "string" ? parseFloat(value) : value;
+export function formatCurrency(value: number | string | unknown): string {
+  const num =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? parseFloat(value)
+        : Number(value);
+  const safe = Number.isNaN(num) ? 0 : num;
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-  }).format(num);
+  }).format(safe);
 }
 
 export function formatPercent(value: number | string): string {
