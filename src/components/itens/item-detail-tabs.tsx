@@ -76,16 +76,24 @@ type HistoricoEntry = {
 };
 
 export function ItemDetailTabs({
-  item,
-  historico,
+  item: itemProp,
+  historico = [],
 }: {
   item: Item;
-  historico: HistoricoEntry[];
+  historico?: HistoricoEntry[];
 }) {
   const router = useRouter();
-  const [status, setStatus] = useState(item.statusAtual);
-  const [observacao, setObservacao] = useState(item.observacaoAtual ?? "");
+  const item = itemProp ?? ({} as Item);
+  const safeHistorico = Array.isArray(historico) ? historico : [];
+  const [status, setStatus] = useState(item?.statusAtual ?? "INCONCLUSIVO");
+  const [observacao, setObservacao] = useState(item?.observacaoAtual ?? "");
   const [saving, setSaving] = useState(false);
+
+  if (!item?.id) {
+    return (
+      <div className="text-muted-foreground p-4">Item não encontrado.</div>
+    );
+  }
 
   async function handleUpdateStatus() {
     setSaving(true);
@@ -111,9 +119,9 @@ export function ItemDetailTabs({
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            Item {item.numeroItem} – {item.modulo.nome}
+            Item {item.numeroItem} – {item.modulo?.nome ?? "—"}
           </h1>
-          <p className="text-muted-foreground">{item.contrato.nome}</p>
+          <p className="text-muted-foreground">{item.contrato?.nome ?? "—"}</p>
         </div>
         <Badge className={cn(statusVariant && "bg-destructive/10 text-destructive")}>
           {item.statusAtual}
@@ -195,14 +203,14 @@ export function ItemDetailTabs({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {item.avaliacoes.length === 0 ? (
+                  {(item.avaliacoes ?? []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                         Nenhuma avaliação registrada.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    item.avaliacoes.map((a) => (
+                    (item.avaliacoes ?? []).map((a) => (
                       <TableRow key={a.id}>
                         <TableCell>{formatDateTime(a.dataAvaliacao)}</TableCell>
                         <TableCell>
@@ -231,11 +239,11 @@ export function ItemDetailTabs({
               <CardTitle>Pendências</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {item.pendencias.length === 0 ? (
+              {(item.pendencias ?? []).length === 0 ? (
                 <p className="p-4 text-muted-foreground">Nenhuma pendência.</p>
               ) : (
                 <ul className="divide-y">
-                  {item.pendencias.map((p) => (
+                  (item.pendencias ?? []).map((p) => (
                     <li key={p.id} className="p-4">
                       <p className="font-medium">{p.descricao}</p>
                       <p className="text-sm text-muted-foreground">
@@ -256,11 +264,11 @@ export function ItemDetailTabs({
               <CardTitle>Evidências / Anexos</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {item.anexos.length === 0 ? (
+              {(item.anexos ?? []).length === 0 ? (
                 <p className="p-4 text-muted-foreground">Nenhum anexo.</p>
               ) : (
                 <ul className="divide-y">
-                  {item.anexos.map((a) => (
+                  (item.anexos ?? []).map((a) => (
                     <li key={a.id} className="flex items-center justify-between p-4">
                       <span>{a.nomeOriginal}</span>
                       <Badge variant="outline">{a.tipoAnexo}</Badge>
@@ -281,11 +289,11 @@ export function ItemDetailTabs({
               <CardTitle>Linha do tempo – Auditoria</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {historico.length === 0 ? (
+              {safeHistorico.length === 0 ? (
                 <p className="p-4 text-muted-foreground">Nenhum registro de auditoria.</p>
               ) : (
                 <ul className="divide-y">
-                  {historico.map((h) => (
+                  {safeHistorico.map((h) => (
                     <li key={h.id} className="p-4">
                       <p className="font-medium">{h.acao}</p>
                       <p className="text-sm text-muted-foreground">

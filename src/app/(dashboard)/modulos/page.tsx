@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Suspense } from "react";
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -61,9 +60,7 @@ export default async function ModulosPage({ searchParams }: PageProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Suspense fallback={<span className="text-muted-foreground text-sm">Carregando filtro…</span>}>
-            <ModuloFilterSelect contratos={contratos} />
-          </Suspense>
+          <ModuloFilterSelect contratos={contratos} contratoId={contratoId} />
           <ModuloCreateDialog contratos={contratos} />
         </div>
       </div>

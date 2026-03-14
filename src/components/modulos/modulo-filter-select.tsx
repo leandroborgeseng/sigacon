@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -12,26 +12,26 @@ import { Label } from "@/components/ui/label";
 
 type Contrato = { id: string; nome: string };
 
-export function ModuloFilterSelect({ contratos = [] }: { contratos?: Contrato[] }) {
+export function ModuloFilterSelect({
+  contratos = [],
+  contratoId = "",
+}: {
+  contratos?: Contrato[];
+  contratoId?: string;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const contratoId = searchParams.get("contratoId") ?? "";
   const list = Array.isArray(contratos) ? contratos : [];
+  const value = contratoId && list.some((c) => c.id === contratoId) ? contratoId : "todos";
 
   function onValueChange(value: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set("contratoId", value);
-    } else {
-      params.delete("contratoId");
-    }
-    router.push(`/modulos${params.toString() ? `?${params.toString()}` : ""}`);
+    const next = value === "todos" ? "" : value;
+    router.push(next ? `/modulos?contratoId=${encodeURIComponent(next)}` : "/modulos");
   }
 
   return (
     <div className="flex items-center gap-2">
       <Label className="text-sm text-muted-foreground whitespace-nowrap">Filtrar por contrato</Label>
-      <Select value={contratoId || "todos"} onValueChange={(v) => onValueChange(v === "todos" ? "" : v)}>
+      <Select value={value} onValueChange={onValueChange}>
         <SelectTrigger className="w-[220px]">
           <SelectValue placeholder="Todos os contratos" />
         </SelectTrigger>
