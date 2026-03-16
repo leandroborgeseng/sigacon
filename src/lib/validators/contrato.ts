@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { StatusContrato, FormaCalculoMedicao } from "@prisma/client";
+import { StatusContrato, FormaCalculoMedicao, LeiLicitacao } from "@prisma/client";
 
 export const contratoSchema = z.object({
   nome: z.string().min(1, "Nome obrigatório"),
@@ -14,6 +14,19 @@ export const contratoSchema = z.object({
   gestorContrato: z.string().optional(),
   observacoesGerais: z.string().optional(),
   formaCalculoMedicao: z.nativeEnum(FormaCalculoMedicao).default(FormaCalculoMedicao.PESO_IGUAL_POR_ITEM),
+  leiLicitacao: z.nativeEnum(LeiLicitacao).default(LeiLicitacao.LEI_8666),
+  dataAssinatura: z.coerce.date().optional().nullable(),
+  numeroRenovacoes: z.coerce.number().int().min(0).default(0),
+});
+
+export const reajusteContratoSchema = z.object({
+  dataReajuste: z.coerce.date(),
+  valorAnterior: z.coerce.number().min(0),
+  valorNovo: z.coerce.number().min(0),
+  percentualAplicado: z.coerce.number(),
+  indiceReferencia: z.string().max(50).optional().nullable(),
+  observacao: z.string().optional().nullable(),
 });
 
 export type ContratoInput = z.infer<typeof contratoSchema>;
+export type ReajusteContratoInput = z.infer<typeof reajusteContratoSchema>;

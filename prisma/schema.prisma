@@ -89,6 +89,12 @@ enum StatusFechamentoMedicao {
   HOMOLOGADA
 }
 
+// Regime da licitação: Lei 8.666/93 (antiga) ou Lei 14.133/2021 (nova)
+enum LeiLicitacao {
+  LEI_8666
+  LEI_14133
+}
+
 enum TipoAnexo {
   EVIDENCIA_CUMPRIMENTO
   EVIDENCIA_DESCUMPRIMENTO
@@ -127,26 +133,46 @@ model Contrato {
   nome                 String
   numeroContrato       String              @map("numero_contrato")
   fornecedor           String
-  objeto               String?
+  objeto               String?             @db.Text
   vigenciaInicio       DateTime            @map("vigencia_inicio")
   vigenciaFim          DateTime            @map("vigencia_fim")
   valorAnual           Decimal             @map("valor_anual") @db.Decimal(18, 2)
   valorMensalReferencia Decimal?            @map("valor_mensal_referencia") @db.Decimal(18, 2)
   status               StatusContrato      @default(ATIVO)
   gestorContrato       String?             @map("gestor_contrato")
-  observacoesGerais   String?             @map("observacoes_gerais") @db.Text
+  observacoesGerais    String?             @map("observacoes_gerais") @db.Text
   totalItensVerificacao Int?               @map("total_itens_verificacao")
   formaCalculoMedicao  FormaCalculoMedicao @default(PESO_IGUAL_POR_ITEM) @map("forma_calculo_medicao")
+  leiLicitacao         LeiLicitacao        @default(LEI_8666) @map("lei_licitacao")
+  dataAssinatura       DateTime?           @map("data_assinatura")
+  numeroRenovacoes     Int                 @default(0) @map("numero_renovacoes")
   criadoEm             DateTime            @default(now()) @map("criado_em")
-  atualizadoEm        DateTime            @updatedAt @map("atualizado_em")
+  atualizadoEm         DateTime            @updatedAt @map("atualizado_em")
 
   modulos        Modulo[]
   itens          ItemContratual[]
   medicoes       MedicaoMensal[]
   atas           AtaReuniao[]
   anexos         Anexo[]
+  reajustes      ReajusteContrato[]
 
   @@map("contratos")
+}
+
+model ReajusteContrato {
+  id                String   @id @default(cuid())
+  contratoId        String   @map("contrato_id")
+  dataReajuste      DateTime @map("data_reajuste")
+  valorAnterior     Decimal  @map("valor_anterior") @db.Decimal(18, 2)
+  valorNovo         Decimal  @map("valor_novo") @db.Decimal(18, 2)
+  percentualAplicado Decimal @map("percentual_aplicado") @db.Decimal(8, 4)
+  indiceReferencia  String?  @map("indice_referencia") @db.VarChar(50)
+  observacao        String?  @db.Text
+  criadoEm          DateTime @default(now()) @map("criado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@map("reajustes_contrato")
 }
 
 model Modulo {

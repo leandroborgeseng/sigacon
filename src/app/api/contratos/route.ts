@@ -48,6 +48,9 @@ export async function POST(request: Request) {
         gestorContrato: parsed.data.gestorContrato ?? null,
         observacoesGerais: parsed.data.observacoesGerais ?? null,
         formaCalculoMedicao: parsed.data.formaCalculoMedicao,
+        leiLicitacao: parsed.data.leiLicitacao,
+        dataAssinatura: parsed.data.dataAssinatura ?? null,
+        numeroRenovacoes: parsed.data.numeroRenovacoes ?? 0,
       },
     });
 

@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { ContratoEditDialog } from "@/components/contratos/contrato-edit-dialog";
+import { ReajusteAddDialog } from "@/components/contratos/reajuste-add-dialog";
+import { formatCurrency, formatDate, formatPercent } from "@/lib/utils";
+import {
+  labelLeiLicitacao,
+  podeRenovar,
+  limiteRenovacoes,
+  reajusteAcumuladoUltimos12Meses,
+} from "@/lib/licitacao";
 
 export default async function ContratoDetailPage({
   params,
@@ -23,6 +31,7 @@ export default async function ContratoDetailPage({
       modulos: true,
       medicoes: { orderBy: [{ ano: "desc" }, { mes: "desc" }], take: 12 },
       atas: { orderBy: { dataReuniao: "desc" }, take: 5 },
+      reajustes: { orderBy: { dataReajuste: "desc" } },
       _count: { select: { itens: true } },
     },
   });
@@ -37,16 +46,19 @@ export default async function ContratoDetailPage({
           { label: contrato.nome },
         ]}
       />
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{contrato.nome}</h1>
           <p className="text-muted-foreground">
             {contrato.numeroContrato} • {contrato.fornecedor}
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <Link href={`/medicoes?contratoId=${id}`}>Medição mensal</Link>
-        </Button>
+        <div className="flex gap-2">
+          <ContratoEditDialog contrato={contrato} />
+          <Button variant="outline" asChild>
+            <Link href={`/medicoes?contratoId=${id}`}>Medição mensal</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -87,6 +99,36 @@ export default async function ContratoDetailPage({
           <p>
             <span className="font-medium">Total de itens:</span>{" "}
             {contrato._count.itens}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Regime e renovação</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p>
+            <span className="font-medium">Lei de licitação:</span>{" "}
+            {labelLeiLicitacao(contrato.leiLicitacao)}
+          </p>
+          <p>
+            <span className="font-medium">Data de assinatura:</span>{" "}
+            {contrato.dataAssinatura
+              ? formatDate(contrato.dataAssinatura)
+              : "—"}
+          </p>
+          <p>
+            <span className="font-medium">Renovações já realizadas:</span>{" "}
+            {contrato.numeroRenovacoes} (máx. {limiteRenovacoes(contrato.leiLicitacao)} para esta lei)
+          </p>
+          <p>
+            <span className="font-medium">Pode renovar?</span>{" "}
+            {podeRenovar(contrato.leiLicitacao, contrato.numeroRenovacoes) ? (
+              <Badge variant="default">Sim</Badge>
+            ) : (
+              <Badge variant="destructive">Necessário nova licitação</Badge>
+            )}
           </p>
         </CardContent>
       </Card>
@@ -154,6 +196,62 @@ export default async function ContratoDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {(() => {
+        const acumulado12m = reajusteAcumuladoUltimos12Meses(contrato.reajustes);
+        const valorAtualReajuste =
+          contrato.reajustes.length > 0
+            ? Number(contrato.reajustes[0].valorNovo)
+            : Number(contrato.valorAnual);
+        return (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle>Histórico de reajustes</CardTitle>
+              <ReajusteAddDialog
+                contratoId={id}
+                valorAtual={valorAtualReajuste}
+              />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Reajuste acumulado nos últimos 12 meses:{" "}
+                <strong>{formatPercent(acumulado12m)}</strong>
+                {acumulado12m > 25 && (
+                  <Badge variant="destructive" className="ml-2">
+                    Atenção: acima do limite de 25% ao ano
+                  </Badge>
+                )}
+              </p>
+              {contrato.reajustes.length === 0 ? (
+                <p className="text-muted-foreground">
+                  Nenhum reajuste registrado.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {contrato.reajustes.map((r) => (
+                    <li
+                      key={r.id}
+                      className="flex items-center justify-between rounded border p-3"
+                    >
+                      <span>{formatDate(r.dataReajuste)}</span>
+                      <span>
+                        {formatCurrency(r.valorAnterior)} →{" "}
+                        {formatCurrency(r.valorNovo)}
+                      </span>
+                      <span>{formatPercent(Number(r.percentualAplicado))}</span>
+                      {r.indiceReferencia && (
+                        <span className="text-muted-foreground text-sm">
+                          {r.indiceReferencia}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Card>
         <CardHeader>

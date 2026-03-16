@@ -20,6 +20,7 @@ export async function GET(
       _count: { select: { itens: true } },
       medicoes: { orderBy: [{ ano: "desc" }, { mes: "desc" }], take: 12 },
       atas: { orderBy: { dataReuniao: "desc" }, take: 10 },
+      reajustes: { orderBy: { dataReajuste: "desc" } },
     },
   });
   if (!contrato) return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
@@ -55,11 +56,21 @@ export async function PATCH(
     const contrato = await prisma.contrato.update({
       where: { id },
       data: {
-        ...parsed.data,
-        valorAnual: parsed.data.valorAnual ?? undefined,
+        ...(parsed.data.nome != null && { nome: parsed.data.nome }),
+        ...(parsed.data.numeroContrato != null && { numeroContrato: parsed.data.numeroContrato }),
+        ...(parsed.data.fornecedor != null && { fornecedor: parsed.data.fornecedor }),
+        ...(parsed.data.objeto !== undefined && { objeto: parsed.data.objeto }),
+        ...(parsed.data.vigenciaInicio != null && { vigenciaInicio: parsed.data.vigenciaInicio }),
+        ...(parsed.data.vigenciaFim != null && { vigenciaFim: parsed.data.vigenciaFim }),
+        ...(parsed.data.valorAnual != null && { valorAnual: parsed.data.valorAnual }),
         valorMensalReferencia: valorMensal,
-        vigenciaInicio: parsed.data.vigenciaInicio ?? undefined,
-        vigenciaFim: parsed.data.vigenciaFim ?? undefined,
+        ...(parsed.data.status != null && { status: parsed.data.status }),
+        ...(parsed.data.gestorContrato !== undefined && { gestorContrato: parsed.data.gestorContrato }),
+        ...(parsed.data.observacoesGerais !== undefined && { observacoesGerais: parsed.data.observacoesGerais }),
+        ...(parsed.data.formaCalculoMedicao != null && { formaCalculoMedicao: parsed.data.formaCalculoMedicao }),
+        ...(parsed.data.leiLicitacao != null && { leiLicitacao: parsed.data.leiLicitacao }),
+        ...(parsed.data.dataAssinatura !== undefined && { dataAssinatura: parsed.data.dataAssinatura }),
+        ...(parsed.data.numeroRenovacoes !== undefined && { numeroRenovacoes: parsed.data.numeroRenovacoes }),
       },
     });
 

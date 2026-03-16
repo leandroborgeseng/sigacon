@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { contratoSchema, type ContratoInput } from "@/lib/validators";
-import { StatusContrato } from "@prisma/client";
+import { StatusContrato, LeiLicitacao } from "@prisma/client";
 import { Plus } from "lucide-react";
 
 export function ContratoCreateDialog() {
@@ -42,6 +42,9 @@ export function ContratoCreateDialog() {
       vigenciaFim: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       valorAnual: 0,
       status: StatusContrato.ATIVO,
+      leiLicitacao: LeiLicitacao.LEI_8666,
+      dataAssinatura: undefined,
+      numeroRenovacoes: 0,
     },
   });
 
@@ -164,6 +167,43 @@ export function ContratoCreateDialog() {
           <div className="space-y-2">
             <Label>Gestor do contrato (opcional)</Label>
             <Input {...form.register("gestorContrato")} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Lei de licitação</Label>
+              <Select
+                value={form.watch("leiLicitacao")}
+                onValueChange={(v) => form.setValue("leiLicitacao", v as LeiLicitacao)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={LeiLicitacao.LEI_8666}>Lei 8.666/93 (antiga)</SelectItem>
+                  <SelectItem value={LeiLicitacao.LEI_14133}>Lei 14.133/2021 (nova)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Data de assinatura (opcional)</Label>
+              <Input
+                type="date"
+                {...form.register("dataAssinatura", { setValueAs: (v) => (v ? new Date(v) : undefined) })}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Nº de renovações já realizadas</Label>
+            <Input
+              type="number"
+              min={0}
+              {...form.register("numeroRenovacoes", { valueAsNumber: true })}
+            />
+            {form.formState.errors.numeroRenovacoes && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.numeroRenovacoes.message}
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
