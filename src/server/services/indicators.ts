@@ -13,10 +13,20 @@ const STATUS_VALIDOS_MEDICAO = [
 const STATUS_ATENDIDO = StatusItem.ATENDE;
 const STATUS_PARCIAL = StatusItem.PARCIAL;
 
-export async function getDashboardIndicators() {
+const itemWhereBase = {
+  considerarNaMedicao: true,
+  cabecalhoLogico: false,
+} as const;
+
+export async function getDashboardIndicators(contratoId?: string) {
+  const contratoWhere = contratoId ? { id: contratoId, status: "ATIVO" as const } : { status: "ATIVO" as const };
+  const itemWhere = contratoId
+    ? { ...itemWhereBase, contratoId }
+    : itemWhereBase;
+
   const [contratos, itensAgg, pendenciasAbertas, medicoesAtual] = await Promise.all([
     prisma.contrato.findMany({
-      where: { status: "ATIVO" },
+      where: contratoWhere,
       select: {
         id: true,
         valorAnual: true,
@@ -26,17 +36,22 @@ export async function getDashboardIndicators() {
     }),
     prisma.itemContratual.groupBy({
       by: ["statusAtual"],
-      where: {
-        considerarNaMedicao: true,
-        cabecalhoLogico: false,
-      },
+      where: itemWhere,
       _count: true,
     }),
-    prisma.pendencia.count({ where: { status: StatusPendencia.ABERTA } }),
+    contratoId
+      ? prisma.pendencia.count({
+          where: {
+            status: StatusPendencia.ABERTA,
+            item: { contratoId },
+          },
+        })
+      : prisma.pendencia.count({ where: { status: StatusPendencia.ABERTA } }),
     prisma.medicaoMensal.findMany({
       where: {
         ano: new Date().getFullYear(),
         mes: new Date().getMonth() + 1,
+        ...(contratoId ? { contratoId } : {}),
       },
       include: { contrato: true },
     }),
@@ -76,7 +91,9 @@ export async function getDashboardIndicators() {
 
   return {
     totalContratos,
-    totalModulos: await prisma.modulo.count(),
+    totalModulos: await prisma.modulo.count({
+      where: contratoId ? { contratoId } : undefined,
+    }),
     totalItensValidos,
     totalAtendidos,
     totalParciais,

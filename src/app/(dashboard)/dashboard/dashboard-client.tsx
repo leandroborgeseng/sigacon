@@ -1,6 +1,15 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import {
   BarChart,
@@ -25,9 +34,13 @@ const STATUS_COLORS = {
 };
 
 export function DashboardClient({
+  contratos,
+  contratoId,
   indicators,
   porModulo,
 }: {
+  contratos: Array<{ id: string; nome: string }>;
+  contratoId: string | undefined;
   indicators: {
     totalContratos: number;
     totalModulos: number;
@@ -44,16 +57,50 @@ export function DashboardClient({
   } | null;
   porModulo: Array<{
     nome: string;
+    contratoNome?: string;
     totalItens: number;
     atendidos: number;
     percentualAtendimento: number;
     pendenciasAbertas: number;
   }>;
 }) {
+  const router = useRouter();
+
+  const handleContratoChange = (value: string) => {
+    if (value === "__todos__") {
+      router.push("/dashboard");
+    } else {
+      router.push(`/dashboard?contratoId=${encodeURIComponent(value)}`);
+    }
+  };
+
   if (!indicators) {
     return (
-      <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
-        Nenhum dado disponível. Cadastre contratos e itens para ver os indicadores.
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="min-w-[200px]">
+            <Label className="text-sm">Contrato</Label>
+            <Select
+              value={contratoId ?? "__todos__"}
+              onValueChange={handleContratoChange}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Todos os contratos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__todos__">Todos os contratos</SelectItem>
+                {contratos.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
+          Nenhum dado disponível. Cadastre contratos e itens para ver os indicadores.
+        </div>
       </div>
     );
   }
@@ -73,14 +120,41 @@ export function DashboardClient({
     },
   ].filter((d) => d.value > 0);
 
-  const barData = porModulo.slice(0, 10).map((m) => ({
-    name: m.nome.length > 15 ? m.nome.slice(0, 15) + "…" : m.nome,
-    percentual: Math.round(m.percentualAtendimento * 100) / 100,
-    pendencias: m.pendenciasAbertas,
-  }));
+  const barData = porModulo.slice(0, 10).map((m) => {
+    const label = m.contratoNome
+      ? `${m.nome} (${m.contratoNome})`
+      : m.nome;
+    return {
+      name: label.length > 20 ? label.slice(0, 20) + "…" : label,
+      percentual: Math.round(m.percentualAtendimento * 100) / 100,
+      pendencias: m.pendenciasAbertas,
+    };
+  });
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="min-w-[200px]">
+          <Label className="text-sm">Contrato</Label>
+          <Select
+            value={contratoId ?? "__todos__"}
+            onValueChange={handleContratoChange}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Todos os contratos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__todos__">Todos os contratos</SelectItem>
+              {contratos.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
