@@ -48,6 +48,8 @@ type ItemRow = {
   pendenciasAbertas?: number;
 };
 
+const FILTER_ALL = "__todos__";
+
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "warning"> = {
   ATENDE: "default",
   PARCIAL: "warning",
@@ -221,12 +223,19 @@ export function ItensTable() {
             }}
             className="max-w-xs"
           />
-          <Select value={contratoId} onValueChange={(v) => { setContratoId(v); setModuloId(""); setPage(1); }}>
+          <Select
+            value={contratoId || FILTER_ALL}
+            onValueChange={(v) => {
+              setContratoId(v === FILTER_ALL ? "" : v);
+              setModuloId("");
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Contrato" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos</SelectItem>
+              <SelectItem value={FILTER_ALL}>Todos</SelectItem>
               {contratos.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
                   {c.nome}
@@ -234,12 +243,18 @@ export function ItensTable() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={moduloId} onValueChange={(v) => { setModuloId(v); setPage(1); }}>
+          <Select
+            value={moduloId || FILTER_ALL}
+            onValueChange={(v) => {
+              setModuloId(v === FILTER_ALL ? "" : v);
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Módulo" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos</SelectItem>
+              <SelectItem value={FILTER_ALL}>Todos</SelectItem>
               {modulos.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   {m.nome}
@@ -247,12 +262,18 @@ export function ItensTable() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
+          <Select
+            value={status || FILTER_ALL}
+            onValueChange={(v) => {
+              setStatus(v === FILTER_ALL ? "" : v);
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos</SelectItem>
+              <SelectItem value={FILTER_ALL}>Todos</SelectItem>
               {Object.values(StatusItem).map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}

@@ -10,6 +10,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import {
   BarChart,
@@ -74,6 +76,45 @@ export function DashboardClient({
     }
   };
 
+  const limparFiltros = () => router.push("/dashboard");
+  const temFiltros = !!contratoId;
+  const contratoSelecionado = contratoId
+    ? contratos.find((c) => c.id === contratoId)?.nome ?? "—"
+    : null;
+
+  const filtrosAplicadosBlock = temFiltros && (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3">
+      <span className="text-sm font-medium text-muted-foreground">
+        Filtros aplicados:
+      </span>
+      {contratoSelecionado && (
+        <Badge
+          variant="secondary"
+          className="gap-1 pr-1 font-normal"
+        >
+          Contrato: {contratoSelecionado}
+          <button
+            type="button"
+            onClick={limparFiltros}
+            className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20"
+            aria-label="Remover filtro de contrato"
+          >
+            <span className="sr-only">Remover</span>
+            <span aria-hidden>×</span>
+          </button>
+        </Badge>
+      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-muted-foreground"
+        onClick={limparFiltros}
+      >
+        Limpar filtros
+      </Button>
+    </div>
+  );
+
   if (!indicators) {
     return (
       <div className="space-y-4">
@@ -98,6 +139,7 @@ export function DashboardClient({
             </Select>
           </div>
         </div>
+        {filtrosAplicadosBlock}
         <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
           Nenhum dado disponível. Cadastre contratos e itens para ver os indicadores.
         </div>
@@ -154,6 +196,8 @@ export function DashboardClient({
           </Select>
         </div>
       </div>
+
+      {filtrosAplicadosBlock}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
