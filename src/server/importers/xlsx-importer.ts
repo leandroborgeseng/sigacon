@@ -56,7 +56,7 @@ export function gerarTemplateItensXLSX(): Buffer {
     "Atende?",
     "Cabeçalho",
     "Requisito",
-    "Conforme Contrato EddyData",
+    "Conforme Contrato",
   ];
 
   const example = [

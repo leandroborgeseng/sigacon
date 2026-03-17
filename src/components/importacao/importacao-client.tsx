@@ -96,7 +96,7 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
         </div>
         <p className="text-xs text-muted-foreground mt-1">
           Colunas recomendadas: <strong>Item</strong>, <strong>Descrição</strong> (obrigatório), Observação, Módulo, Lote,
-          <strong> Atende?</strong> (Sim/Não, 1/0, etc.), Cabeçalho (Sim/Não), Requisito, Conforme Contrato EddyData.
+          <strong> Atende?</strong> (Sim/Não, 1/0, etc.), Cabeçalho (Sim/Não), Requisito, Conforme Contrato.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
