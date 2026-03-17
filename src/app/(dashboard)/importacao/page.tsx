@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { ImportacaoClient } from "@/components/importacao/importacao-client";
+import { ImportacaoContratosClient } from "@/components/importacao/importacao-contratos-client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function ImportacaoPage() {
   const session = await getSession();
@@ -19,10 +21,21 @@ export default async function ImportacaoPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Importação XLSX</h1>
         <p className="text-muted-foreground">
-          Importar itens e avaliações a partir de planilha Excel
+          Importação em massa com formato padrão
         </p>
       </div>
-      <ImportacaoClient contratos={contratos} />
+      <Tabs defaultValue="itens">
+        <TabsList>
+          <TabsTrigger value="itens">Itens e avaliações</TabsTrigger>
+          <TabsTrigger value="contratos">Contratos</TabsTrigger>
+        </TabsList>
+        <TabsContent value="itens">
+          <ImportacaoClient contratos={contratos} />
+        </TabsContent>
+        <TabsContent value="contratos">
+          <ImportacaoContratosClient />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
