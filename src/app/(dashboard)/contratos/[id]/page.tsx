@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { ContratoEditDialog } from "@/components/contratos/contrato-edit-dialog";
 import { ReajusteAddDialog } from "@/components/contratos/reajuste-add-dialog";
+import { ContratoDangerZone } from "@/components/contratos/contrato-danger-zone";
 import { formatCurrency, formatDate, formatPercent, formatDateTime } from "@/lib/utils";
 import {
   labelLeiLicitacao,
@@ -59,14 +60,34 @@ export default async function ContratoDetailPage({
           <p className="text-muted-foreground">
             {contrato.numeroContrato} • {contrato.fornecedor}
           </p>
+          {contrato.ativo === false && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Contrato inativo: somente consulta.
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
-          <ContratoEditDialog contrato={contrato} />
+          {contrato.ativo !== false && <ContratoEditDialog contrato={contrato} />}
           <Button variant="outline" asChild>
             <Link href={`/medicoes?contratoId=${id}`}>Medição mensal</Link>
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ações</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContratoDangerZone
+            contratoId={id}
+            contratoNome={contrato.nome}
+            ativo={contrato.ativo !== false}
+            canToggleAtivo={session.perfil === "ADMIN" || session.perfil === "GESTOR"}
+            canDelete={session.perfil === "ADMIN"}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

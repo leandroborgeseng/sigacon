@@ -41,6 +41,12 @@ export async function PATCH(
   const { id } = await params;
   const existing = await prisma.contrato.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
+  if (existing.ativo === false && session.perfil !== PerfilUsuario.ADMIN) {
+    return NextResponse.json(
+      { message: "Contrato inativo: somente administradores podem alterar" },
+      { status: 403 }
+    );
+  }
 
   try {
     const body = await request.json();
@@ -63,6 +69,7 @@ export async function PATCH(
         ...(parsed.data.nome != null && { nome: parsed.data.nome }),
         ...(parsed.data.numeroContrato != null && { numeroContrato: parsed.data.numeroContrato }),
         ...(parsed.data.fornecedor != null && { fornecedor: parsed.data.fornecedor }),
+        ...(typeof (parsed.data as { ativo?: unknown }).ativo === "boolean" && { ativo: (parsed.data as { ativo: boolean }).ativo }),
         ...(parsed.data.objeto !== undefined && { objeto: parsed.data.objeto }),
         ...(parsed.data.vigenciaInicio != null && { vigenciaInicio: parsed.data.vigenciaInicio }),
         ...(parsed.data.vigenciaFim != null && { vigenciaFim: parsed.data.vigenciaFim }),
@@ -95,4 +102,74 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+  if (session.perfil !== PerfilUsuario.ADMIN) {
+    return NextResponse.json({ message: "Somente administradores podem excluir contratos" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const contrato = await prisma.contrato.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: {
+          modulos: true,
+          itens: true,
+          medicoes: true,
+          atas: true,
+          anexos: true,
+          reajustes: true,
+        },
+      },
+    },
+  });
+  if (!contrato) return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
+
+  const body = await request.json().catch(() => ({} as Record<string, unknown>));
+  const confirmNome = typeof (body as { confirmNome?: unknown }).confirmNome === "string"
+    ? (body as { confirmNome: string }).confirmNome
+    : "";
+  if (confirmNome.trim() !== contrato.nome) {
+    return NextResponse.json(
+      { message: "Confirmação inválida. Digite exatamente o nome do contrato para excluir." },
+      { status: 400 }
+    );
+  }
+
+  const totalVinculos =
+    contrato._count.modulos +
+    contrato._count.itens +
+    contrato._count.medicoes +
+    contrato._count.atas +
+    contrato._count.anexos +
+    contrato._count.reajustes;
+
+  if (totalVinculos > 0) {
+    return NextResponse.json(
+      {
+        message:
+          "Não é possível excluir este contrato porque existem registros vinculados (módulos/itens/medições/atas/anexos/reajustes). Inative para manter somente consulta.",
+      },
+      { status: 400 }
+    );
+  }
+
+  await prisma.contrato.delete({ where: { id } });
+
+  await registerAudit({
+    entidade: "Contrato",
+    entidadeId: id,
+    acao: "EXCLUSAO",
+    valorAnterior: contrato,
+    usuarioId: session.id,
+  });
+
+  return NextResponse.json({ ok: true });
 }

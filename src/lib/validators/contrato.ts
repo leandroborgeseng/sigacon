@@ -5,6 +5,7 @@ export const contratoSchema = z.object({
   nome: z.string().min(1, "Nome obrigatório"),
   numeroContrato: z.string().min(1, "Número do contrato obrigatório"),
   fornecedor: z.string().min(1, "Fornecedor obrigatório"),
+  ativo: z.boolean().optional(),
   objeto: z.string().optional(),
   vigenciaInicio: z.coerce.date(),
   vigenciaFim: z.coerce.date(),

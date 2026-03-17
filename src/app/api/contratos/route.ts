@@ -39,6 +39,7 @@ export async function POST(request: Request) {
         nome: parsed.data.nome,
         numeroContrato: parsed.data.numeroContrato,
         fornecedor: parsed.data.fornecedor,
+        ativo: true,
         objeto: parsed.data.objeto ?? null,
         vigenciaInicio: parsed.data.vigenciaInicio,
         vigenciaFim: parsed.data.vigenciaFim,

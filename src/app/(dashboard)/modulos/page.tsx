@@ -18,6 +18,7 @@ import { ModuloCreateDialog } from "@/components/modulos/modulo-create-dialog";
 import { ModuloFilterSelect } from "@/components/modulos/modulo-filter-select";
 import { ModuloEditDialog } from "@/components/modulos/modulo-edit-dialog";
 import { ModuloDeleteButton } from "@/components/modulos/modulo-delete-button";
+import { ModulosAccordion } from "@/components/modulos/modulos-accordion";
 
 type PageProps = {
   searchParams?: Promise<{ contratoId?: string }>;
@@ -69,76 +70,14 @@ export default async function ModulosPage({ searchParams }: PageProps) {
           <CardTitle>Listagem</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Contrato</TableHead>
-                <TableHead>Itens</TableHead>
-                <TableHead>Implantado</TableHead>
-                <TableHead>Ativo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {modulos.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    Nenhum módulo cadastrado.
-                    {contratoId && " Tente outro filtro ou limpe o filtro por contrato."}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                modulos.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-medium">
-                      <Link
-                        href={`/modulos/${m.id}`}
-                        className="hover:underline text-primary"
-                      >
-                        {m.nome}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/contratos/${m.contrato.id}`}
-                        className="hover:underline text-muted-foreground"
-                      >
-                        {m.contrato.nome}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{m._count.itens}</TableCell>
-                    <TableCell>
-                      <Badge variant={m.implantado ? "default" : "secondary"}>
-                        {m.implantado ? "Sim" : "Não"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={m.ativo ? "default" : "secondary"}>
-                        {m.ativo ? "Ativo" : "Inativo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/modulos/${m.id}`}>Ver</Link>
-                      </Button>
-                      <ModuloEditDialog
-                        modulo={{
-                          id: m.id,
-                          nome: m.nome,
-                          descricao: m.descricao,
-                          implantado: m.implantado,
-                          ativo: m.ativo,
-                          contratoId: m.contrato.id,
-                        }}
-                      />
-                      <ModuloDeleteButton moduloId={m.id} moduloNome={m.nome} />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          {modulos.length === 0 ? (
+            <p className="p-4 text-muted-foreground">
+              Nenhum módulo cadastrado.
+              {contratoId && " Tente outro filtro ou limpe o filtro por contrato."}
+            </p>
+          ) : (
+            <ModulosAccordion modulos={JSON.parse(JSON.stringify(modulos))} />
+          )}
         </CardContent>
       </Card>
     </div>

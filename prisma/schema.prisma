@@ -159,6 +159,7 @@ model Contrato {
   nome                 String
   numeroContrato       String              @map("numero_contrato")
   fornecedor           String
+  ativo                Boolean             @default(true) @map("ativo")
   objeto               String?             @db.Text
   vigenciaInicio       DateTime            @map("vigencia_inicio")
   vigenciaFim          DateTime            @map("vigencia_fim")
