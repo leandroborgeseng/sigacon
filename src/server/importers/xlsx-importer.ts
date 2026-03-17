@@ -46,6 +46,38 @@ export interface ImportResult {
   erros: string[];
 }
 
+export function gerarTemplateItensXLSX(): Buffer {
+  const header = [
+    "Item",
+    "Descrição",
+    "Observação",
+    "Módulo",
+    "Lote",
+    "Atende?",
+    "Cabeçalho",
+    "Requisito",
+    "Conforme Contrato EddyData",
+  ];
+
+  const example = [
+    "1",
+    "Exemplo de requisito a ser atendido",
+    "Observação opcional sobre o item",
+    "Requisitos do Projeto",
+    "Lote 1",
+    "Sim",
+    "Não",
+    "",
+    "",
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet([header, example]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "ITENS");
+  const out = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  return out;
+}
+
 export async function importarPlanilhaXLSX(
   buffer: Buffer,
   contratoId: string,

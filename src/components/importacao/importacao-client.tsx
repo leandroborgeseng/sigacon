@@ -81,11 +81,22 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Enviar planilha</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Envie um arquivo .xlsx/.xls ou informe a URL da planilha. Colunas: ID ou Item, Descrição (obrigatório),
-          Observação; opcional: <strong>Atende?</strong> (Sim/Não, Atendido/Não atendido, 1/0) — define se o item foi
-          atendido e grava no banco; Módulo, Lote, Conforme Contrato EddyData, Cabeçalho. Cada linha vira um item.
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle>Enviar planilha de itens/avaliações</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Use o template padrão ou uma planilha com colunas equivalentes. Cada linha vira (ou atualiza) um item do contrato.
+            </p>
+          </div>
+          <Button variant="outline" asChild>
+            <a href="/api/importacao/itens/template">
+              Baixar template itens
+            </a>
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Colunas recomendadas: <strong>Item</strong>, <strong>Descrição</strong> (obrigatório), Observação, Módulo, Lote,
+          <strong> Atende?</strong> (Sim/Não, 1/0, etc.), Cabeçalho (Sim/Não), Requisito, Conforme Contrato EddyData.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
