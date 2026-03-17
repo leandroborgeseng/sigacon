@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { contratoSchema.partial(), type ContratoInput } from "@/lib/validators";
+import { contratoSchema, type ContratoInput } from "@/lib/validators";
 import { StatusContrato, LeiLicitacao } from "@prisma/client";
 import { Pencil } from "lucide-react";
 

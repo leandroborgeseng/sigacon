@@ -14,7 +14,8 @@ export async function GET(
   const entry = await storage.get(key);
   if (!entry) return NextResponse.json({ message: "Arquivo não encontrado" }, { status: 404 });
 
-  return new NextResponse(entry.buffer, {
+  const body = new Uint8Array(entry.buffer);
+  return new NextResponse(body, {
     headers: {
       "Content-Type": entry.mimeType,
       "Cache-Control": "private, max-age=3600",
