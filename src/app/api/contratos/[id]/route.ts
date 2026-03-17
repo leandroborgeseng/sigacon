@@ -115,21 +115,7 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const contrato = await prisma.contrato.findUnique({
-    where: { id },
-    include: {
-      _count: {
-        select: {
-          modulos: true,
-          itens: true,
-          medicoes: true,
-          atas: true,
-          anexos: true,
-          reajustes: true,
-        },
-      },
-    },
-  });
+  const contrato = await prisma.contrato.findUnique({ where: { id } });
   if (!contrato) return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
 
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
@@ -139,24 +125,6 @@ export async function DELETE(
   if (confirmNome.trim() !== contrato.nome) {
     return NextResponse.json(
       { message: "Confirmação inválida. Digite exatamente o nome do contrato para excluir." },
-      { status: 400 }
-    );
-  }
-
-  const totalVinculos =
-    contrato._count.modulos +
-    contrato._count.itens +
-    contrato._count.medicoes +
-    contrato._count.atas +
-    contrato._count.anexos +
-    contrato._count.reajustes;
-
-  if (totalVinculos > 0) {
-    return NextResponse.json(
-      {
-        message:
-          "Não é possível excluir este contrato porque existem registros vinculados (módulos/itens/medições/atas/anexos/reajustes). Inative para manter somente consulta.",
-      },
       { status: 400 }
     );
   }
