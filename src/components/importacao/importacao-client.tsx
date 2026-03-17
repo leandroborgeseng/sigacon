@@ -92,11 +92,15 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Contrato de destino</Label>
-            <Select value={contratoId} onValueChange={setContratoId}>
+            <Select
+              value={contratoId || "__nenhum__"}
+              onValueChange={(v) => setContratoId(v === "__nenhum__" ? "" : v)}
+            >
               <SelectTrigger className="w-full max-w-md">
                 <SelectValue placeholder="Selecione o contrato" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__nenhum__">Selecione o contrato</SelectItem>
                 {contratos.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.nome}

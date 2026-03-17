@@ -80,13 +80,14 @@ export function ModuloCreateDialog({ contratos }: { contratos: Contrato[] }) {
           <div className="space-y-2">
             <Label>Contrato</Label>
             <Select
-              value={form.watch("contratoId")}
-              onValueChange={(v) => form.setValue("contratoId", v)}
+              value={form.watch("contratoId") || "__nenhum__"}
+              onValueChange={(v) => form.setValue("contratoId", v === "__nenhum__" ? "" : v)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o contrato" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__nenhum__">Selecione o contrato</SelectItem>
                 {contratos.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.nome}

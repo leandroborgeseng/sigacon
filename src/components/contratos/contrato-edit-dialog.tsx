@@ -165,7 +165,7 @@ export function ContratoEditDialog({
             <div className="space-y-2">
               <Label>Status</Label>
               <Select
-                value={form.watch("status")}
+                value={form.watch("status") ?? StatusContrato.ATIVO}
                 onValueChange={(v) => form.setValue("status", v as StatusContrato)}
               >
                 <SelectTrigger>
@@ -189,7 +189,7 @@ export function ContratoEditDialog({
             <div className="space-y-2">
               <Label>Lei de licitação</Label>
               <Select
-                value={form.watch("leiLicitacao")}
+                value={form.watch("leiLicitacao") ?? LeiLicitacao.LEI_8666}
                 onValueChange={(v) => form.setValue("leiLicitacao", v as LeiLicitacao)}
               >
                 <SelectTrigger>
