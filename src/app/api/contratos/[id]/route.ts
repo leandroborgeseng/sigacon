@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { contratoSchema } from "@/lib/validators";
 import { registerAudit } from "@/server/services/audit";
 import { calcularValorMensalReferencia } from "@/lib/finance";
+import { canRecurso } from "@/lib/permissions";
+import { RecursoPermissao, PerfilUsuario } from "@prisma/client";
 
 export async function GET(
   _request: Request,
@@ -33,6 +35,8 @@ export async function PATCH(
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+  const podeEditar = await canRecurso(session.perfil as PerfilUsuario, RecursoPermissao.CONTRATOS, "editar");
+  if (!podeEditar) return NextResponse.json({ message: "Sem permissão para editar contratos" }, { status: 403 });
 
   const { id } = await params;
   const existing = await prisma.contrato.findUnique({ where: { id } });

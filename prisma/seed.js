@@ -2,7 +2,7 @@
  * Seed em JavaScript puro (node) para rodar no Railway sem tsx.
  * Cria/atualiza o usuário admin. Inclui retry de conexão com o banco.
  */
-const { PrismaClient, PerfilUsuario } = require("@prisma/client");
+const { PrismaClient, PerfilUsuario, RecursoPermissao } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 
 const ADMIN_EMAIL = "admin@sigacon.local";
@@ -53,6 +53,34 @@ async function main() {
       },
     });
     console.log("[seed] OK. Usuário admin:", admin.email, "| Senha:", ADMIN_SENHA);
+
+    // Matriz padrão de permissões: perfil x recurso (visualizar / editar)
+    const recursos = Object.values(RecursoPermissao);
+    const defaults = {
+      [PerfilUsuario.LEITOR]: (r) => ({ podeVisualizar: true, podeEditar: false }),
+      [PerfilUsuario.AVALIADOR]: (r) => ({
+        podeVisualizar: true,
+        podeEditar: r === RecursoPermissao.ITENS,
+      }),
+      [PerfilUsuario.GESTOR]: (r) => ({
+        podeVisualizar: true,
+        podeEditar: r !== RecursoPermissao.USUARIOS,
+      }),
+      [PerfilUsuario.ADMIN]: () => ({ podeVisualizar: true, podeEditar: true }),
+    };
+    for (const perfil of Object.values(PerfilUsuario)) {
+      for (const recurso of recursos) {
+        const { podeVisualizar, podeEditar } = defaults[perfil](recurso);
+        await prisma.permissaoPerfil.upsert({
+          where: {
+            perfil_recurso: { perfil, recurso },
+          },
+          update: { podeVisualizar, podeEditar },
+          create: { perfil, recurso, podeVisualizar, podeEditar },
+        });
+      }
+    }
+    console.log("[seed] Permissões por perfil atualizadas.");
   } finally {
     await prisma.$disconnect();
   }

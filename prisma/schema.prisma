@@ -21,6 +21,19 @@ enum PerfilUsuario {
   LEITOR
 }
 
+// Recursos do sistema para controle de permissão (visualizar / editar)
+enum RecursoPermissao {
+  DASHBOARD
+  CONTRATOS
+  MODULOS
+  ITENS
+  MEDICOES
+  ATAS
+  PENDENCIAS
+  USUARIOS
+  IMPORTACAO
+}
+
 enum StatusContrato {
   ATIVO
   ENCERRADO
@@ -128,6 +141,19 @@ model Usuario {
   @@map("usuarios")
 }
 
+// Matriz perfil x recurso: define se o perfil pode visualizar e/ou editar cada recurso
+model PermissaoPerfil {
+  id              String           @id @default(cuid())
+  perfil          PerfilUsuario
+  recurso         RecursoPermissao
+  podeVisualizar  Boolean          @default(true) @map("pode_visualizar")
+  podeEditar      Boolean          @default(false) @map("pode_editar")
+  criadoEm        DateTime         @default(now()) @map("criado_em")
+
+  @@unique([perfil, recurso])
+  @@map("permissoes_perfil")
+}
+
 model Contrato {
   id                   String              @id @default(cuid())
   nome                 String
@@ -212,11 +238,12 @@ model ItemContratual {
   criadoEm           DateTime     @default(now()) @map("criado_em")
   atualizadoEm       DateTime     @updatedAt @map("atualizado_em")
 
-  contrato   Contrato        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  modulo     Modulo          @relation(fields: [moduloId], references: [id], onDelete: Cascade)
-  avaliacoes AvaliacaoItem[]
-  pendencias Pendencia[]
-  anexos     Anexo[]
+  contrato       Contrato        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  modulo         Modulo          @relation(fields: [moduloId], references: [id], onDelete: Cascade)
+  avaliacoes     AvaliacaoItem[]
+  pendencias     Pendencia[]
+  anexos         Anexo[]
+  itensAta       ItensAta[]
 
   @@unique([contratoId, moduloId, numeroItem])
   @@map("itens_contratuais")
@@ -304,12 +331,26 @@ model AtaReuniao {
   criadoEm             DateTime  @default(now()) @map("criado_em")
   atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
 
-  contrato      Contrato       @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  medicaoMensal MedicaoMensal? @relation(fields: [medicaoMensalId], references: [id], onDelete: SetNull)
-  criadoPor     Usuario?       @relation(fields: [criadoPorUsuarioId], references: [id], onDelete: SetNull)
-  anexos        Anexo[]
+  contrato         Contrato       @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  medicaoMensal    MedicaoMensal? @relation(fields: [medicaoMensalId], references: [id], onDelete: SetNull)
+  criadoPor        Usuario?       @relation(fields: [criadoPorUsuarioId], references: [id], onDelete: SetNull)
+  anexos           Anexo[]
+  itensVinculados  ItensAta[]
 
   @@map("atas_reuniao")
+}
+
+model ItensAta {
+  id                String   @id @default(cuid())
+  ataReuniaoId      String   @map("ata_reuniao_id")
+  itemContratualId  String   @map("item_contratual_id")
+  criadoEm          DateTime @default(now()) @map("criado_em")
+
+  ataReuniao     AtaReuniao     @relation(fields: [ataReuniaoId], references: [id], onDelete: Cascade)
+  itemContratual ItemContratual @relation(fields: [itemContratualId], references: [id], onDelete: Cascade)
+
+  @@unique([ataReuniaoId, itemContratualId])
+  @@map("itens_ata")
 }
 
 model Anexo {

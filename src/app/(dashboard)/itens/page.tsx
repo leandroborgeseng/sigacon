@@ -13,7 +13,7 @@ export default async function ItensPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Itens Contratuais</h1>
         <p className="text-muted-foreground">
-          Acompanhamento de requisitos e avaliações por item
+          Todos os itens cadastrados. Use os filtros por contrato e módulo para refinar; sem filtro são exibidos itens de todos os contratos.
         </p>
       </div>
       <ItensTable />

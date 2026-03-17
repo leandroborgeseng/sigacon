@@ -86,11 +86,8 @@ export function ItensTable() {
   }, []);
 
   useEffect(() => {
-    if (!contratoId) {
-      setModulos([]);
-      return;
-    }
-    fetch(`/api/modulos?contratoId=${contratoId}`)
+    const url = contratoId ? `/api/modulos?contratoId=${encodeURIComponent(contratoId)}` : "/api/modulos";
+    fetch(url)
       .then((r) => r.json())
       .then((data: unknown) => {
         const arr = Array.isArray(data) ? (data as { id: string; nome: string; contratoId: string }[]) : [];
@@ -123,6 +120,11 @@ export function ItensTable() {
   }, [page, contratoId, moduloId, status, search]);
 
   const columns: ColumnDef<ItemRow>[] = [
+    {
+      accessorKey: "contrato.nome",
+      header: "Contrato",
+      cell: ({ row }) => row.original.contrato?.nome ?? "—",
+    },
     {
       accessorKey: "modulo.nome",
       header: "Módulo",

@@ -11,10 +11,14 @@ import {
   Calculator,
   BookOpen,
   Upload,
+  Users,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+type SessionUser = { perfil: string } | null;
+
+const navItems: { href: string; label: string; icon: typeof FileText; adminOnly?: boolean }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contratos", label: "Contratos", icon: FileText },
   { href: "/modulos", label: "Módulos", icon: Layers },
@@ -23,10 +27,13 @@ const navItems = [
   { href: "/medicoes", label: "Medição Mensal", icon: Calculator },
   { href: "/atas", label: "Atas de Reunião", icon: BookOpen },
   { href: "/importacao", label: "Importação XLSX", icon: Upload },
+  { href: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
+  { href: "/usuarios/perfis", label: "Perfis e permissões", icon: Shield, adminOnly: true },
 ];
 
-export function Sidebar() {
+export function Sidebar({ user }: { user?: SessionUser }) {
   const pathname = usePathname();
+  const isAdmin = user?.perfil === "ADMIN";
 
   return (
     <aside className="flex h-full w-64 flex-col border-r bg-card">
@@ -40,7 +47,9 @@ export function Sidebar() {
         Sistema de Gestão e Acompanhamento Contratual
       </p>
       <nav className="flex-1 space-y-1 p-2">
-        {navItems.map((item) => {
+        {navItems
+          .filter((item) => !item.adminOnly || isAdmin)
+          .map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (

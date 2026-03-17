@@ -3,6 +3,8 @@ import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
+import { AtaItensVinculados } from "@/components/atas/ata-itens-vinculados";
+import { AtaAnexos } from "@/components/atas/ata-anexos";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 
@@ -17,7 +19,18 @@ export default async function AtaDetailPage({
 
   const ata = await prisma.ataReuniao.findUnique({
     where: { id },
-    include: { contrato: true, anexos: true },
+    include: {
+      contrato: true,
+      anexos: true,
+      itensVinculados: {
+        include: {
+          itemContratual: {
+            include: { modulo: { select: { nome: true } } },
+          },
+        },
+        orderBy: { criadoEm: "asc" },
+      },
+    },
   });
 
   if (!ata) notFound();
@@ -67,25 +80,13 @@ export default async function AtaDetailPage({
         </CardContent>
       </Card>
 
-      {ata.anexos.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Anexos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {ata.anexos.map((a) => (
-                <li key={a.id}>
-                  <span>{a.nomeOriginal}</span>
-                  <span className="text-sm text-muted-foreground ml-2">
-                    {a.tipoAnexo}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+      <AtaItensVinculados
+        ataId={ata.id}
+        contratoId={ata.contratoId}
+        itensIniciais={ata.itensVinculados}
+      />
+
+      <AtaAnexos ataId={ata.id} anexosIniciais={ata.anexos} />
     </div>
   );
 }

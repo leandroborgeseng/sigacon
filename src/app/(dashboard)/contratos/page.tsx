@@ -82,9 +82,12 @@ export default async function ContratosPage() {
                       <TableCell>
                         <Badge variant="secondary">{c.status}</Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" asChild>
                           <Link href={`/contratos/${c.id}`}>Ver</Link>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/contratos/${c.id}`}>Editar</Link>
                         </Button>
                       </TableCell>
                     </TableRow>

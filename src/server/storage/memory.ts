@@ -10,6 +10,10 @@ export const memoryStorage: StorageProvider = {
   getUrl(key) {
     return store.has(key) ? `/api/anexos/download/${key}` : null;
   },
+  async get(key) {
+    const entry = store.get(key);
+    return entry ? { buffer: entry.buffer, mimeType: entry.mimeType } : null;
+  },
   async delete(key) {
     store.delete(key);
   },

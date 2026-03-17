@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { ContratoEditDialog } from "@/components/contratos/contrato-edit-dialog";
 import { ReajusteAddDialog } from "@/components/contratos/reajuste-add-dialog";
-import { formatCurrency, formatDate, formatPercent } from "@/lib/utils";
+import { formatCurrency, formatDate, formatPercent, formatDateTime } from "@/lib/utils";
 import {
   labelLeiLicitacao,
   podeRenovar,
@@ -37,6 +37,13 @@ export default async function ContratoDetailPage({
   });
 
   if (!contrato) notFound();
+
+  const historico = await prisma.historicoAuditoria.findMany({
+    where: { entidade: "Contrato", entidadeId: id },
+    orderBy: { criadoEm: "desc" },
+    take: 50,
+    include: { usuario: { select: { nome: true } } },
+  });
 
   return (
     <div className="space-y-6">
@@ -252,6 +259,53 @@ export default async function ContratoDetailPage({
           </Card>
         );
       })()}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Histórico de alterações</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {historico.length === 0 ? (
+            <p className="p-4 text-muted-foreground">
+              Nenhuma alteração registrada. As correções feitas pelo botão &quot;Editar contrato&quot; aparecem aqui.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {historico.map((h) => {
+                const acaoLabel =
+                  h.acao === "CRIACAO"
+                    ? "Criação do contrato"
+                    : h.acao === "ATUALIZACAO"
+                      ? "Alteração"
+                      : h.acao;
+                const anterior = (h.valorAnterior as Record<string, unknown> | null) ?? {};
+                const novo = (h.valorNovo as Record<string, unknown> | null) ?? {};
+                const camposAlterados =
+                  h.acao === "ATUALIZACAO"
+                    ? Object.keys(novo).filter(
+                        (k) =>
+                          JSON.stringify(anterior[k]) !== JSON.stringify(novo[k]) &&
+                          !["atualizadoEm", "criadoEm"].includes(k)
+                      )
+                    : [];
+                return (
+                  <li key={h.id} className="p-4">
+                    <p className="font-medium">{acaoLabel}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatDateTime(h.criadoEm)} • {h.usuario?.nome ?? "Sistema"}
+                    </p>
+                    {camposAlterados.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Campos: {camposAlterados.join(", ")}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
