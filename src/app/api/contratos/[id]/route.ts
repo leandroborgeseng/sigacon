@@ -82,6 +82,13 @@ export async function PATCH(
         ...(parsed.data.leiLicitacao != null && { leiLicitacao: parsed.data.leiLicitacao }),
         ...(parsed.data.dataAssinatura !== undefined && { dataAssinatura: parsed.data.dataAssinatura }),
         ...(parsed.data.numeroRenovacoes !== undefined && { numeroRenovacoes: parsed.data.numeroRenovacoes }),
+        ...(parsed.data.valorUnitarioUst !== undefined && {
+          valorUnitarioUst: parsed.data.valorUnitarioUst,
+        }),
+        ...(parsed.data.limiteUstAno !== undefined && { limiteUstAno: parsed.data.limiteUstAno }),
+        ...(parsed.data.limiteValorUstAno !== undefined && {
+          limiteValorUstAno: parsed.data.limiteValorUstAno,
+        }),
       },
     });
 

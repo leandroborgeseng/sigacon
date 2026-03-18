@@ -1,7 +1,11 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getDashboardIndicators, getIndicadoresPorModulo } from "@/server/services/indicators";
+import {
+  getDashboardIndicators,
+  getIndicadoresPorModulo,
+  getDashboardAlertas,
+} from "@/server/services/indicators";
 import { DashboardClient } from "./dashboard-client";
 
 type PageProps = {
@@ -28,13 +32,23 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   let indicators = null;
   let porModulo: Awaited<ReturnType<typeof getIndicadoresPorModulo>> = [];
+  let alertas: Awaited<ReturnType<typeof getDashboardAlertas>> = {
+    vencendo90Dias: [],
+    ustProximoTeto: [],
+  };
   try {
-    [indicators, porModulo] = await Promise.all([
+    [indicators, porModulo, alertas] = await Promise.all([
       getDashboardIndicators(contratoId),
       getIndicadoresPorModulo(contratoId),
+      getDashboardAlertas(contratoId),
     ]);
-  } catch {
-    // sem dados ainda
+  } catch (e) {
+    console.error("[dashboard] indicadores:", e);
+    try {
+      alertas = await getDashboardAlertas(contratoId);
+    } catch (e2) {
+      console.error("[dashboard] alertas:", e2);
+    }
   }
 
   return (
@@ -51,6 +65,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           contratos={contratos}
           contratoId={contratoId}
           indicators={indicators}
+          alertas={alertas}
           porModulo={porModulo.map((m) => ({
             nome: m.nome,
             contratoNome: m.contratoNome,

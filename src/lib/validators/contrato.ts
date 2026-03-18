@@ -18,6 +18,10 @@ export const contratoSchema = z.object({
   leiLicitacao: z.nativeEnum(LeiLicitacao).default(LeiLicitacao.LEI_8666),
   dataAssinatura: z.coerce.date().optional().nullable(),
   numeroRenovacoes: z.coerce.number().int().min(0).default(0),
+  /** R$ por UST (quando não há preço no catálogo por serviço) */
+  valorUnitarioUst: z.coerce.number().min(0).optional().nullable(),
+  limiteUstAno: z.coerce.number().min(0).optional().nullable(),
+  limiteValorUstAno: z.coerce.number().min(0).optional().nullable(),
 });
 
 export const reajusteContratoSchema = z.object({

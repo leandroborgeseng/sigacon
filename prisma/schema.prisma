@@ -1,5 +1,6 @@
 // SIGACON - Sistema de Gestão e Acompanhamento Contratual
 // Schema Prisma - PostgreSQL
+// Modelo de medição: UST + Catálogo de serviços + Checklist (itens contratuais)
 
 generator client {
   provider = "prisma-client-js"
@@ -21,7 +22,6 @@ enum PerfilUsuario {
   LEITOR
 }
 
-// Recursos do sistema para controle de permissão (visualizar / editar)
 enum RecursoPermissao {
   DASHBOARD
   CONTRATOS
@@ -32,6 +32,8 @@ enum RecursoPermissao {
   PENDENCIAS
   USUARIOS
   IMPORTACAO
+  /** UST, catálogo de serviços e evidências (ex.: GLPI) */
+  CUSTOMIZACAO
 }
 
 enum StatusContrato {
@@ -102,10 +104,17 @@ enum StatusFechamentoMedicao {
   HOMOLOGADA
 }
 
-// Regime da licitação: Lei 8.666/93 (antiga) ou Lei 14.133/2021 (nova)
 enum LeiLicitacao {
   LEI_8666
   LEI_14133
+}
+
+/** Unidade de cobrança no catálogo de serviços */
+enum UnidadeMedicaoCatalogo {
+  UST
+  HORA
+  UNIDADE
+  FORNECIMENTO
 }
 
 enum TipoAnexo {
@@ -116,6 +125,21 @@ enum TipoAnexo {
   RELATORIO
   PRINT
   OFICIO
+  EVIDENCIA_UST
+}
+
+enum StatusMarcoImplantacao {
+  PLANEJADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  ATRASADO
+}
+
+enum StatusParcelaPagamento {
+  PREVISTO
+  PAGO
+  ATRASADO
+  PARCIAL
 }
 
 // =============================================================================
@@ -123,79 +147,223 @@ enum TipoAnexo {
 // =============================================================================
 
 model Usuario {
-  id         String        @id @default(cuid())
-  nome       String
-  email      String        @unique
-  senhaHash  String        @map("senha_hash")
-  perfil     PerfilUsuario @default(LEITOR)
-  ativo      Boolean       @default(true)
-  criadoEm   DateTime      @default(now()) @map("criado_em")
-  atualizadoEm DateTime    @updatedAt @map("atualizado_em")
+  id               String        @id @default(cuid())
+  nome             String
+  email            String        @unique
+  senhaHash        String        @map("senha_hash")
+  perfil           PerfilUsuario @default(LEITOR)
+  ativo            Boolean       @default(true)
+  criadoEm         DateTime      @default(now()) @map("criado_em")
+  atualizadoEm     DateTime      @updatedAt @map("atualizado_em")
 
-  avaliacoes      AvaliacaoItem[]
-  medicoesFechadas MedicaoMensal[]
-  atasCriadas     AtaReuniao[]
-  anexosEnviados  Anexo[]
-  historicoAuditoria HistoricoAuditoria[]
+  avaliacoes           AvaliacaoItem[]
+  medicoesFechadas     MedicaoMensal[]
+  atasCriadas          AtaReuniao[]
+  anexosEnviados       Anexo[]
+  historicoAuditoria   HistoricoAuditoria[]
+  lancamentosUst       LancamentoUst[]
 
   @@map("usuarios")
 }
 
-// Matriz perfil x recurso: define se o perfil pode visualizar e/ou editar cada recurso
 model PermissaoPerfil {
-  id              String           @id @default(cuid())
-  perfil          PerfilUsuario
-  recurso         RecursoPermissao
-  podeVisualizar  Boolean          @default(true) @map("pode_visualizar")
-  podeEditar      Boolean          @default(false) @map("pode_editar")
-  criadoEm        DateTime         @default(now()) @map("criado_em")
+  id             String           @id @default(cuid())
+  perfil         PerfilUsuario
+  recurso        RecursoPermissao
+  podeVisualizar Boolean          @default(true) @map("pode_visualizar")
+  podeEditar     Boolean          @default(false) @map("pode_editar")
+  criadoEm       DateTime         @default(now()) @map("criado_em")
 
   @@unique([perfil, recurso])
   @@map("permissoes_perfil")
 }
 
 model Contrato {
-  id                   String              @id @default(cuid())
-  nome                 String
-  numeroContrato       String              @map("numero_contrato")
-  fornecedor           String
-  ativo                Boolean             @default(true) @map("ativo")
-  objeto               String?             @db.Text
-  vigenciaInicio       DateTime            @map("vigencia_inicio")
-  vigenciaFim          DateTime            @map("vigencia_fim")
-  valorAnual           Decimal             @map("valor_anual") @db.Decimal(18, 2)
+  id                    String              @id @default(cuid())
+  nome                  String
+  numeroContrato        String              @map("numero_contrato")
+  fornecedor            String
+  ativo                 Boolean             @default(true) @map("ativo")
+  objeto                String?             @db.Text
+  vigenciaInicio        DateTime            @map("vigencia_inicio")
+  vigenciaFim           DateTime            @map("vigencia_fim")
+  valorAnual            Decimal             @map("valor_anual") @db.Decimal(18, 2)
   valorMensalReferencia Decimal?            @map("valor_mensal_referencia") @db.Decimal(18, 2)
-  status               StatusContrato      @default(ATIVO)
-  gestorContrato       String?             @map("gestor_contrato")
-  observacoesGerais    String?             @map("observacoes_gerais") @db.Text
-  totalItensVerificacao Int?               @map("total_itens_verificacao")
-  formaCalculoMedicao  FormaCalculoMedicao @default(PESO_IGUAL_POR_ITEM) @map("forma_calculo_medicao")
-  leiLicitacao         LeiLicitacao        @default(LEI_8666) @map("lei_licitacao")
-  dataAssinatura       DateTime?           @map("data_assinatura")
-  numeroRenovacoes     Int                 @default(0) @map("numero_renovacoes")
-  criadoEm             DateTime            @default(now()) @map("criado_em")
-  atualizadoEm         DateTime            @updatedAt @map("atualizado_em")
+  status                StatusContrato      @default(ATIVO)
+  gestorContrato        String?             @map("gestor_contrato")
+  observacoesGerais     String?             @map("observacoes_gerais") @db.Text
+  totalItensVerificacao Int?                @map("total_itens_verificacao")
+  formaCalculoMedicao   FormaCalculoMedicao @default(PESO_IGUAL_POR_ITEM) @map("forma_calculo_medicao")
+  leiLicitacao          LeiLicitacao        @default(LEI_8666) @map("lei_licitacao")
+  dataAssinatura        DateTime?           @map("data_assinatura")
+  numeroRenovacoes      Int                 @default(0) @map("numero_renovacoes")
+  /** R$ por UST quando não há preço específico no catálogo */
+  valorUnitarioUst      Decimal?            @map("valor_unitario_ust") @db.Decimal(18, 4)
+  /** Teto de UST no ano civil (opcional) */
+  limiteUstAno          Decimal?            @map("limite_ust_ano") @db.Decimal(14, 4)
+  /** Teto em R$ de medição UST no ano (opcional) */
+  limiteValorUstAno     Decimal?            @map("limite_valor_ust_ano") @db.Decimal(18, 2)
+  criadoEm              DateTime            @default(now()) @map("criado_em")
+  atualizadoEm          DateTime            @updatedAt @map("atualizado_em")
 
-  modulos        Modulo[]
-  itens          ItemContratual[]
-  medicoes       MedicaoMensal[]
-  atas           AtaReuniao[]
-  anexos         Anexo[]
-  reajustes      ReajusteContrato[]
+  modulos             Modulo[]
+  itens               ItemContratual[]
+  medicoes            MedicaoMensal[]
+  atas                AtaReuniao[]
+  anexos              Anexo[]
+  reajustes           ReajusteContrato[]
+  servicosCatalogo    ServicoCatalogo[]
+  lancamentosUst      LancamentoUst[]
+  aditivos            AditivoContrato[]
+  marcosImplantacao   MarcoImplantacao[]
+  parcelasPagamento   ParcelaPagamento[]
 
   @@map("contratos")
 }
 
+model AditivoContrato {
+  id                  String    @id @default(cuid())
+  contratoId          String    @map("contrato_id")
+  numeroAditivo       String    @map("numero_aditivo") @db.VarChar(80)
+  dataRegistro        DateTime  @map("data_registro")
+  objeto              String?   @db.Text
+  valorAnterior       Decimal?  @map("valor_anterior") @db.Decimal(18, 2)
+  valorNovo           Decimal?  @map("valor_novo") @db.Decimal(18, 2)
+  vigenciaFimAnterior DateTime? @map("vigencia_fim_anterior")
+  vigenciaFimNova     DateTime? @map("vigencia_fim_nova")
+  observacoes         String?   @db.Text
+  criadoEm            DateTime  @default(now()) @map("criado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@index([contratoId])
+  @@map("aditivos_contrato")
+}
+
+model MarcoImplantacao {
+  id            String                   @id @default(cuid())
+  contratoId    String                   @map("contrato_id")
+  titulo        String
+  descricao     String?                  @db.Text
+  dataPrevista  DateTime                 @map("data_prevista")
+  dataRealizada DateTime?                @map("data_realizada")
+  status        StatusMarcoImplantacao   @default(PLANEJADO)
+  ordem         Int                      @default(0)
+  criadoEm      DateTime                 @default(now()) @map("criado_em")
+  atualizadoEm  DateTime                 @updatedAt @map("atualizado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@index([contratoId])
+  @@map("marcos_implantacao")
+}
+
+model ParcelaPagamento {
+  id             String                 @id @default(cuid())
+  contratoId     String                 @map("contrato_id")
+  competenciaAno Int                    @map("competencia_ano")
+  competenciaMes Int                    @map("competencia_mes")
+  descricao      String?                @db.VarChar(500)
+  valorPrevisto  Decimal                @map("valor_previsto") @db.Decimal(18, 2)
+  valorPago      Decimal?               @map("valor_pago") @db.Decimal(18, 2)
+  dataVencimento DateTime?              @map("data_vencimento")
+  dataPagamento  DateTime?              @map("data_pagamento")
+  numeroNf       String?                @map("numero_nf") @db.VarChar(80)
+  status         StatusParcelaPagamento @default(PREVISTO)
+  observacao     String?                @db.Text
+  criadoEm       DateTime               @default(now()) @map("criado_em")
+  atualizadoEm   DateTime               @updatedAt @map("atualizado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, competenciaAno, competenciaMes])
+  @@map("parcelas_pagamento")
+}
+
+/** Catálogo de serviços contratados (unidade, SLA, comprovação, valor) */
+model ServicoCatalogo {
+  id                 String                  @id @default(cuid())
+  contratoId         String                  @map("contrato_id")
+  nome               String
+  descricao          String?                 @db.Text
+  unidadeMedicao     UnidadeMedicaoCatalogo  @map("unidade_medicao")
+  valorUnitario      Decimal                 @map("valor_unitario") @db.Decimal(18, 4)
+  slaTexto           String?                 @map("sla_texto") @db.VarChar(500)
+  formaComprovacao   String?                 @map("forma_comprovacao") @db.Text
+  /** Referência: UST típicas por fornecimento (quando unidade = FORNECIMENTO) */
+  ustReferencia      Decimal?                @map("ust_referencia") @db.Decimal(10, 2)
+  ativo              Boolean                 @default(true)
+  ordem              Int                     @default(0)
+  criadoEm           DateTime                @default(now()) @map("criado_em")
+  atualizadoEm       DateTime                @updatedAt @map("atualizado_em")
+
+  contrato    Contrato        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  lancamentos LancamentoUst[]
+
+  @@index([contratoId])
+  @@map("servicos_catalogo")
+}
+
+/** Tipos de atividade com UST fixa (catálogo auditável, não subjetivo) */
+model TipoAtividadeUst {
+  id           String   @id @default(cuid())
+  codigo       String?  @unique
+  nome         String
+  /** Grupo do catálogo (ex.: Manutenção Corretiva, Testes SERPRO) */
+  categoria    String   @db.VarChar(160)
+  /** Baixa | Média | Alta */
+  complexidade String?  @db.VarChar(20)
+  ustFixo      Decimal  @map("ust_fixo") @db.Decimal(10, 2)
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  lancamentos LancamentoUst[]
+
+  @@map("tipos_atividade_ust")
+}
+
+/** Execução medida em UST, sempre com rastreio de evidência */
+model LancamentoUst {
+  id                     String   @id @default(cuid())
+  contratoId             String   @map("contrato_id")
+  tipoAtividadeUstId     String   @map("tipo_atividade_ust_id")
+  servicoCatalogoId      String?  @map("servico_catalogo_id")
+  competenciaAno         Int      @map("competencia_ano")
+  competenciaMes         Int      @map("competencia_mes")
+  quantidade             Int      @default(1)
+  totalUst               Decimal  @map("total_ust") @db.Decimal(14, 4)
+  /** Valor monetário congelado no lançamento (auditoria) */
+  valorMonetario         Decimal  @map("valor_monetario") @db.Decimal(18, 4)
+  evidenciaGlpiTicketId  String?  @map("evidencia_glpi_ticket_id") @db.VarChar(80)
+  evidenciaUrl           String?  @map("evidencia_url") @db.VarChar(2000)
+  evidenciaDescricao     String?  @map("evidencia_descricao") @db.Text
+  medicaoMensalId String?  @map("medicao_mensal_id")
+  usuarioId       String?  @map("usuario_id")
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+
+  contrato         Contrato         @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  tipoAtividade    TipoAtividadeUst @relation(fields: [tipoAtividadeUstId], references: [id], onDelete: Restrict)
+  servicoCatalogo  ServicoCatalogo? @relation(fields: [servicoCatalogoId], references: [id], onDelete: SetNull)
+  medicaoMensal    MedicaoMensal?   @relation(fields: [medicaoMensalId], references: [id], onDelete: SetNull)
+  usuario          Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  anexoEvidencia   Anexo?
+
+  @@index([contratoId, competenciaAno, competenciaMes])
+  @@map("lancamentos_ust")
+}
+
 model ReajusteContrato {
-  id                String   @id @default(cuid())
-  contratoId        String   @map("contrato_id")
-  dataReajuste      DateTime @map("data_reajuste")
-  valorAnterior     Decimal  @map("valor_anterior") @db.Decimal(18, 2)
-  valorNovo         Decimal  @map("valor_novo") @db.Decimal(18, 2)
-  percentualAplicado Decimal @map("percentual_aplicado") @db.Decimal(8, 4)
-  indiceReferencia  String?  @map("indice_referencia") @db.VarChar(50)
-  observacao        String?  @db.Text
-  criadoEm          DateTime @default(now()) @map("criado_em")
+  id                 String   @id @default(cuid())
+  contratoId         String   @map("contrato_id")
+  dataReajuste       DateTime @map("data_reajuste")
+  valorAnterior      Decimal  @map("valor_anterior") @db.Decimal(18, 2)
+  valorNovo          Decimal  @map("valor_novo") @db.Decimal(18, 2)
+  percentualAplicado Decimal  @map("percentual_aplicado") @db.Decimal(8, 4)
+  indiceReferencia   String?  @map("indice_referencia") @db.VarChar(50)
+  observacao         String?  @db.Text
+  criadoEm           DateTime @default(now()) @map("criado_em")
 
   contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
 
@@ -203,65 +371,65 @@ model ReajusteContrato {
 }
 
 model Modulo {
-  id          String        @id @default(cuid())
-  contratoId  String        @map("contrato_id")
-  nome        String
-  descricao   String?        @db.Text
-  implantado  Boolean       @default(false)
-  ativo       Boolean       @default(true)
-  criadoEm    DateTime      @default(now()) @map("criado_em")
-  atualizadoEm DateTime     @updatedAt @map("atualizado_em")
+  id           String   @id @default(cuid())
+  contratoId   String   @map("contrato_id")
+  nome         String
+  descricao    String?  @db.Text
+  implantado   Boolean  @default(false)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  contrato Contrato     @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  itens   ItemContratual[]
+  contrato Contrato         @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  itens    ItemContratual[]
 
   @@unique([contratoId, nome])
   @@map("modulos")
 }
 
 model ItemContratual {
-  id                 String       @id @default(cuid())
-  contratoId         String       @map("contrato_id")
-  moduloId           String       @map("modulo_id")
-  lote               String       @default("")
-  numeroItem         Int          @map("numero_item")
-  descricao          String       @db.Text
-  statusAtual        StatusItem   @default(INCONCLUSIVO) @map("status_atual")
-  statusOriginal     StatusItem?  @map("status_original")
-  observacaoAtual    String?      @map("observacao_atual") @db.Text
-  criticidade        Criticidade  @default(MEDIA)
-  pesoPercentual     Decimal?     @map("peso_percentual") @db.Decimal(10, 6)
-  exigeEvidencia     Boolean      @default(false) @map("exige_evidencia")
-  requisitoLegal     Boolean      @default(false) @map("requisito_legal")
-  impactaOperacao    Boolean      @default(false) @map("impacta_operacao")
-  cabecalhoLogico    Boolean      @default(false) @map("cabecalho_logico")
+  id                  String     @id @default(cuid())
+  contratoId          String     @map("contrato_id")
+  moduloId            String     @map("modulo_id")
+  lote                String     @default("")
+  numeroItem          Int        @map("numero_item")
+  descricao           String     @db.Text
+  statusAtual         StatusItem @default(INCONCLUSIVO) @map("status_atual")
+  statusOriginal      StatusItem? @map("status_original")
+  observacaoAtual     String?    @map("observacao_atual") @db.Text
+  criticidade         Criticidade @default(MEDIA)
+  pesoPercentual      Decimal?   @map("peso_percentual") @db.Decimal(10, 6)
+  exigeEvidencia      Boolean    @default(false) @map("exige_evidencia")
+  requisitoLegal      Boolean    @default(false) @map("requisito_legal")
+  impactaOperacao     Boolean    @default(false) @map("impacta_operacao")
+  cabecalhoLogico     Boolean    @default(false) @map("cabecalho_logico")
   considerarNaMedicao Boolean    @default(true) @map("considerar_na_medicao")
-  criadoEm           DateTime     @default(now()) @map("criado_em")
-  atualizadoEm       DateTime     @updatedAt @map("atualizado_em")
+  criadoEm            DateTime   @default(now()) @map("criado_em")
+  atualizadoEm        DateTime   @updatedAt @map("atualizado_em")
 
-  contrato       Contrato        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  modulo         Modulo          @relation(fields: [moduloId], references: [id], onDelete: Cascade)
-  avaliacoes     AvaliacaoItem[]
-  pendencias     Pendencia[]
-  anexos         Anexo[]
-  itensAta       ItensAta[]
+  contrato   Contrato        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  modulo     Modulo          @relation(fields: [moduloId], references: [id], onDelete: Cascade)
+  avaliacoes AvaliacaoItem[]
+  pendencias Pendencia[]
+  anexos     Anexo[]
+  itensAta   ItensAta[]
 
   @@unique([contratoId, moduloId, numeroItem])
   @@map("itens_contratuais")
 }
 
 model AvaliacaoItem {
-  id             String         @id @default(cuid())
-  itemId         String         @map("item_id")
-  dataAvaliacao  DateTime       @map("data_avaliacao")
-  competenciaAno Int            @map("competencia_ano")
-  competenciaMes Int            @map("competencia_mes")
+  id             String          @id @default(cuid())
+  itemId         String          @map("item_id")
+  dataAvaliacao  DateTime        @map("data_avaliacao")
+  competenciaAno Int             @map("competencia_ano")
+  competenciaMes Int             @map("competencia_mes")
   status         StatusItem
-  observacao     String?        @db.Text
-  usuarioId      String?        @map("usuario_id")
+  observacao     String?         @db.Text
+  usuarioId      String?         @map("usuario_id")
   origem         OrigemAvaliacao @default(MANUAL)
-  referenciaData DateTime?      @map("referencia_data")
-  criadoEm       DateTime       @default(now()) @map("criado_em")
+  referenciaData DateTime?       @map("referencia_data")
+  criadoEm       DateTime        @default(now()) @map("criado_em")
 
   item    ItemContratual @relation(fields: [itemId], references: [id], onDelete: Cascade)
   usuario Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
@@ -270,17 +438,17 @@ model AvaliacaoItem {
 }
 
 model Pendencia {
-  id          String           @id @default(cuid())
-  itemId      String           @map("item_id")
-  descricao   String           @db.Text
-  responsavel String?
-  prazo       DateTime?
-  status      StatusPendencia  @default(ABERTA)
-  origem      OrigemPendencia? @default(OPERACAO)
-  tipo        TipoPendencia?   @default(CORRECAO)
-  criadoEm    DateTime         @default(now()) @map("criado_em")
-  concluidoEm DateTime?        @map("concluido_em")
-  atualizadoEm DateTime        @updatedAt @map("atualizado_em")
+  id           String           @id @default(cuid())
+  itemId       String           @map("item_id")
+  descricao    String           @db.Text
+  responsavel  String?
+  prazo        DateTime?
+  status       StatusPendencia  @default(ABERTA)
+  origem       OrigemPendencia? @default(OPERACAO)
+  tipo         TipoPendencia?   @default(CORRECAO)
+  criadoEm     DateTime         @default(now()) @map("criado_em")
+  concluidoEm  DateTime?        @map("concluido_em")
+  atualizadoEm DateTime         @updatedAt @map("atualizado_em")
 
   item ItemContratual @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
@@ -288,64 +456,72 @@ model Pendencia {
 }
 
 model MedicaoMensal {
-  id                    String                  @id @default(cuid())
-  contratoId            String                  @map("contrato_id")
-  ano                   Int
-  mes                   Int
-  totalItensValidos     Int                     @map("total_itens_validos")
-  totalItensAtendidos   Int                     @map("total_itens_atendidos")
-  totalItensParciais    Int                     @map("total_itens_parciais")
-  totalItensNaoAtendidos Int                    @map("total_itens_nao_atendidos")
-  percentualCumprido    Decimal                 @map("percentual_cumprido") @db.Decimal(10, 4)
-  percentualNaoCumprido Decimal                 @map("percentual_nao_cumprido") @db.Decimal(10, 4)
-  valorAnualContrato    Decimal                 @map("valor_anual_contrato") @db.Decimal(18, 2)
-  valorMensalReferencia Decimal                 @map("valor_mensal_referencia") @db.Decimal(18, 2)
-  valorDevidoMes        Decimal                 @map("valor_devido_mes") @db.Decimal(18, 2)
-  valorGlosadoMes       Decimal                 @map("valor_glosado_mes") @db.Decimal(18, 2)
-  observacoes           String?                 @db.Text
-  statusFechamento      StatusFechamentoMedicao @default(ABERTA) @map("status_fechamento")
-  fechadoPorUsuarioId   String?                 @map("fechado_por_usuario_id")
-  fechadoEm             DateTime?               @map("fechado_em")
-  criadoEm              DateTime                @default(now()) @map("criado_em")
-  atualizadoEm         DateTime                @updatedAt @map("atualizado_em")
+  id                     String                  @id @default(cuid())
+  contratoId             String                  @map("contrato_id")
+  ano                    Int
+  mes                    Int
+  totalItensValidos      Int                     @map("total_itens_validos")
+  totalItensAtendidos    Int                     @map("total_itens_atendidos")
+  totalItensParciais     Int                     @map("total_itens_parciais")
+  totalItensNaoAtendidos Int                     @map("total_itens_nao_atendidos")
+  percentualCumprido     Decimal                 @map("percentual_cumprido") @db.Decimal(10, 4)
+  percentualNaoCumprido  Decimal                 @map("percentual_nao_cumprido") @db.Decimal(10, 4)
+  valorAnualContrato     Decimal                 @map("valor_anual_contrato") @db.Decimal(18, 2)
+  valorMensalReferencia  Decimal                 @map("valor_mensal_referencia") @db.Decimal(18, 2)
+  /** Checklist (itens contratuais) — proporcional ao cumprimento */
+  valorDevidoMes         Decimal                 @map("valor_devido_mes") @db.Decimal(18, 2)
+  valorGlosadoMes        Decimal                 @map("valor_glosado_mes") @db.Decimal(18, 2)
+  /** Soma UST do mês (checklist + técnica) */
+  totalUstMes            Decimal                 @default(0) @map("total_ust_mes") @db.Decimal(14, 4)
+  /** Valor financeiro dos lançamentos UST do mês (rastreável) */
+  valorMedicaoUstMes     Decimal                 @default(0) @map("valor_medicao_ust_mes") @db.Decimal(18, 4)
+  /** Checklist + UST (visão consolidada do mês) */
+  valorTotalConsolidadoMes Decimal?             @map("valor_total_consolidado_mes") @db.Decimal(18, 4)
+  observacoes            String?                 @db.Text
+  statusFechamento       StatusFechamentoMedicao @default(ABERTA) @map("status_fechamento")
+  fechadoPorUsuarioId    String?                 @map("fechado_por_usuario_id")
+  fechadoEm              DateTime?               @map("fechado_em")
+  criadoEm               DateTime                @default(now()) @map("criado_em")
+  atualizadoEm           DateTime                @updatedAt @map("atualizado_em")
 
-  contrato       Contrato   @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  fechadoPor     Usuario?   @relation(fields: [fechadoPorUsuarioId], references: [id], onDelete: SetNull)
+  contrato       Contrato        @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  fechadoPor     Usuario?        @relation(fields: [fechadoPorUsuarioId], references: [id], onDelete: SetNull)
   atas           AtaReuniao[]
   anexos         Anexo[]
+  lancamentosUst LancamentoUst[]
 
   @@unique([contratoId, ano, mes])
   @@map("medicoes_mensais")
 }
 
 model AtaReuniao {
-  id                   String    @id @default(cuid())
-  contratoId           String    @map("contrato_id")
-  medicaoMensalId      String?   @map("medicao_mensal_id")
-  titulo               String
-  dataReuniao          DateTime  @map("data_reuniao")
-  local                String?
-  participantes       String?   @db.Text
-  resumo               String?   @db.Text
-  deliberacoes         String?   @db.Text
-  criadoPorUsuarioId   String?   @map("criado_por_usuario_id")
-  criadoEm             DateTime  @default(now()) @map("criado_em")
-  atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
+  id                 String   @id @default(cuid())
+  contratoId         String   @map("contrato_id")
+  medicaoMensalId    String?  @map("medicao_mensal_id")
+  titulo             String
+  dataReuniao        DateTime @map("data_reuniao")
+  local              String?
+  participantes      String?  @db.Text
+  resumo             String?  @db.Text
+  deliberacoes       String?  @db.Text
+  criadoPorUsuarioId String?  @map("criado_por_usuario_id")
+  criadoEm           DateTime @default(now()) @map("criado_em")
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em")
 
-  contrato         Contrato       @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  medicaoMensal    MedicaoMensal? @relation(fields: [medicaoMensalId], references: [id], onDelete: SetNull)
-  criadoPor        Usuario?       @relation(fields: [criadoPorUsuarioId], references: [id], onDelete: SetNull)
-  anexos           Anexo[]
-  itensVinculados  ItensAta[]
+  contrato        Contrato       @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  medicaoMensal   MedicaoMensal? @relation(fields: [medicaoMensalId], references: [id], onDelete: SetNull)
+  criadoPor       Usuario?       @relation(fields: [criadoPorUsuarioId], references: [id], onDelete: SetNull)
+  anexos          Anexo[]
+  itensVinculados ItensAta[]
 
   @@map("atas_reuniao")
 }
 
 model ItensAta {
-  id                String   @id @default(cuid())
-  ataReuniaoId      String   @map("ata_reuniao_id")
-  itemContratualId  String   @map("item_contratual_id")
-  criadoEm          DateTime @default(now()) @map("criado_em")
+  id               String   @id @default(cuid())
+  ataReuniaoId     String   @map("ata_reuniao_id")
+  itemContratualId String   @map("item_contratual_id")
+  criadoEm         DateTime @default(now()) @map("criado_em")
 
   ataReuniao     AtaReuniao     @relation(fields: [ataReuniaoId], references: [id], onDelete: Cascade)
   itemContratual ItemContratual @relation(fields: [itemContratualId], references: [id], onDelete: Cascade)
@@ -355,39 +531,41 @@ model ItensAta {
 }
 
 model Anexo {
-  id                 String    @id @default(cuid())
-  contratoId         String?   @map("contrato_id")
-  itemId             String?   @map("item_id")
-  medicaoMensalId    String?   @map("medicao_mensal_id")
-  ataReuniaoId       String?   @map("ata_reuniao_id")
-  nomeArquivo        String    @map("nome_arquivo")
-  nomeOriginal       String    @map("nome_original")
-  mimeType           String    @map("mime_type")
-  tamanhoBytes       Int       @map("tamanho_bytes")
-  urlArquivo         String?   @map("url_arquivo")
-  tipoAnexo          TipoAnexo @default(DOCUMENTO_COMPLEMENTAR) @map("tipo_anexo")
-  descricao          String?   @db.Text
-  enviadoPorUsuarioId String?  @map("enviado_por_usuario_id")
-  criadoEm           DateTime  @default(now()) @map("criado_em")
+  id                  String    @id @default(cuid())
+  contratoId          String?   @map("contrato_id")
+  itemId              String?   @map("item_id")
+  medicaoMensalId     String?   @map("medicao_mensal_id")
+  ataReuniaoId        String?   @map("ata_reuniao_id")
+  lancamentoUstId     String?   @unique @map("lancamento_ust_id")
+  nomeArquivo         String    @map("nome_arquivo")
+  nomeOriginal        String    @map("nome_original")
+  mimeType            String    @map("mime_type")
+  tamanhoBytes        Int       @map("tamanho_bytes")
+  urlArquivo          String?   @map("url_arquivo")
+  tipoAnexo           TipoAnexo @default(DOCUMENTO_COMPLEMENTAR) @map("tipo_anexo")
+  descricao           String?   @db.Text
+  enviadoPorUsuarioId String?   @map("enviado_por_usuario_id")
+  criadoEm            DateTime  @default(now()) @map("criado_em")
 
-  contrato      Contrato?       @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  item         ItemContratual?  @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  medicaoMensal MedicaoMensal?  @relation(fields: [medicaoMensalId], references: [id], onDelete: Cascade)
-  ataReuniao   AtaReuniao?     @relation(fields: [ataReuniaoId], references: [id], onDelete: Cascade)
-  enviadoPor   Usuario?        @relation(fields: [enviadoPorUsuarioId], references: [id], onDelete: SetNull)
+  contrato       Contrato?       @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  item           ItemContratual? @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  medicaoMensal  MedicaoMensal?  @relation(fields: [medicaoMensalId], references: [id], onDelete: Cascade)
+  ataReuniao     AtaReuniao?     @relation(fields: [ataReuniaoId], references: [id], onDelete: Cascade)
+  lancamentoUst  LancamentoUst?  @relation(fields: [lancamentoUstId], references: [id], onDelete: SetNull)
+  enviadoPor     Usuario?        @relation(fields: [enviadoPorUsuarioId], references: [id], onDelete: SetNull)
 
   @@map("anexos")
 }
 
 model HistoricoAuditoria {
-  id           String   @id @default(cuid())
-  entidade     String
-  entidadeId   String   @map("entidade_id")
-  acao         String
-  valorAnterior Json?   @map("valor_anterior")
-  valorNovo    Json?    @map("valor_novo")
-  usuarioId    String?  @map("usuario_id")
-  criadoEm     DateTime @default(now()) @map("criado_em")
+  id            String   @id @default(cuid())
+  entidade      String
+  entidadeId    String   @map("entidade_id")
+  acao          String
+  valorAnterior Json?    @map("valor_anterior")
+  valorNovo     Json?    @map("valor_novo")
+  usuarioId     String?  @map("usuario_id")
+  criadoEm      DateTime @default(now()) @map("criado_em")
 
   usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 

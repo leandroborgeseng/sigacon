@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { BookMarked, LogOut } from "lucide-react";
 import type { SessionUser } from "@/lib/session";
 
 interface HeaderProps {
@@ -27,10 +28,18 @@ export function Header({ user }: HeaderProps) {
       </div>
       <div className="flex items-center gap-2">
         {user && (
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/manual" title="Manual do sistema — funcionalidades e como usar">
+                <BookMarked className="mr-2 h-4 w-4" />
+                Manual
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </Button>
+          </>
         )}
       </div>
     </header>

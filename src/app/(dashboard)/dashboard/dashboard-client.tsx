@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -12,7 +13,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, formatPercent } from "@/lib/utils";
+import { formatCurrency, formatDate, formatPercent } from "@/lib/utils";
 import {
   BarChart,
   Bar,
@@ -39,10 +40,25 @@ export function DashboardClient({
   contratos,
   contratoId,
   indicators,
+  alertas,
   porModulo,
 }: {
   contratos: Array<{ id: string; nome: string }>;
   contratoId: string | undefined;
+  alertas: {
+    vencendo90Dias: Array<{
+      id: string;
+      nome: string;
+      numeroContrato: string;
+      vigenciaFim: string;
+    }>;
+    ustProximoTeto: Array<{
+      id: string;
+      nome: string;
+      mensagem: string;
+      severidade: "aviso" | "critico";
+    }>;
+  };
   indicators: {
     totalContratos: number;
     totalModulos: number;
@@ -81,6 +97,62 @@ export function DashboardClient({
   const contratoSelecionado = contratoId
     ? contratos.find((c) => c.id === contratoId)?.nome ?? "—"
     : null;
+
+  const temAlertas =
+    alertas.vencendo90Dias.length > 0 || alertas.ustProximoTeto.length > 0;
+
+  const blocoAlertas = temAlertas && (
+    <div className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 dark:bg-amber-950/20">
+      <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+        Atenção
+      </p>
+      {alertas.vencendo90Dias.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          <li className="font-medium text-muted-foreground">
+            Vigência nos próximos 90 dias
+          </li>
+          {alertas.vencendo90Dias.map((v) => (
+            <li key={v.id}>
+              <Link
+                href={`/contratos/${v.id}`}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                {v.nome}
+              </Link>
+              {" — "}
+              fim {formatDate(v.vigenciaFim)} ({v.numeroContrato})
+            </li>
+          ))}
+        </ul>
+      )}
+      {alertas.ustProximoTeto.length > 0 && (
+        <ul className="space-y-2 text-sm">
+          <li className="font-medium text-muted-foreground">
+            Limite UST no ano (≥85% ou estourado)
+          </li>
+          {alertas.ustProximoTeto.map((u) => (
+            <li
+              key={u.id}
+              className={
+                u.severidade === "critico"
+                  ? "text-destructive font-medium"
+                  : ""
+              }
+            >
+              <Link
+                href={`/contratos/${u.id}`}
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                {u.nome}
+              </Link>
+              {": "}
+              {u.mensagem}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 
   const filtrosAplicadosBlock = temFiltros && (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3">
@@ -140,6 +212,7 @@ export function DashboardClient({
           </div>
         </div>
         {filtrosAplicadosBlock}
+        {blocoAlertas}
         <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
           Nenhum dado disponível. Cadastre contratos e itens para ver os indicadores.
         </div>
@@ -198,6 +271,8 @@ export function DashboardClient({
       </div>
 
       {filtrosAplicadosBlock}
+
+      {blocoAlertas}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>

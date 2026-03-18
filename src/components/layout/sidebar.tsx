@@ -13,6 +13,8 @@ import {
   Upload,
   Users,
   Shield,
+  Gauge,
+  BookMarked,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,9 +26,11 @@ const navItems: { href: string; label: string; icon: typeof FileText; adminOnly?
   { href: "/modulos", label: "Módulos", icon: Layers },
   { href: "/itens", label: "Itens Contratuais", icon: ListChecks },
   { href: "/pendencias", label: "Pendências", icon: AlertCircle },
+  { href: "/execucao-tecnica", label: "UST & catálogo", icon: Gauge },
   { href: "/medicoes", label: "Medição Mensal", icon: Calculator },
   { href: "/atas", label: "Atas de Reunião", icon: BookOpen },
   { href: "/importacao", label: "Importação XLSX", icon: Upload },
+  { href: "/manual", label: "Manual do sistema", icon: BookMarked },
   { href: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
   { href: "/usuarios/perfis", label: "Perfis e permissões", icon: Shield, adminOnly: true },
 ];

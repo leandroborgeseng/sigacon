@@ -41,6 +41,7 @@ cp .env.example .env
 | `SESSION_SECRET` | Chave para sessão (gere com `openssl rand -base64 32`) |
 | `PORT`           | Porta do servidor (opcional; padrão 3000) |
 | `NEXT_PUBLIC_APP_URL` | URL base da aplicação (opcional) |
+| `GLPI_URL`, `GLPI_APP_TOKEN`, `GLPI_USER_TOKEN` | Opcional: API REST do GLPI (`/api/integracao/glpi/ticket?id=`) |
 
 ## Banco de dados
 
@@ -104,6 +105,14 @@ Acesse: `http://localhost:3000`. Redirecionamento: raiz → login ou dashboard c
 
 - Com a conexão GitHub ativa, cada push na branch configurada dispara um novo build e deploy.
 - Garanta que `DATABASE_URL` e `SESSION_SECRET` estejam configurados nas variáveis do serviço no Railway.
+
+### Checklist antes de testar em produção
+
+1. `npm run build` sem erros localmente.
+2. Aplicar schema no banco: `npx prisma migrate deploy` (ou `db push` só se não usar migrações formais).
+3. `SESSION_SECRET` forte e único no ambiente de produção.
+4. Trocar senha do usuário admin inicial.
+5. Conferir logs do servidor se o dashboard ficar vazio (erros aparecem como `[dashboard] indicadores:` no console).
 
 ## Medição mensal e valor devido
 

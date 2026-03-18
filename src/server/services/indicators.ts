@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { StatusItem } from "@prisma/client";
 import { StatusPendencia } from "@prisma/client";
+import { mapTotaisUstPorContratoNoAno } from "@/lib/ust-limits";
 
 const STATUS_VALIDOS_MEDICAO = [
   StatusItem.ATENDE,
@@ -159,5 +160,101 @@ export async function getIndicadoresPorModulo(contratoId?: string) {
       pendenciasAbertas: pendenciasCount.get(m.id) ?? 0,
     };
   });
+}
+
+/** Alertas: vigência nos próximos 90 dias e consumo UST ≥85% do teto anual. */
+export async function getDashboardAlertas(contratoId?: string) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const em90 = new Date(hoje);
+  em90.setDate(em90.getDate() + 90);
+
+  const baseContrato = {
+    ativo: true,
+    status: "ATIVO" as const,
+    ...(contratoId ? { id: contratoId } : {}),
+  };
+
+  const vencendo90Dias = await prisma.contrato.findMany({
+    where: {
+      ...baseContrato,
+      vigenciaFim: { gte: hoje, lte: em90 },
+    },
+    select: {
+      id: true,
+      nome: true,
+      numeroContrato: true,
+      vigenciaFim: true,
+    },
+    orderBy: { vigenciaFim: "asc" },
+    take: 25,
+  });
+
+  const comLimite = await prisma.contrato.findMany({
+    where: {
+      ...baseContrato,
+      OR: [{ limiteUstAno: { not: null } }, { limiteValorUstAno: { not: null } }],
+    },
+    select: {
+      id: true,
+      nome: true,
+      limiteUstAno: true,
+      limiteValorUstAno: true,
+    },
+    take: contratoId ? 1 : 40,
+  });
+
+  const ano = new Date().getFullYear();
+  const ustProximoTeto: Array<{
+    id: string;
+    nome: string;
+    mensagem: string;
+    severidade: "aviso" | "critico";
+  }> = [];
+
+  const totaisMap = await mapTotaisUstPorContratoNoAno(
+    comLimite.map((c) => c.id),
+    ano
+  );
+
+  for (const c of comLimite) {
+    const t = totaisMap.get(c.id) ?? { totalUst: 0, totalValor: 0 };
+    const lu = c.limiteUstAno != null ? Number(c.limiteUstAno) : null;
+    const lv = c.limiteValorUstAno != null ? Number(c.limiteValorUstAno) : null;
+    let mensagem: string | null = null;
+    let severidade: "aviso" | "critico" = "aviso";
+
+    if (lu && lu > 0) {
+      const pct = (t.totalUst / lu) * 100;
+      if (pct >= 100) {
+        mensagem = `UST no ano: ${t.totalUst.toFixed(1)} / ${lu} — teto atingido ou excedido.`;
+        severidade = "critico";
+      } else if (pct >= 85) {
+        mensagem = `UST no ano: ${t.totalUst.toFixed(1)} / ${lu} (${pct.toFixed(0)}% do teto).`;
+      }
+    }
+    if (!mensagem && lv && lv > 0) {
+      const pct = (t.totalValor / lv) * 100;
+      if (pct >= 100) {
+        mensagem = `Valor UST no ano: ${t.totalValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} / ${lv.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} — teto atingido.`;
+        severidade = "critico";
+      } else if (pct >= 85) {
+        mensagem = `Valor UST no ano em ${pct.toFixed(0)}% do teto contratual.`;
+      }
+    }
+    if (mensagem) {
+      ustProximoTeto.push({ id: c.id, nome: c.nome, mensagem, severidade });
+    }
+  }
+
+  return {
+    vencendo90Dias: vencendo90Dias.map((v) => ({
+      id: v.id,
+      nome: v.nome,
+      numeroContrato: v.numeroContrato,
+      vigenciaFim: v.vigenciaFim.toISOString(),
+    })),
+    ustProximoTeto,
+  };
 }
 

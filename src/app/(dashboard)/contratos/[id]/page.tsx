@@ -16,6 +16,9 @@ import {
   limiteRenovacoes,
   reajusteAcumuladoUltimos12Meses,
 } from "@/lib/licitacao";
+import { canRecurso } from "@/lib/permissions";
+import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
+import { ContratoGestaoExtendida } from "@/components/contratos/contrato-gestao-extendida";
 
 export default async function ContratoDetailPage({
   params,
@@ -33,11 +36,23 @@ export default async function ContratoDetailPage({
       medicoes: { orderBy: [{ ano: "desc" }, { mes: "desc" }], take: 12 },
       atas: { orderBy: { dataReuniao: "desc" }, take: 5 },
       reajustes: { orderBy: { dataReajuste: "desc" } },
+      aditivos: { orderBy: { dataRegistro: "desc" } },
+      marcosImplantacao: { orderBy: [{ ordem: "asc" }, { dataPrevista: "asc" }] },
+      parcelasPagamento: {
+        orderBy: [{ competenciaAno: "desc" }, { competenciaMes: "desc" }],
+        take: 48,
+      },
       _count: { select: { itens: true } },
     },
   });
 
   if (!contrato) notFound();
+
+  const podeEditarGestao = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.CONTRATOS,
+    "editar"
+  );
 
   const historico = await prisma.historicoAuditoria.findMany({
     where: { entidade: "Contrato", entidadeId: id },
@@ -280,6 +295,27 @@ export default async function ContratoDetailPage({
           </Card>
         );
       })()}
+
+      <ContratoGestaoExtendida
+        contratoId={id}
+        podeEditar={podeEditarGestao}
+        aditivosInicial={contrato.aditivos.map((a) => ({
+          ...a,
+          dataRegistro: a.dataRegistro.toISOString(),
+          vigenciaFimAnterior: a.vigenciaFimAnterior?.toISOString() ?? null,
+          vigenciaFimNova: a.vigenciaFimNova?.toISOString() ?? null,
+        }))}
+        marcosInicial={contrato.marcosImplantacao.map((m) => ({
+          ...m,
+          dataPrevista: m.dataPrevista.toISOString(),
+          dataRealizada: m.dataRealizada?.toISOString() ?? null,
+        }))}
+        parcelasInicial={contrato.parcelasPagamento.map((p) => ({
+          ...p,
+          dataVencimento: p.dataVencimento?.toISOString() ?? null,
+          dataPagamento: p.dataPagamento?.toISOString() ?? null,
+        }))}
+      />
 
       <Card>
         <CardHeader>

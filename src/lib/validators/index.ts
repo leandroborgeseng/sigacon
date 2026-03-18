@@ -5,3 +5,5 @@ export * from "./item";
 export * from "./pendencia";
 export * from "./ata";
 export * from "./usuario";
+export * from "./ust";
+export * from "./gestao-contrato";

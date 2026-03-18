@@ -13,7 +13,11 @@ export async function GET(request: Request) {
   const status = searchParams.get("status");
   const comPendencia = searchParams.get("comPendencia");
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-  const pageSize = Math.min(50, Math.max(10, parseInt(searchParams.get("pageSize") ?? "20", 10)));
+  const pageSizeCap = contratoId ? 500 : 50;
+  const pageSize = Math.min(
+    pageSizeCap,
+    Math.max(10, parseInt(searchParams.get("pageSize") ?? (contratoId ? "200" : "20"), 10))
+  );
   const search = searchParams.get("search")?.trim();
 
   const where: Prisma.ItemContratualWhereInput = {};

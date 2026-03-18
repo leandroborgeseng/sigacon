@@ -80,6 +80,7 @@ export const RECURSO_LABELS: Record<RecursoPermissao, string> = {
   [RecursoPermissao.PENDENCIAS]: "Pendências",
   [RecursoPermissao.USUARIOS]: "Usuários",
   [RecursoPermissao.IMPORTACAO]: "Importação XLSX",
+  [RecursoPermissao.CUSTOMIZACAO]: "UST & catálogo de serviços",
 };
 
 export const PERFIL_LABELS: Record<PerfilUsuario, string> = {

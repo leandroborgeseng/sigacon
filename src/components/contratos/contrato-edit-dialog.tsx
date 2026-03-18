@@ -44,6 +44,9 @@ type ContratoParaEdicao = {
   leiLicitacao: LeiLicitacao;
   dataAssinatura: Date | null;
   numeroRenovacoes: number;
+  valorUnitarioUst?: { toString(): string } | number | null;
+  limiteUstAno?: { toString(): string } | number | null;
+  limiteValorUstAno?: { toString(): string } | number | null;
 };
 
 export function ContratoEditDialog({
@@ -76,6 +79,12 @@ export function ContratoEditDialog({
       leiLicitacao: contrato.leiLicitacao,
       dataAssinatura: contrato.dataAssinatura ? new Date(contrato.dataAssinatura) : undefined,
       numeroRenovacoes: contrato.numeroRenovacoes,
+      valorUnitarioUst:
+        contrato.valorUnitarioUst != null ? Number(contrato.valorUnitarioUst) : undefined,
+      limiteUstAno:
+        contrato.limiteUstAno != null ? Number(contrato.limiteUstAno) : undefined,
+      limiteValorUstAno:
+        contrato.limiteValorUstAno != null ? Number(contrato.limiteValorUstAno) : undefined,
     },
   });
 
@@ -218,6 +227,47 @@ export function ContratoEditDialog({
               min={0}
               {...form.register("numeroRenovacoes", { valueAsNumber: true })}
             />
+          </div>
+          <div className="space-y-2 rounded-md border border-dashed p-3">
+            <Label>Valor unitário UST (R$)</Label>
+            <p className="text-xs text-muted-foreground">
+              Referência em reais por UST quando o lançamento não usa preço do catálogo de serviços.
+            </p>
+            <Input
+              type="number"
+              step="0.0001"
+              min={0}
+              placeholder="Ex.: 150,00"
+              {...form.register("valorUnitarioUst", {
+                setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)),
+              })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4 rounded-md border border-dashed p-3">
+            <div className="space-y-2">
+              <Label>Limite UST / ano (opcional)</Label>
+              <p className="text-xs text-muted-foreground">Bloqueia lançamentos acima do teto.</p>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                {...form.register("limiteUstAno", {
+                  setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)),
+                })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Limite R$ UST / ano</Label>
+              <p className="text-xs text-muted-foreground">Teto financeiro UST no ano.</p>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                {...form.register("limiteValorUstAno", {
+                  setValueAs: (v) => (v === "" || v == null ? undefined : Number(v)),
+                })}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

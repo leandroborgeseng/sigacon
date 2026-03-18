@@ -52,6 +52,9 @@ export async function POST(request: Request) {
         leiLicitacao: parsed.data.leiLicitacao,
         dataAssinatura: parsed.data.dataAssinatura ?? null,
         numeroRenovacoes: parsed.data.numeroRenovacoes ?? 0,
+        valorUnitarioUst: parsed.data.valorUnitarioUst ?? null,
+        limiteUstAno: parsed.data.limiteUstAno ?? null,
+        limiteValorUstAno: parsed.data.limiteValorUstAno ?? null,
       },
     });
 
