@@ -5,6 +5,7 @@ import {
   getDashboardIndicators,
   getIndicadoresPorModulo,
   getDashboardAlertas,
+  getDashboardInsights,
 } from "@/server/services/indicators";
 import { DashboardClient } from "./dashboard-client";
 
@@ -32,10 +33,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   let indicators = null;
   let porModulo: Awaited<ReturnType<typeof getIndicadoresPorModulo>> = [];
+  let insights: Awaited<ReturnType<typeof getDashboardInsights>> | null = null;
   let alertas: Awaited<ReturnType<typeof getDashboardAlertas>> = {
     vencendo90Dias: [],
     ustProximoTeto: [],
   };
+  try {
+    insights = await getDashboardInsights(contratoId);
+  } catch (e) {
+    console.error("[dashboard] insights:", e);
+  }
   try {
     [indicators, porModulo, alertas] = await Promise.all([
       getDashboardIndicators(contratoId),
@@ -65,6 +72,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           contratos={contratos}
           contratoId={contratoId}
           indicators={indicators}
+          insights={insights}
           alertas={alertas}
           porModulo={porModulo.map((m) => ({
             nome: m.nome,

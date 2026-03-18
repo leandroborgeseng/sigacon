@@ -15,6 +15,7 @@ import {
   Shield,
   Gauge,
   BookMarked,
+  LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ const navItems: { href: string; label: string; icon: typeof FileText; adminOnly?
   { href: "/atas", label: "Atas de Reunião", icon: BookOpen },
   { href: "/importacao", label: "Importação XLSX", icon: Upload },
   { href: "/manual", label: "Manual do sistema", icon: BookMarked },
+  { href: "/admin", label: "Visão admin", icon: LayoutGrid, adminOnly: true },
   { href: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
   { href: "/usuarios/perfis", label: "Perfis e permissões", icon: Shield, adminOnly: true },
 ];

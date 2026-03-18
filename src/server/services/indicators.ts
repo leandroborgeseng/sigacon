@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { StatusItem } from "@prisma/client";
-import { StatusPendencia } from "@prisma/client";
+import { StatusContrato, StatusItem, StatusPendencia } from "@prisma/client";
 import { mapTotaisUstPorContratoNoAno } from "@/lib/ust-limits";
+
+const STATUS_CONTRATO_LABEL: Record<StatusContrato, string> = {
+  ATIVO: "Ativo",
+  ENCERRADO: "Encerrado",
+  SUSPENSO: "Suspenso",
+  EM_IMPLANTACAO: "Em implantação",
+  EM_AVALIACAO: "Em avaliação",
+};
 
 const STATUS_VALIDOS_MEDICAO = [
   StatusItem.ATENDE,
@@ -160,6 +167,81 @@ export async function getIndicadoresPorModulo(contratoId?: string) {
       pendenciasAbertas: pendenciasCount.get(m.id) ?? 0,
     };
   });
+}
+
+/** Insights operacionais: medição, UST no mês, carteira de contratos, módulos críticos. */
+export async function getDashboardInsights(contratoId?: string) {
+  const now = new Date();
+  const ano = now.getFullYear();
+  const mes = now.getMonth() + 1;
+
+  const ativos = await prisma.contrato.findMany({
+    where: {
+      status: "ATIVO",
+      ativo: true,
+      ...(contratoId ? { id: contratoId } : {}),
+    },
+    select: { id: true, nome: true },
+  });
+  const ids = ativos.map((c) => c.id);
+
+  const medicoesMes = await prisma.medicaoMensal.findMany({
+    where: {
+      ano,
+      mes,
+      contratoId: contratoId ? contratoId : { in: ids.length ? ids : ["__none__"] },
+    },
+    select: { contratoId: true },
+  });
+  const comMedicao = new Set(medicoesMes.map((m) => m.contratoId));
+  const semMedicaoNoMes = ativos.filter((c) => !comMedicao.has(c.id)).slice(0, 15);
+
+  const ustWhere = {
+    competenciaAno: ano,
+    competenciaMes: mes,
+    ...(contratoId ? { contratoId } : {}),
+  };
+  const [ustCount, ustSum] = await Promise.all([
+    prisma.lancamentoUst.count({ where: ustWhere }),
+    prisma.lancamentoUst.aggregate({
+      where: ustWhere,
+      _sum: { totalUst: true, valorMonetario: true },
+    }),
+  ]);
+
+  const statusDistrib = await prisma.contrato.groupBy({
+    by: ["status"],
+    _count: true,
+  });
+
+  const modulos = await getIndicadoresPorModulo(contratoId);
+  const modulosCriticos = [...modulos]
+    .filter((m) => m.totalItens >= 2 && m.percentualAtendimento < 100)
+    .sort((a, b) => a.percentualAtendimento - b.percentualAtendimento)
+    .slice(0, 6);
+
+  return {
+    competenciaLabel: `${String(mes).padStart(2, "0")}/${ano}`,
+    semMedicaoNoMes: semMedicaoNoMes.map((c) => ({ id: c.id, nome: c.nome })),
+    ustMes: {
+      lancamentos: ustCount,
+      totalUst: Number(ustSum._sum.totalUst ?? 0),
+      valor: Number(ustSum._sum.valorMonetario ?? 0),
+    },
+    carteiraContratos: statusDistrib.map((s) => ({
+      status: s.status,
+      label: STATUS_CONTRATO_LABEL[s.status],
+      count: s._count,
+    })),
+    modulosCriticos: modulosCriticos.map((m) => ({
+      id: m.id,
+      nome: m.nome,
+      contratoNome: m.contratoNome,
+      percentual: Math.round(m.percentualAtendimento * 10) / 10,
+      pendencias: m.pendenciasAbertas,
+      totalItens: m.totalItens,
+    })),
+  };
 }
 
 /** Alertas: vigência nos próximos 90 dias e consumo UST ≥85% do teto anual. */

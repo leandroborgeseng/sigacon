@@ -40,11 +40,26 @@ export function DashboardClient({
   contratos,
   contratoId,
   indicators,
+  insights,
   alertas,
   porModulo,
 }: {
   contratos: Array<{ id: string; nome: string }>;
   contratoId: string | undefined;
+  insights: {
+    competenciaLabel: string;
+    semMedicaoNoMes: Array<{ id: string; nome: string }>;
+    ustMes: { lancamentos: number; totalUst: number; valor: number };
+    carteiraContratos: Array<{ status: string; label: string; count: number }>;
+    modulosCriticos: Array<{
+      id: string;
+      nome: string;
+      contratoNome: string;
+      percentual: number;
+      pendencias: number;
+      totalItens: number;
+    }>;
+  } | null;
   alertas: {
     vencendo90Dias: Array<{
       id: string;
@@ -187,6 +202,134 @@ export function DashboardClient({
     </div>
   );
 
+  const blocoInsights =
+    insights &&
+    (() => {
+      const cartColors = ["#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7"];
+      return (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold tracking-tight">Insights operacionais</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Medição {insights.competenciaLabel}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {insights.semMedicaoNoMes.length === 0 ? (
+                  <p className="text-muted-foreground">
+                    Todos os contratos ativos{contratoId ? " (filtro)" : ""} têm medição registrada neste mês.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-amber-800 dark:text-amber-200 font-medium">
+                      {insights.semMedicaoNoMes.length} contrato(s) sem medição no mês
+                    </p>
+                    <ul className="space-y-1 text-xs max-h-28 overflow-y-auto">
+                      {insights.semMedicaoNoMes.map((c) => (
+                        <li key={c.id}>
+                          <Link href={`/medicoes?contratoId=${c.id}`} className="text-primary hover:underline">
+                            {c.nome}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">UST no mês</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-1">
+                <p>
+                  <strong>{insights.ustMes.lancamentos}</strong> lançamentos
+                </p>
+                <p>
+                  Total: <strong>{insights.ustMes.totalUst.toFixed(2)}</strong> UST
+                </p>
+                <p className="text-muted-foreground">
+                  Valor:{" "}
+                  {insights.ustMes.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                </p>
+                <Button variant="link" className="h-auto p-0 text-xs" asChild>
+                  <Link href="/execucao-tecnica">Abrir execução técnica</Link>
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="md:col-span-2 lg:col-span-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Carteira de contratos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {insights.carteiraContratos.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart
+                      layout="vertical"
+                      data={insights.carteiraContratos}
+                      margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="label"
+                        width={88}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <Tooltip />
+                      <Bar dataKey="count" name="Contratos" radius={[0, 4, 4, 0]}>
+                        {insights.carteiraContratos.map((_, i) => (
+                          <Cell key={i} fill={cartColors[i % cartColors.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sem contratos cadastrados.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          {insights.modulosCriticos.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Módulos com menor atendimento</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Priorize ações onde o % de itens &quot;Atende&quot; está mais baixo (mín. 2 itens no módulo).
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y text-sm">
+                  {insights.modulosCriticos.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"
+                    >
+                      <div>
+                        <Link href={`/modulos/${m.id}`} className="font-medium text-primary hover:underline">
+                          {m.nome}
+                        </Link>
+                        <span className="text-muted-foreground text-xs ml-1">· {m.contratoNome}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <Badge variant={m.percentual < 50 ? "destructive" : "secondary"}>
+                          {m.percentual}% atendidos
+                        </Badge>
+                        {m.pendencias > 0 && (
+                          <span className="text-muted-foreground">{m.pendencias} pend.</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      );
+    })();
+
   if (!indicators) {
     return (
       <div className="space-y-4">
@@ -213,6 +356,7 @@ export function DashboardClient({
         </div>
         {filtrosAplicadosBlock}
         {blocoAlertas}
+        {blocoInsights}
         <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
           Nenhum dado disponível. Cadastre contratos e itens para ver os indicadores.
         </div>
@@ -273,6 +417,8 @@ export function DashboardClient({
       {filtrosAplicadosBlock}
 
       {blocoAlertas}
+
+      {blocoInsights}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
