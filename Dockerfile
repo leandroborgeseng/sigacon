@@ -27,10 +27,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-# node_modules completo: app + CLI Prisma (db push) e deps como effect
+# node_modules completo: CLI Prisma (db push obrigatório antes do server)
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+RUN chmod +x ./scripts/docker-start.sh
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --schema=./prisma/schema.prisma --skip-generate || true && (node prisma/seed.js || true) && (node scripts/seed-eddydata.js || true) && node server.js"]
+CMD ["./scripts/docker-start.sh"]

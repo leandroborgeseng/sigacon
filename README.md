@@ -114,6 +114,8 @@ Acesse: `http://localhost:3000`. Redirecionamento: raiz → login ou dashboard c
 4. Trocar senha do usuário admin inicial.
 5. Conferir logs do servidor se o dashboard ficar vazio (erros aparecem como `[dashboard] indicadores:` no console).
 
+**Erro P2022 (coluna não existe):** o banco está atrás do `schema.prisma`. Cada deploy roda `prisma db push` antes do servidor; se o deploy falhar, veja o log do `db push`. Para corrigir na mão no Railway: **Shell** do serviço → `npx prisma db push` (com `DATABASE_URL` do Postgres ligado ao serviço).
+
 ## Medição mensal e valor devido
 
 - O sistema considera apenas **itens válidos** (não cabeçalho e “considerar na medição” ativo).
