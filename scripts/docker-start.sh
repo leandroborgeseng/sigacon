@@ -3,10 +3,14 @@
 set -e
 cd /app 2>/dev/null || true
 
-echo "[sigacon] Prisma db push (sincroniza colunas/tabelas com o schema)..."
-if ! ./node_modules/.bin/prisma db push --schema=./prisma/schema.prisma --skip-generate; then
-  echo "[sigacon] ERRO: db push falhou. Verifique DATABASE_URL e logs acima."
-  echo "[sigacon] No Railway: abra Shell no serviço e rode: npx prisma db push"
+# --accept-data-loss: Prisma exige ao adicionar índice único em anexos.lancamento_ust_id (1 evidência por lançamento UST).
+echo "[sigacon] Prisma db push..."
+if ! ./node_modules/.bin/prisma db push \
+  --schema=./prisma/schema.prisma \
+  --skip-generate \
+  --accept-data-loss; then
+  echo "[sigacon] ERRO: db push falhou."
+  echo "[sigacon] Se falhar por duplicata em anexos.lancamento_ust_id, no Postgres: DELETE duplicatas mantendo um anexo por lançamento."
   exit 1
 fi
 
