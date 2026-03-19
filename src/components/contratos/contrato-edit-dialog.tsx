@@ -89,10 +89,18 @@ export function ContratoEditDialog({
   });
 
   async function onSubmit(data: Partial<ContratoInput>) {
+    const parseOpt = (v: unknown): number | null => {
+      if (v === "" || v === undefined || v === null) return null;
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
     const payload: Record<string, unknown> = { ...data };
     if (data.vigenciaInicio) payload.vigenciaInicio = data.vigenciaInicio;
     if (data.vigenciaFim) payload.vigenciaFim = data.vigenciaFim;
     if (data.dataAssinatura !== undefined) payload.dataAssinatura = data.dataAssinatura ?? null;
+    payload.valorUnitarioUst = parseOpt(form.getValues("valorUnitarioUst"));
+    payload.limiteUstAno = parseOpt(form.getValues("limiteUstAno"));
+    payload.limiteValorUstAno = parseOpt(form.getValues("limiteValorUstAno"));
 
     const res = await fetch(`/api/contratos/${contrato.id}`, {
       method: "PATCH",

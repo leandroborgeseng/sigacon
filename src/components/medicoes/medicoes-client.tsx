@@ -6,6 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -21,7 +29,20 @@ const MESES = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
-export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
+const STATUS_LABEL: Record<string, string> = {
+  ABERTA: "Aberta",
+  FECHADA: "Fechada",
+  REVISADA: "Revisada",
+  HOMOLOGADA: "Homologada",
+};
+
+export function MedicoesClient({
+  contratos,
+  podeEditar,
+}: {
+  contratos: Contrato[];
+  podeEditar: boolean;
+}) {
   const router = useRouter();
   const [contratoId, setContratoId] = useState("");
   const [ano, setAno] = useState(new Date().getFullYear());
@@ -42,6 +63,12 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [gerando, setGerando] = useState(false);
+  const [dialogFechar, setDialogFechar] = useState(false);
+  const [dialogReabrir, setDialogReabrir] = useState(false);
+  const [chkPerc, setChkPerc] = useState(false);
+  const [chkUst, setChkUst] = useState(false);
+  const [chkBloqueio, setChkBloqueio] = useState(false);
+  const [erroApi, setErroApi] = useState<string | null>(null);
 
   useEffect(() => {
     if (!contratoId) {
@@ -86,7 +113,8 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
   }, [contratoId, ano, mes]);
 
   async function gerarOuRecalcular() {
-    if (!contratoId) return;
+    if (!contratoId || !podeEditar) return;
+    setErroApi(null);
     setGerando(true);
     try {
       const res = await fetch("/api/medicoes", {
@@ -95,6 +123,10 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
         body: JSON.stringify({ contratoId, ano, mes }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        setErroApi(data.message ?? "Erro ao gerar medição");
+        return;
+      }
       if (res.ok && data.id) {
         setMedicao({
           id: data.id,
@@ -118,7 +150,8 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
   }
 
   async function recalcular() {
-    if (!medicao?.id) return;
+    if (!medicao?.id || !podeEditar) return;
+    setErroApi(null);
     setGerando(true);
     try {
       const res = await fetch(`/api/medicoes/${medicao.id}`, {
@@ -127,28 +160,85 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
         body: JSON.stringify({ recalcular: true }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setMedicao((prev) =>
-          prev
-            ? {
-                ...prev,
-                totalItensValidos: data.totalItensValidos,
-                totalItensAtendidos: data.totalItensAtendidos,
-                totalItensParciais: data.totalItensParciais,
-                totalItensNaoAtendidos: data.totalItensNaoAtendidos,
-                percentualCumprido: String(data.percentualCumprido),
-                percentualNaoCumprido: String(data.percentualNaoCumprido),
-                valorDevidoMes: String(data.valorDevidoMes),
-                valorGlosadoMes: String(data.valorGlosadoMes),
-              }
-            : null
-        );
-        router.refresh();
+      if (!res.ok) {
+        setErroApi(data.message ?? "Erro ao recalcular");
+        return;
       }
+      setMedicao((prev) =>
+        prev
+          ? {
+              ...prev,
+              totalItensValidos: data.totalItensValidos,
+              totalItensAtendidos: data.totalItensAtendidos,
+              totalItensParciais: data.totalItensParciais,
+              totalItensNaoAtendidos: data.totalItensNaoAtendidos,
+              percentualCumprido: String(data.percentualCumprido),
+              percentualNaoCumprido: String(data.percentualNaoCumprido),
+              valorDevidoMes: String(data.valorDevidoMes),
+              valorGlosadoMes: String(data.valorGlosadoMes),
+            }
+          : null
+      );
+      router.refresh();
     } finally {
       setGerando(false);
     }
   }
+
+  async function recalcularDentroDialog() {
+    await recalcular();
+  }
+
+  async function confirmarFechar() {
+    if (!medicao?.id || !chkPerc || !chkUst || !chkBloqueio) return;
+    setGerando(true);
+    setErroApi(null);
+    try {
+      const res = await fetch(`/api/medicoes/${medicao.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusFechamento: "FECHADA" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErroApi(data.message ?? "Erro ao fechar");
+        return;
+      }
+      setMedicao((prev) => (prev ? { ...prev, statusFechamento: data.statusFechamento } : null));
+      setDialogFechar(false);
+      setChkPerc(false);
+      setChkUst(false);
+      setChkBloqueio(false);
+      router.refresh();
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  async function confirmarReabrir() {
+    if (!medicao?.id) return;
+    setGerando(true);
+    setErroApi(null);
+    try {
+      const res = await fetch(`/api/medicoes/${medicao.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statusFechamento: "ABERTA" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErroApi(data.message ?? "Erro ao reabrir");
+        return;
+      }
+      setMedicao((prev) => (prev ? { ...prev, statusFechamento: data.statusFechamento } : null));
+      setDialogReabrir(false);
+      router.refresh();
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  const medicaoAberta = medicao?.statusFechamento === "ABERTA";
 
   return (
     <div className="space-y-6">
@@ -206,18 +296,26 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end gap-2">
-            <Button
-              onClick={gerarOuRecalcular}
-              disabled={!contratoId || gerando}
-            >
-              {medicao ? "Gerar/Atualizar" : "Gerar medição"}
-            </Button>
-            {medicao && (
-              <Button variant="outline" onClick={recalcular} disabled={gerando}>
-                Recalcular
+          <div className="flex flex-col gap-2">
+            <div className="flex items-end gap-2 flex-wrap">
+              <Button
+                onClick={gerarOuRecalcular}
+                disabled={!contratoId || gerando || !podeEditar}
+              >
+                {medicao ? "Gerar/Atualizar" : "Gerar medição"}
               </Button>
+              {medicao && podeEditar && (
+                <Button variant="outline" onClick={recalcular} disabled={gerando}>
+                  Recalcular
+                </Button>
+              )}
+            </div>
+            {!podeEditar && (
+              <p className="text-xs text-muted-foreground">
+                Sua permissão permite apenas visualizar. Geração, recálculo e fechamento exigem permissão de edição em Medição mensal.
+              </p>
             )}
+            {erroApi && <p className="text-sm text-destructive">{erroApi}</p>}
           </div>
         </CardContent>
       </Card>
@@ -271,13 +369,108 @@ export function MedicoesClient({ contratos }: { contratos: Contrato[] }) {
               </p>
             </div>
           </CardContent>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 flex flex-wrap items-center gap-3">
             <p className="text-sm text-muted-foreground">
-              Status: {medicao.statusFechamento}
+              Status:{" "}
+              <strong>{STATUS_LABEL[medicao.statusFechamento] ?? medicao.statusFechamento}</strong>
             </p>
+            {podeEditar && medicaoAberta && (
+              <Button size="sm" variant="secondary" onClick={() => setDialogFechar(true)}>
+                Fechar competência
+              </Button>
+            )}
+            {podeEditar && !medicaoAberta && (
+              <Button size="sm" variant="outline" onClick={() => setDialogReabrir(true)}>
+                Reabrir competência
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={dialogFechar} onOpenChange={setDialogFechar}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fechar competência</DialogTitle>
+            <DialogDescription>
+              Após fechar, alterações no checklist desta competência devem seguir o processo da sua
+              governança. Confirme os itens abaixo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={chkPerc}
+                onChange={(e) => setChkPerc(e.target.checked)}
+              />
+              <span>Revisei percentuais e valores devido/glosado desta medição.</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={chkUst}
+                onChange={(e) => setChkUst(e.target.checked)}
+              />
+              <span>UST do mês está conferida (execução técnica / lançamentos).</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={chkBloqueio}
+                onChange={(e) => setChkBloqueio(e.target.checked)}
+              />
+              <span>Entendo que fechar registra data e usuário e formaliza o fechamento desta competência.</span>
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={recalcularDentroDialog}
+              disabled={gerando || !medicao?.id}
+            >
+              Recalcular agora (checklist + UST)
+            </Button>
+          </div>
+          {erroApi && <p className="text-sm text-destructive">{erroApi}</p>}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDialogFechar(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarFechar}
+              disabled={!chkPerc || !chkUst || !chkBloqueio || gerando}
+            >
+              Confirmar fechamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={dialogReabrir} onOpenChange={setDialogReabrir}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reabrir competência</DialogTitle>
+            <DialogDescription>
+              A competência voltará ao status <strong>Aberta</strong>. Use apenas quando precisar corrigir
+              dados antes de um novo fechamento.
+            </DialogDescription>
+          </DialogHeader>
+          {erroApi && <p className="text-sm text-destructive">{erroApi}</p>}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDialogReabrir(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmarReabrir} disabled={gerando}>
+              Reabrir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

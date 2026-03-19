@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { getAdminResumo } from "@/server/services/admin-resumo";
 import { PERFIL_LABELS } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/utils";
-import { Users, Shield, FileText, Gauge, BookMarked } from "lucide-react";
+import { Users, Shield, FileText, Gauge, BookMarked, ScrollText, Printer } from "lucide-react";
+import { RecalcMedicaoLote } from "@/components/admin/recalc-medicao-lote";
 
 export default async function AdminVisaoPage() {
   const session = await getSession();
@@ -57,8 +58,22 @@ export default async function AdminVisaoPage() {
               Manual
             </Link>
           </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/admin/auditoria">
+              <ScrollText className="mr-2 h-4 w-4" />
+              Auditoria
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/relatorios/executivo-impressao">
+              <Printer className="mr-2 h-4 w-4" />
+              Relatório executivo
+            </Link>
+          </Button>
         </div>
       </div>
+
+      <RecalcMedicaoLote />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

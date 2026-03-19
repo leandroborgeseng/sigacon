@@ -16,10 +16,17 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ContratoCreateDialog } from "@/components/contratos/contrato-create-dialog";
+import { canRecurso } from "@/lib/permissions";
+import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
 export default async function ContratosPage() {
   const session = await getSession();
   if (!session) redirect("/login");
+  const podeCriarContrato = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.CONTRATOS,
+    "editar"
+  );
 
   const contratos = await prisma.contrato.findMany({
     orderBy: { nome: "asc" },
@@ -36,7 +43,7 @@ export default async function ContratosPage() {
             Gerencie os contratos administrativos
           </p>
         </div>
-        <ContratoCreateDialog />
+        <ContratoCreateDialog podeCriar={podeCriarContrato} />
       </div>
       <Card>
         <CardHeader>

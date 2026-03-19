@@ -16,12 +16,19 @@ import {
   Gauge,
   BookMarked,
   LayoutGrid,
+  Printer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SessionUser = { perfil: string } | null;
 
-const navItems: { href: string; label: string; icon: typeof FileText; adminOnly?: boolean }[] = [
+const navItems: {
+  href: string;
+  label: string;
+  icon: typeof FileText;
+  adminOnly?: boolean;
+  relatorioExecutivo?: boolean;
+}[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contratos", label: "Contratos", icon: FileText },
   { href: "/modulos", label: "Módulos", icon: Layers },
@@ -32,12 +39,24 @@ const navItems: { href: string; label: string; icon: typeof FileText; adminOnly?
   { href: "/atas", label: "Atas de Reunião", icon: BookOpen },
   { href: "/importacao", label: "Importação XLSX", icon: Upload },
   { href: "/manual", label: "Manual do sistema", icon: BookMarked },
+  {
+    href: "/relatorios/executivo-impressao",
+    label: "Relatório executivo",
+    icon: Printer,
+    relatorioExecutivo: true,
+  },
   { href: "/admin", label: "Visão admin", icon: LayoutGrid, adminOnly: true },
   { href: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
   { href: "/usuarios/perfis", label: "Perfis e permissões", icon: Shield, adminOnly: true },
 ];
 
-export function Sidebar({ user }: { user?: SessionUser }) {
+export function Sidebar({
+  user,
+  podeRelatorioExecutivo = false,
+}: {
+  user?: SessionUser;
+  podeRelatorioExecutivo?: boolean;
+}) {
   const pathname = usePathname();
   const isAdmin = user?.perfil === "ADMIN";
 
@@ -54,7 +73,11 @@ export function Sidebar({ user }: { user?: SessionUser }) {
       </p>
       <nav className="flex-1 space-y-1 p-2">
         {navItems
-          .filter((item) => !item.adminOnly || isAdmin)
+          .filter((item) => {
+            if (item.adminOnly && !isAdmin) return false;
+            if (item.relatorioExecutivo && !podeRelatorioExecutivo) return false;
+            return true;
+          })
           .map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");

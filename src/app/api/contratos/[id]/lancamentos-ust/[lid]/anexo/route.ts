@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { canRecurso } from "@/lib/permissions";
+import { Prisma } from "@prisma/client";
 import { PerfilUsuario, RecursoPermissao, TipoAnexo } from "@prisma/client";
 import { getStorage } from "@/server/storage";
 import { randomUUID } from "crypto";
@@ -55,6 +56,15 @@ export async function POST(
     });
     return NextResponse.json(anexo);
   } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        {
+          message:
+            "Conflito: já existe registro vinculado a este lançamento. Atualize a página e tente novamente.",
+        },
+        { status: 409 }
+      );
+    }
     console.error(e);
     return NextResponse.json({ message: "Erro no upload" }, { status: 500 });
   }

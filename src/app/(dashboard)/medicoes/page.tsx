@@ -1,11 +1,19 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { canRecurso } from "@/lib/permissions";
+import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 import { MedicoesClient } from "@/components/medicoes/medicoes-client";
 
 export default async function MedicoesPage() {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  const podeEditarMedicao = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.MEDICOES,
+    "editar"
+  );
 
   const contratos = await prisma.contrato.findMany({
     orderBy: { nome: "asc" },
@@ -20,7 +28,7 @@ export default async function MedicoesPage() {
           Cálculo do percentual cumprido e valor devido por competência
         </p>
       </div>
-      <MedicoesClient contratos={contratos} />
+      <MedicoesClient contratos={contratos} podeEditar={podeEditarMedicao} />
     </div>
   );
 }

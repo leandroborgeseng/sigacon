@@ -27,7 +27,8 @@ import { contratoSchema, type ContratoInput } from "@/lib/validators";
 import { StatusContrato, LeiLicitacao } from "@prisma/client";
 import { Plus } from "lucide-react";
 
-export function ContratoCreateDialog() {
+export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean }) {
+  if (!podeCriar) return null;
   const router = useRouter();
   const [open, setOpen] = useState(false);
 

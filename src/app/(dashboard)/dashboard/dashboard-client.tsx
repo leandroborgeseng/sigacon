@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { DashboardUstModal } from "@/components/dashboard/dashboard-ust-modal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -26,7 +28,10 @@ import {
   Pie,
   Cell,
   Legend,
+  ComposedChart,
+  Line,
 } from "recharts";
+import { ClipboardList } from "lucide-react";
 
 const STATUS_COLORS = {
   ATENDE: "#22c55e",
@@ -43,6 +48,8 @@ export function DashboardClient({
   insights,
   alertas,
   porModulo,
+  tarefasMes,
+  serieTempo,
 }: {
   contratos: Array<{ id: string; nome: string }>;
   contratoId: string | undefined;
@@ -96,8 +103,22 @@ export function DashboardClient({
     percentualAtendimento: number;
     pendenciasAbertas: number;
   }>;
+  tarefasMes: Array<{
+    tipo: string;
+    titulo: string;
+    detalhe: string;
+    href: string;
+  }>;
+  serieTempo: Array<{
+    label: string;
+    valorDevido: number;
+    valorGlosado: number;
+    percentualMedio: number;
+    medicoesCount: number;
+  }>;
 }) {
   const router = useRouter();
+  const [ustModalId, setUstModalId] = useState<string | null>(null);
 
   const handleContratoChange = (value: string) => {
     if (value === "__todos__") {
@@ -161,7 +182,14 @@ export function DashboardClient({
                 {u.nome}
               </Link>
               {": "}
-              {u.mensagem}
+              {u.mensagem}{" "}
+              <button
+                type="button"
+                className="text-xs text-primary underline ml-1"
+                onClick={() => setUstModalId(u.id)}
+              >
+                Detalhar consumo
+              </button>
             </li>
           ))}
         </ul>
@@ -200,6 +228,81 @@ export function DashboardClient({
         Limpar filtros
       </Button>
     </div>
+  );
+
+  const painelTarefasESerie = (
+    <>
+      {tarefasMes.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Tarefas sugeridas (mês atual)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm space-y-2">
+            {tarefasMes.map((t, i) => (
+              <div
+                key={i}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2"
+              >
+                <div>
+                  <span className="font-medium">{t.titulo}</span>
+                  <span className="text-muted-foreground text-xs ml-2">{t.detalhe}</span>
+                </div>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={t.href}>Abrir</Link>
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Evolução (últimos 12 meses)</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Barras: valor devido (checklist) no mês • Linha: % médio de cumprimento nas medições
+          </p>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={serieTempo} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 9 }} />
+              <YAxis
+                yAxisId="left"
+                tick={{ fontSize: 9 }}
+                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+              />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} domain={[0, 100]} />
+              <Tooltip
+                formatter={(v: number, name: string) =>
+                  name === "% médio" ? [`${v.toFixed(1)}%`, name] : [formatCurrency(v), name]
+                }
+              />
+              <Legend />
+              <Bar
+                yAxisId="left"
+                dataKey="valorDevido"
+                name="Valor devido"
+                fill="hsl(var(--primary))"
+                radius={[2, 2, 0, 0]}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="percentualMedio"
+                name="% médio"
+                stroke="#f59e0b"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </>
   );
 
   const blocoInsights =
@@ -356,10 +459,16 @@ export function DashboardClient({
         </div>
         {filtrosAplicadosBlock}
         {blocoAlertas}
+        <div className="space-y-4">{painelTarefasESerie}</div>
         {blocoInsights}
         <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
           Nenhum dado disponível. Cadastre contratos e itens para ver os indicadores.
         </div>
+        <DashboardUstModal
+          contratoId={ustModalId}
+          open={!!ustModalId}
+          onOpenChange={(o) => !o && setUstModalId(null)}
+        />
       </div>
     );
   }
@@ -417,6 +526,8 @@ export function DashboardClient({
       {filtrosAplicadosBlock}
 
       {blocoAlertas}
+
+      <div className="space-y-4">{painelTarefasESerie}</div>
 
       {blocoInsights}
 
@@ -525,6 +636,12 @@ export function DashboardClient({
           </CardContent>
         </Card>
       </div>
+
+      <DashboardUstModal
+        contratoId={ustModalId}
+        open={!!ustModalId}
+        onOpenChange={(o) => !o && setUstModalId(null)}
+      />
     </div>
   );
 }

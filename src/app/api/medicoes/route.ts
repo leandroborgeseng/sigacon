@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { canRecurso } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateMedicao } from "@/server/services/medicao";
+import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -32,6 +34,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+  const pode = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.MEDICOES,
+    "editar"
+  );
+  if (!pode) {
+    return NextResponse.json({ message: "Sem permissão para gerar medição" }, { status: 403 });
+  }
 
   try {
     const body = await request.json();

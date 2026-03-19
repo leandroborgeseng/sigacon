@@ -7,6 +7,10 @@ import {
   getDashboardAlertas,
   getDashboardInsights,
 } from "@/server/services/indicators";
+import {
+  getDashboardTarefasMes,
+  getDashboardSerieTempo,
+} from "@/server/services/dashboard-extras";
 import { DashboardClient } from "./dashboard-client";
 
 type PageProps = {
@@ -38,10 +42,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     vencendo90Dias: [],
     ustProximoTeto: [],
   };
+  let tarefasMes: Awaited<ReturnType<typeof getDashboardTarefasMes>> = [];
+  let serieTempo: Awaited<ReturnType<typeof getDashboardSerieTempo>> = [];
   try {
     insights = await getDashboardInsights(contratoId);
   } catch (e) {
     console.error("[dashboard] insights:", e);
+  }
+  try {
+    tarefasMes = await getDashboardTarefasMes(contratoId, 14);
+    serieTempo = await getDashboardSerieTempo(contratoId, 12);
+  } catch (e) {
+    console.error("[dashboard] tarefas/serie:", e);
   }
   try {
     [indicators, porModulo, alertas] = await Promise.all([
@@ -82,6 +94,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             percentualAtendimento: m.percentualAtendimento,
             pendenciasAbertas: m.pendenciasAbertas,
           }))}
+          tarefasMes={tarefasMes}
+          serieTempo={serieTempo}
         />
     </div>
   );
