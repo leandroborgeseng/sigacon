@@ -1,0 +1,17 @@
+# Referência para rodar igual ao Railway (build + migrate deploy + start).
+# Uso: cp .env.example .env  # preencher DATABASE_URL, SESSION_SECRET, etc.
+#      docker compose up --build
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    # Mesmo fluxo do Dockerfile: migrate deploy + seeds + node server.js
+    restart: unless-stopped

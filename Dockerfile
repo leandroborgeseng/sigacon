@@ -27,7 +27,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
-# node_modules completo: CLI Prisma (db push obrigatório antes do server)
+# node_modules completo: CLI Prisma (migrate deploy no docker-start.sh)
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 RUN chmod +x ./scripts/docker-start.sh
 USER nextjs

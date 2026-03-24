@@ -1,16 +1,12 @@
 #!/bin/sh
-# Falha o container se o schema não sincronizar (evita P2022 em produção).
+# Aplica migrações pendentes antes do Next (Railway / Docker).
+# Não depende de SSH no ambiente: roda em todo deploy.
 set -e
 cd /app 2>/dev/null || true
 
-# --accept-data-loss: Prisma exige ao adicionar índice único em anexos.lancamento_ust_id (1 evidência por lançamento UST).
-echo "[sigacon] Prisma db push..."
-if ! ./node_modules/.bin/prisma db push \
-  --schema=./prisma/schema.prisma \
-  --skip-generate \
-  --accept-data-loss; then
-  echo "[sigacon] ERRO: db push falhou."
-  echo "[sigacon] Se falhar por duplicata em anexos.lancamento_ust_id, no Postgres: DELETE duplicatas mantendo um anexo por lançamento."
+echo "[sigacon] Prisma migrate deploy..."
+if ! ./node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma; then
+  echo "[sigacon] ERRO: migrate deploy falhou. Verifique DATABASE_URL e as migrações em prisma/migrations."
   exit 1
 fi
 
