@@ -20,10 +20,19 @@ export default async function DashboardLayout({
     RecursoPermissao.DASHBOARD,
     "visualizar"
   );
+  const podeIntegracaoGlpi = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.CUSTOMIZACAO,
+    "visualizar"
+  );
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar user={session} podeRelatorioExecutivo={podeRelatorioExecutivo} />
+      <Sidebar
+        user={session}
+        podeRelatorioExecutivo={podeRelatorioExecutivo}
+        podeIntegracaoGlpi={podeIntegracaoGlpi}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header user={session} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

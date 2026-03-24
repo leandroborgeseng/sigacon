@@ -117,6 +117,15 @@ enum UnidadeMedicaoCatalogo {
   FORNECIMENTO
 }
 
+/** Colunas do quadro Kanban (mapeadas para status GLPI via lib/glpi-kanban-map) */
+enum GlpiKanbanColuna {
+  BACKLOG
+  EM_ANDAMENTO
+  AGUARDANDO
+  RESOLVIDO
+  FECHADO
+}
+
 enum TipoAnexo {
   EVIDENCIA_CUMPRIMENTO
   EVIDENCIA_DESCUMPRIMENTO
@@ -217,6 +226,7 @@ model Contrato {
   aditivos            AditivoContrato[]
   marcosImplantacao   MarcoImplantacao[]
   parcelasPagamento   ParcelaPagamento[]
+  glpiChamados        GlpiChamado[]
 
   @@map("contratos")
 }
@@ -555,6 +565,36 @@ model Anexo {
   enviadoPor     Usuario?        @relation(fields: [enviadoPorUsuarioId], references: [id], onDelete: SetNull)
 
   @@map("anexos")
+}
+
+/**
+ * Chamados GLPI espelhados localmente para Kanban e busca por fornecedor/contrato.
+ * Sincronização: POST /api/integracao/glpi/sync (polling recomendado via cron).
+ */
+model GlpiChamado {
+  id               String           @id @default(cuid())
+  glpiTicketId     Int              @unique @map("glpi_ticket_id")
+  contratoId       String?          @map("contrato_id")
+  fornecedorNome   String?          @map("fornecedor_nome") @db.VarChar(500)
+  titulo           String
+  conteudoPreview  String?          @map("conteudo_preview") @db.Text
+  urgencia         Int?
+  prioridade       Int?
+  /** Status numérico retornado pelo GLPI (ITILSolution / Ticket) */
+  statusGlpi       Int              @map("status_glpi")
+  statusLabel      String?          @map("status_label") @db.VarChar(160)
+  colunaKanban     GlpiKanbanColuna @map("coluna_kanban")
+  dataAbertura     DateTime?        @map("data_abertura")
+  dataModificacao  DateTime?        @map("data_modificacao")
+  sincronizadoEm   DateTime         @default(now()) @map("sincronizado_em")
+  atualizadoEm     DateTime         @updatedAt @map("atualizado_em")
+
+  contrato Contrato? @relation(fields: [contratoId], references: [id], onDelete: SetNull)
+
+  @@index([contratoId])
+  @@index([colunaKanban])
+  @@index([fornecedorNome])
+  @@map("glpi_chamados")
 }
 
 model HistoricoAuditoria {
