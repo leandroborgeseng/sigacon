@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
-import { glpiEstaConfigurado } from "@/lib/glpi-client";
+import { glpiEstaConfigurado } from "@/lib/glpi-config";
 import { sincronizarChamadosGlpi } from "@/server/services/glpi-sync";
 
 /**
- * POST: busca tickets no GLPI (título contém fornecedor) e atualiza o cache local.
- * Body JSON: { contratoId?: string, termoTitulo?: string }
+ * POST: busca tickets no GLPI e atualiza o cache local.
+ * Com contrato: grupos técnicos vinculados (OR); senão grupos, fornecedor no título.
+ * Sem contrato: termoTitulo no título.
  */
 export async function POST(request: Request) {
   const session = await getSession();
@@ -19,9 +20,9 @@ export async function POST(request: Request) {
   );
   if (!pode) return NextResponse.json({ message: "Sem permissão" }, { status: 403 });
 
-  if (!glpiEstaConfigurado()) {
+  if (!(await glpiEstaConfigurado())) {
     return NextResponse.json(
-      { message: "Configure GLPI_URL, GLPI_APP_TOKEN e GLPI_USER_TOKEN" },
+      { message: "Configure o GLPI em Configuração GLPI ou GLPI_URL, GLPI_APP_TOKEN e GLPI_USER_TOKEN" },
       { status: 503 }
     );
   }

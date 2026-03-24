@@ -26,11 +26,13 @@ import {
 import { contratoSchema, type ContratoInput } from "@/lib/validators";
 import { StatusContrato, LeiLicitacao } from "@prisma/client";
 import { Plus } from "lucide-react";
+import { ContratoGlpiGruposField } from "@/components/contratos/contrato-glpi-grupos-field";
 
 export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean }) {
   if (!podeCriar) return null;
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [glpiGrupos, setGlpiGrupos] = useState<{ glpiGroupId: number; nome: string }[]>([]);
 
   const form = useForm<ContratoInput>({
     resolver: zodResolver(contratoSchema),
@@ -53,7 +55,13 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
     const res = await fetch("/api/contratos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        glpiGruposTecnicos: glpiGrupos.map((g) => ({
+          glpiGroupId: g.glpiGroupId,
+          nome: g.nome,
+        })),
+      }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -62,6 +70,7 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
     }
     setOpen(false);
     form.reset();
+    setGlpiGrupos([]);
     router.refresh();
   }
 
@@ -206,6 +215,10 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
               </p>
             )}
           </div>
+          <ContratoGlpiGruposField
+            selecionados={glpiGrupos.map((g) => g.glpiGroupId)}
+            onChange={setGlpiGrupos}
+          />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar

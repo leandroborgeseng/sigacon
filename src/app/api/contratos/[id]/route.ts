@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { contratoSchema } from "@/lib/validators";
+import { contratoSchema, glpiGruposTecnicosSchema } from "@/lib/validators";
 import { registerAudit } from "@/server/services/audit";
 import { calcularValorMensalReferencia } from "@/lib/finance";
 import { canRecurso } from "@/lib/permissions";
@@ -49,13 +49,25 @@ export async function PATCH(
   }
 
   try {
-    const body = await request.json();
-    const parsed = contratoSchema.partial().safeParse(body);
+    const body = (await request.json()) as Record<string, unknown>;
+    const { glpiGruposTecnicos: glpiRaw, ...rest } = body;
+    const parsed = contratoSchema.partial().safeParse(rest);
     if (!parsed.success) {
       return NextResponse.json(
         { message: "Dados inválidos", errors: parsed.error.flatten() },
         { status: 400 }
       );
+    }
+    let glpiData: { glpiGroupId: number; nome?: string | null }[] | undefined;
+    if (glpiRaw !== undefined) {
+      const g = glpiGruposTecnicosSchema.safeParse(glpiRaw);
+      if (!g.success) {
+        return NextResponse.json(
+          { message: "Grupos GLPI inválidos", errors: g.error.flatten() },
+          { status: 400 }
+        );
+      }
+      glpiData = g.data;
     }
 
     const valorAnual = parsed.data.valorAnual ?? Number(existing.valorAnual);
@@ -63,33 +75,47 @@ export async function PATCH(
       parsed.data.valorMensalReferencia ??
       (Number(existing.valorMensalReferencia) || calcularValorMensalReferencia(valorAnual));
 
-    const contrato = await prisma.contrato.update({
-      where: { id },
-      data: {
-        ...(parsed.data.nome != null && { nome: parsed.data.nome }),
-        ...(parsed.data.numeroContrato != null && { numeroContrato: parsed.data.numeroContrato }),
-        ...(parsed.data.fornecedor != null && { fornecedor: parsed.data.fornecedor }),
-        ...(typeof (parsed.data as { ativo?: unknown }).ativo === "boolean" && { ativo: (parsed.data as { ativo: boolean }).ativo }),
-        ...(parsed.data.objeto !== undefined && { objeto: parsed.data.objeto }),
-        ...(parsed.data.vigenciaInicio != null && { vigenciaInicio: parsed.data.vigenciaInicio }),
-        ...(parsed.data.vigenciaFim != null && { vigenciaFim: parsed.data.vigenciaFim }),
-        ...(parsed.data.valorAnual != null && { valorAnual: parsed.data.valorAnual }),
-        valorMensalReferencia: valorMensal,
-        ...(parsed.data.status != null && { status: parsed.data.status }),
-        ...(parsed.data.gestorContrato !== undefined && { gestorContrato: parsed.data.gestorContrato }),
-        ...(parsed.data.observacoesGerais !== undefined && { observacoesGerais: parsed.data.observacoesGerais }),
-        ...(parsed.data.formaCalculoMedicao != null && { formaCalculoMedicao: parsed.data.formaCalculoMedicao }),
-        ...(parsed.data.leiLicitacao != null && { leiLicitacao: parsed.data.leiLicitacao }),
-        ...(parsed.data.dataAssinatura !== undefined && { dataAssinatura: parsed.data.dataAssinatura }),
-        ...(parsed.data.numeroRenovacoes !== undefined && { numeroRenovacoes: parsed.data.numeroRenovacoes }),
-        ...(parsed.data.valorUnitarioUst !== undefined && {
-          valorUnitarioUst: parsed.data.valorUnitarioUst,
-        }),
-        ...(parsed.data.limiteUstAno !== undefined && { limiteUstAno: parsed.data.limiteUstAno }),
-        ...(parsed.data.limiteValorUstAno !== undefined && {
-          limiteValorUstAno: parsed.data.limiteValorUstAno,
-        }),
-      },
+    const contrato = await prisma.$transaction(async (tx) => {
+      if (glpiData !== undefined) {
+        await tx.contratoGlpiGrupoTecnico.deleteMany({ where: { contratoId: id } });
+        if (glpiData.length > 0) {
+          await tx.contratoGlpiGrupoTecnico.createMany({
+            data: glpiData.map((row) => ({
+              contratoId: id,
+              glpiGroupId: row.glpiGroupId,
+              nome: row.nome ?? null,
+            })),
+          });
+        }
+      }
+      return tx.contrato.update({
+        where: { id },
+        data: {
+          ...(parsed.data.nome != null && { nome: parsed.data.nome }),
+          ...(parsed.data.numeroContrato != null && { numeroContrato: parsed.data.numeroContrato }),
+          ...(parsed.data.fornecedor != null && { fornecedor: parsed.data.fornecedor }),
+          ...(typeof (parsed.data as { ativo?: unknown }).ativo === "boolean" && { ativo: (parsed.data as { ativo: boolean }).ativo }),
+          ...(parsed.data.objeto !== undefined && { objeto: parsed.data.objeto }),
+          ...(parsed.data.vigenciaInicio != null && { vigenciaInicio: parsed.data.vigenciaInicio }),
+          ...(parsed.data.vigenciaFim != null && { vigenciaFim: parsed.data.vigenciaFim }),
+          ...(parsed.data.valorAnual != null && { valorAnual: parsed.data.valorAnual }),
+          valorMensalReferencia: valorMensal,
+          ...(parsed.data.status != null && { status: parsed.data.status }),
+          ...(parsed.data.gestorContrato !== undefined && { gestorContrato: parsed.data.gestorContrato }),
+          ...(parsed.data.observacoesGerais !== undefined && { observacoesGerais: parsed.data.observacoesGerais }),
+          ...(parsed.data.formaCalculoMedicao != null && { formaCalculoMedicao: parsed.data.formaCalculoMedicao }),
+          ...(parsed.data.leiLicitacao != null && { leiLicitacao: parsed.data.leiLicitacao }),
+          ...(parsed.data.dataAssinatura !== undefined && { dataAssinatura: parsed.data.dataAssinatura }),
+          ...(parsed.data.numeroRenovacoes !== undefined && { numeroRenovacoes: parsed.data.numeroRenovacoes }),
+          ...(parsed.data.valorUnitarioUst !== undefined && {
+            valorUnitarioUst: parsed.data.valorUnitarioUst,
+          }),
+          ...(parsed.data.limiteUstAno !== undefined && { limiteUstAno: parsed.data.limiteUstAno }),
+          ...(parsed.data.limiteValorUstAno !== undefined && {
+            limiteValorUstAno: parsed.data.limiteValorUstAno,
+          }),
+        },
+      });
     });
 
     await registerAudit({
@@ -101,7 +127,11 @@ export async function PATCH(
       usuarioId: session.id,
     });
 
-    return NextResponse.json(contrato);
+    const comGlpi = await prisma.contrato.findUnique({
+      where: { id },
+      include: { glpiGruposTecnicos: true },
+    });
+    return NextResponse.json(comGlpi ?? contrato);
   } catch (e) {
     console.error("Update contrato error:", e);
     return NextResponse.json(

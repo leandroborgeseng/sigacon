@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { contratoSchema, type ContratoInput } from "@/lib/validators";
+import { ContratoGlpiGruposField } from "@/components/contratos/contrato-glpi-grupos-field";
 import { StatusContrato, LeiLicitacao } from "@prisma/client";
 import { Pencil } from "lucide-react";
 
@@ -47,6 +48,7 @@ type ContratoParaEdicao = {
   valorUnitarioUst?: { toString(): string } | number | null;
   limiteUstAno?: { toString(): string } | number | null;
   limiteValorUstAno?: { toString(): string } | number | null;
+  glpiGruposTecnicos?: Array<{ glpiGroupId: number; nome: string | null }>;
 };
 
 export function ContratoEditDialog({
@@ -58,6 +60,22 @@ export function ContratoEditDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [glpiGrupos, setGlpiGrupos] = useState<{ glpiGroupId: number; nome: string }[]>(() =>
+    (contrato.glpiGruposTecnicos ?? []).map((g) => ({
+      glpiGroupId: g.glpiGroupId,
+      nome: g.nome ?? `Grupo ${g.glpiGroupId}`,
+    }))
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    setGlpiGrupos(
+      (contrato.glpiGruposTecnicos ?? []).map((g) => ({
+        glpiGroupId: g.glpiGroupId,
+        nome: g.nome ?? `Grupo ${g.glpiGroupId}`,
+      }))
+    );
+  }, [open, contrato.id, contrato.glpiGruposTecnicos]);
 
   const form = useForm<Partial<ContratoInput>>({
     resolver: zodResolver(contratoSchema.partial()),
@@ -105,7 +123,13 @@ export function ContratoEditDialog({
     const res = await fetch(`/api/contratos/${contrato.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        glpiGruposTecnicos: glpiGrupos.map((g) => ({
+          glpiGroupId: g.glpiGroupId,
+          nome: g.nome,
+        })),
+      }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -251,6 +275,11 @@ export function ContratoEditDialog({
               })}
             />
           </div>
+          <ContratoGlpiGruposField
+            selecionados={glpiGrupos.map((g) => g.glpiGroupId)}
+            onChange={setGlpiGrupos}
+          />
+
           <div className="grid grid-cols-2 gap-4 rounded-md border border-dashed p-3">
             <div className="space-y-2">
               <Label>Limite UST / ano (opcional)</Label>

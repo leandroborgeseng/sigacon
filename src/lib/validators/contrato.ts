@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { StatusContrato, FormaCalculoMedicao, LeiLicitacao } from "@prisma/client";
 
+/** Grupos técnicos GLPI vinculados ao contrato (filtro de chamados). */
+export const glpiGruposTecnicosSchema = z.array(
+  z.object({
+    glpiGroupId: z.number().int().positive(),
+    nome: z.string().max(500).optional().nullable(),
+  })
+);
+
 export const contratoSchema = z.object({
   nome: z.string().min(1, "Nome obrigatório"),
   numeroContrato: z.string().min(1, "Número do contrato obrigatório"),
@@ -34,4 +42,5 @@ export const reajusteContratoSchema = z.object({
 });
 
 export type ContratoInput = z.infer<typeof contratoSchema>;
+export type GlpiGruposTecnicosInput = z.infer<typeof glpiGruposTecnicosSchema>;
 export type ReajusteContratoInput = z.infer<typeof reajusteContratoSchema>;

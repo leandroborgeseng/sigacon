@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   Printer,
   KanbanSquare,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ const navItems: {
   adminOnly?: boolean;
   relatorioExecutivo?: boolean;
   integracaoGlpi?: boolean;
+  configuracaoGlpi?: boolean;
 }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contratos", label: "Contratos", icon: FileText },
@@ -41,6 +43,12 @@ const navItems: {
   { href: "/atas", label: "Atas de Reunião", icon: BookOpen },
   { href: "/importacao", label: "Importação XLSX", icon: Upload },
   { href: "/manual", label: "Manual do sistema", icon: BookMarked },
+  {
+    href: "/configuracao/glpi",
+    label: "Configuração GLPI",
+    icon: Settings,
+    configuracaoGlpi: true,
+  },
   {
     href: "/integracao/glpi",
     label: "GLPI Kanban",
@@ -62,10 +70,12 @@ export function Sidebar({
   user,
   podeRelatorioExecutivo = false,
   podeIntegracaoGlpi = false,
+  podeConfiguracaoGlpi = false,
 }: {
   user?: SessionUser;
   podeRelatorioExecutivo?: boolean;
   podeIntegracaoGlpi?: boolean;
+  podeConfiguracaoGlpi?: boolean;
 }) {
   const pathname = usePathname();
   const isAdmin = user?.perfil === "ADMIN";
@@ -87,6 +97,7 @@ export function Sidebar({
             if (item.adminOnly && !isAdmin) return false;
             if (item.relatorioExecutivo && !podeRelatorioExecutivo) return false;
             if (item.integracaoGlpi && !podeIntegracaoGlpi) return false;
+            if (item.configuracaoGlpi && !podeConfiguracaoGlpi) return false;
             return true;
           })
           .map((item) => {

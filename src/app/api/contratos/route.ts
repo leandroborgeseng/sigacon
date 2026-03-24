@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { contratoSchema } from "@/lib/validators";
+import { contratoSchema, glpiGruposTecnicosSchema } from "@/lib/validators";
 import { registerAudit } from "@/server/services/audit";
 import { calcularValorMensalReferencia } from "@/lib/finance";
 
@@ -21,13 +21,25 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
 
   try {
-    const body = await request.json();
-    const parsed = contratoSchema.safeParse(body);
+    const body = (await request.json()) as Record<string, unknown>;
+    const { glpiGruposTecnicos: glpiRaw, ...rest } = body;
+    const parsed = contratoSchema.safeParse(rest);
     if (!parsed.success) {
       return NextResponse.json(
         { message: "Dados inválidos", errors: parsed.error.flatten() },
         { status: 400 }
       );
+    }
+    let glpiGrupos: { glpiGroupId: number; nome?: string | null }[] | undefined;
+    if (glpiRaw !== undefined) {
+      const g = glpiGruposTecnicosSchema.safeParse(glpiRaw);
+      if (!g.success) {
+        return NextResponse.json(
+          { message: "Grupos GLPI inválidos", errors: g.error.flatten() },
+          { status: 400 }
+        );
+      }
+      glpiGrupos = g.data;
     }
 
     const valorMensal =
@@ -58,6 +70,21 @@ export async function POST(request: Request) {
       },
     });
 
+    if (glpiGrupos?.length) {
+      await prisma.contratoGlpiGrupoTecnico.createMany({
+        data: glpiGrupos.map((g) => ({
+          contratoId: contrato.id,
+          glpiGroupId: g.glpiGroupId,
+          nome: g.nome ?? null,
+        })),
+      });
+    }
+
+    const full = await prisma.contrato.findUnique({
+      where: { id: contrato.id },
+      include: { glpiGruposTecnicos: true },
+    });
+
     await registerAudit({
       entidade: "Contrato",
       entidadeId: contrato.id,
@@ -66,7 +93,7 @@ export async function POST(request: Request) {
       usuarioId: session.id,
     });
 
-    return NextResponse.json(contrato);
+    return NextResponse.json(full ?? contrato);
   } catch (e) {
     console.error("Create contrato error:", e);
     return NextResponse.json(

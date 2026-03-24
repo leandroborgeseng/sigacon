@@ -25,6 +25,7 @@ export default async function DashboardLayout({
     RecursoPermissao.CUSTOMIZACAO,
     "visualizar"
   );
+  const podeConfiguracaoGlpi = podeIntegracaoGlpi;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -32,6 +33,7 @@ export default async function DashboardLayout({
         user={session}
         podeRelatorioExecutivo={podeRelatorioExecutivo}
         podeIntegracaoGlpi={podeIntegracaoGlpi}
+        podeConfiguracaoGlpi={podeConfiguracaoGlpi}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header user={session} />

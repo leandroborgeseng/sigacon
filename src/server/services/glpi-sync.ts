@@ -6,6 +6,7 @@ import {
   glpiWithSession,
   type GlpiCriterion,
 } from "@/lib/glpi-client";
+import { getGlpiCredentialsResolved } from "@/lib/glpi-config";
 import { colunaParaStatusGlpi, statusGlpiParaColuna } from "@/lib/glpi-kanban-map";
 
 function stripHtml(s: string, max = 500): string {
@@ -13,8 +14,9 @@ function stripHtml(s: string, max = 500): string {
   return t.length > max ? t.slice(0, max) + "…" : t;
 }
 
-function parseExtraCriteria(): GlpiCriterion[] {
-  const raw = process.env.GLPI_SYNC_CRITERIA_EXTRA?.trim();
+async function parseExtraCriteria(): Promise<GlpiCriterion[]> {
+  const row = await prisma.glpiConfig.findUnique({ where: { id: "default" } });
+  const raw = row?.criteriosExtraJson?.trim() || process.env.GLPI_SYNC_CRITERIA_EXTRA?.trim();
   if (!raw) return [];
   try {
     return JSON.parse(raw) as GlpiCriterion[];
@@ -24,46 +26,79 @@ function parseExtraCriteria(): GlpiCriterion[] {
 }
 
 export type SincronizarParams = {
-  /** Usa contrato.fornecedor no título (contains) */
+  /** Filtro preferencial: grupos técnicos vinculados ao contrato (campo de busca configurável). */
   contratoId?: string;
-  /** Alternativa: termo livre no título */
+  /** Alternativa: termo livre no título (quando não há grupos no contrato). */
   termoTitulo?: string;
 };
 
 /**
  * Busca tickets no GLPI e faz upsert local.
- * Critério base: título contém o nome do fornecedor (campo de busca GLPI #1).
+ * Com grupos vinculados ao contrato: busca por grupo técnico atribuído (OR entre grupos).
+ * Sem grupos: fallback para título contém fornecedor do contrato ou termoTitulo.
  */
 export async function sincronizarChamadosGlpi(params: SincronizarParams): Promise<{
   processados: number;
   erros: string[];
 }> {
   const erros: string[] = [];
-  let termo = params.termoTitulo?.trim();
+  const cred = await getGlpiCredentialsResolved();
+  if (!cred) {
+    return { processados: 0, erros: ["GLPI não configurado (use Configuração GLPI ou variáveis de ambiente)"] };
+  }
+  const campoGrupo = cred.campoBuscaGrupoTecnico;
+
   let contratoId = params.contratoId;
   let fornecedorNome: string | null = null;
+  let termoLivre = params.termoTitulo?.trim();
+  let gruposIds: { glpiGroupId: number }[] = [];
 
   if (params.contratoId) {
     const c = await prisma.contrato.findUnique({
       where: { id: params.contratoId },
-      select: { id: true, fornecedor: true },
+      select: {
+        id: true,
+        fornecedor: true,
+        glpiGruposTecnicos: { select: { glpiGroupId: true } },
+      },
     });
     if (!c) {
       return { processados: 0, erros: ["Contrato não encontrado"] };
     }
     fornecedorNome = c.fornecedor;
-    termo = c.fornecedor;
     contratoId = c.id;
+    gruposIds = c.glpiGruposTecnicos;
+    if (!termoLivre) termoLivre = c.fornecedor;
   }
 
-  if (!termo) {
-    return { processados: 0, erros: ["Informe contratoId ou termoTitulo para filtrar chamados"] };
-  }
+  const extra = await parseExtraCriteria();
+  let criteria: GlpiCriterion[] = [];
 
-  const criteria: GlpiCriterion[] = [
-    { field: 1, searchtype: "contains", value: termo },
-    ...parseExtraCriteria(),
-  ];
+  if (contratoId && gruposIds.length > 0) {
+    gruposIds.forEach((g, i) => {
+      criteria.push({
+        field: campoGrupo,
+        searchtype: "equals",
+        value: g.glpiGroupId,
+        ...(i > 0 ? { link: "OR" as const } : {}),
+      });
+    });
+    for (const ex of extra) {
+      criteria.push({ ...ex, link: ex.link ?? "AND" });
+    }
+  } else if (termoLivre) {
+    criteria = [{ field: 1, searchtype: "contains", value: termoLivre }];
+    for (const ex of extra) {
+      criteria.push({ ...ex, link: ex.link ?? "AND" });
+    }
+  } else {
+    return {
+      processados: 0,
+      erros: [
+        "Informe contratoId (com grupos GLPI ou fornecedor) ou termoTitulo para filtrar chamados",
+      ],
+    };
+  }
 
   let processados = 0;
   try {

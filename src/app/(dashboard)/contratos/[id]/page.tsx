@@ -33,6 +33,7 @@ export default async function ContratoDetailPage({
     where: { id },
     include: {
       modulos: true,
+      glpiGruposTecnicos: true,
       medicoes: { orderBy: [{ ano: "desc" }, { mes: "desc" }], take: 12 },
       atas: { orderBy: { dataReuniao: "desc" }, take: 5 },
       reajustes: { orderBy: { dataReajuste: "desc" } },
@@ -143,6 +144,20 @@ export default async function ContratoDetailPage({
             <span className="font-medium">Total de itens:</span>{" "}
             {contrato._count.itens}
           </p>
+          <div>
+            <span className="font-medium">Grupos técnicos GLPI:</span>{" "}
+            {contrato.glpiGruposTecnicos.length === 0 ? (
+              <span className="text-muted-foreground">Nenhum — edite o contrato para vincular.</span>
+            ) : (
+              <span className="text-sm">
+                {contrato.glpiGruposTecnicos.map((g) => (
+                  <Badge key={g.id} variant="outline" className="mr-1 font-normal">
+                    #{g.glpiGroupId} {g.nome ?? ""}
+                  </Badge>
+                ))}
+              </span>
+            )}
+          </div>
         </CardContent>
       </Card>
 

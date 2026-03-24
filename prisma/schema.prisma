@@ -227,8 +227,44 @@ model Contrato {
   marcosImplantacao   MarcoImplantacao[]
   parcelasPagamento   ParcelaPagamento[]
   glpiChamados        GlpiChamado[]
+  glpiGruposTecnicos  ContratoGlpiGrupoTecnico[]
 
   @@map("contratos")
+}
+
+/** Configuração da API GLPI (persistida; fallback opcional via variáveis de ambiente). */
+model GlpiConfig {
+  id   String @id @default("default")
+  /** URL base até apirest.php, ex.: https://glpi.empresa.com/apirest.php */
+  baseUrl String? @map("base_url") @db.VarChar(2000)
+  appToken  String? @map("app_token") @db.Text
+  userToken String? @map("user_token") @db.Text
+  /**
+   * ID do campo em Ticket (search/Ticket) para “grupo técnico atribuído”.
+   * Varia por instalação/idioma; ajuste listando opções no GLPI se necessário.
+   */
+  campoBuscaGrupoTecnico Int @default(71) @map("campo_busca_grupo_tecnico")
+  /** JSON array de critérios extras (mesmo formato de GLPI_SYNC_CRITERIA_EXTRA). */
+  criteriosExtraJson     String? @map("criterios_extra_json") @db.Text
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@map("glpi_config")
+}
+
+/** Grupos técnicos GLPI vinculados ao contrato (filtro de chamados / Kanban). */
+model ContratoGlpiGrupoTecnico {
+  id          String   @id @default(cuid())
+  contratoId  String   @map("contrato_id")
+  glpiGroupId Int      @map("glpi_group_id")
+  nome        String?  @db.VarChar(500)
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, glpiGroupId])
+  @@index([glpiGroupId])
+  @@map("contratos_glpi_grupos_tecnicos")
 }
 
 model AditivoContrato {

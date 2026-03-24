@@ -3,6 +3,8 @@
  * Docs: https://github.com/glpi-project/glpi/blob/main/apirest.md
  */
 
+import { getGlpiCredentialsResolved } from "@/lib/glpi-config";
+
 export type GlpiCriterion = {
   field: number;
   searchtype: "contains" | "equals" | "notequals" | "morethan" | "lessthan" | "under" | "notunder";
@@ -16,23 +18,20 @@ export type GlpiSessionContext = {
   sessionToken: string;
 };
 
-function getEnv() {
+/** @deprecated Use `glpiEstaConfigurado` em `@/lib/glpi-config` (async, inclui credenciais no banco). */
+export function glpiEstaConfiguradoSomenteEnv(): boolean {
   const base = process.env.GLPI_URL?.replace(/\/$/, "");
-  const appToken = process.env.GLPI_APP_TOKEN;
-  const userToken = process.env.GLPI_USER_TOKEN;
-  return { base, appToken, userToken };
-}
-
-export function glpiEstaConfigurado(): boolean {
-  const { base, appToken, userToken } = getEnv();
-  return Boolean(base && appToken && userToken);
+  return Boolean(base && process.env.GLPI_APP_TOKEN && process.env.GLPI_USER_TOKEN);
 }
 
 export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promise<T>): Promise<T> {
-  const { base, appToken, userToken } = getEnv();
-  if (!base || !appToken || !userToken) {
-    throw new Error("GLPI não configurado (GLPI_URL, GLPI_APP_TOKEN, GLPI_USER_TOKEN)");
+  const cred = await getGlpiCredentialsResolved();
+  if (!cred) {
+    throw new Error(
+      "GLPI não configurado (cadastre em Configuração GLPI ou defina GLPI_URL, GLPI_APP_TOKEN e GLPI_USER_TOKEN)"
+    );
   }
+  const { baseUrl: base, appToken, userToken } = cred;
   const init = await fetch(`${base}/initSession`, {
     method: "GET",
     headers: {
@@ -148,4 +147,62 @@ export async function glpiSearchTicketIds(
     }
   }
   return [...new Set(ids)];
+}
+
+export type GlpiGrupoLista = { id: number; name: string };
+
+/** Lista grupos do GLPI (para vínculo com contrato). Filtra `is_assign` quando o campo existir. */
+export async function glpiListAssignableGroups(ctx: GlpiSessionContext): Promise<GlpiGrupoLista[]> {
+  const r = await fetch(`${ctx.baseUrl}/Group?range=0-999&sort=id`, { headers: headers(ctx) });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`GLPI GET Group: ${r.status} ${t.slice(0, 300)}`);
+  }
+  const json = (await r.json()) as unknown;
+  const raw: unknown[] = Array.isArray(json)
+    ? json
+    : json && typeof json === "object" && "data" in json && Array.isArray((json as { data: unknown[] }).data)
+      ? (json as { data: unknown[] }).data
+      : [];
+  const out: GlpiGrupoLista[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const id =
+      typeof o.id === "number"
+        ? o.id
+        : typeof o.id === "string"
+          ? parseInt(o.id, 10)
+          : NaN;
+    if (!Number.isFinite(id)) continue;
+    if (o.is_assign === 0 || o.is_assign === false) continue;
+    const name =
+      typeof o.completename === "string" && o.completename.trim()
+        ? o.completename.trim()
+        : typeof o.name === "string"
+          ? o.name.trim()
+          : `Grupo ${id}`;
+    out.push({ id, name });
+  }
+  if (out.length === 0) {
+    for (const item of raw) {
+      if (!item || typeof item !== "object") continue;
+      const o = item as Record<string, unknown>;
+      const id =
+        typeof o.id === "number"
+          ? o.id
+          : typeof o.id === "string"
+            ? parseInt(o.id, 10)
+            : NaN;
+      if (!Number.isFinite(id)) continue;
+      const name =
+        typeof o.completename === "string" && o.completename.trim()
+          ? o.completename.trim()
+          : typeof o.name === "string"
+            ? o.name.trim()
+            : `Grupo ${id}`;
+      out.push({ id, name });
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
