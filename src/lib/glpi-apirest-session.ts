@@ -3,6 +3,11 @@
  * Vários retries: barra final, query com tokens, base alternativa /apirest.php na raiz.
  */
 
+/** Remove espaços e caracteres invisíveis comuns de copiar/colar. */
+export function sanitizarTokenGlpi(valor: string): string {
+  return valor.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+}
+
 export function parseGlpiApiErrorBody(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return "(corpo vazio)";
@@ -120,8 +125,8 @@ export async function glpiLegacyInitSession(
 
   let lastFail: GlpiInitSessionFail | null = null;
   const failuresShort: string[] = [];
-  const app = appToken.trim();
-  const user = userToken.trim();
+  const app = sanitizarTokenGlpi(appToken);
+  const user = sanitizarTokenGlpi(userToken);
 
   const bases = alternativasBaseApirestUrl(base.replace(/\/+$/, ""));
 
@@ -187,14 +192,23 @@ export async function glpiLegacyInitSession(
   }
 
   if (lastFail) {
-    const resumo = failuresShort.slice(-8).join(" · ");
-    const stMissing = resumo.includes("SESSION_TOKEN_MISSING") || lastFail.detail.includes("SESSION_TOKEN_MISSING");
+    const n = failuresShort.length;
+    const norm = (s: string) => s.replace(/\s*\[[^\]]*]\s*$/, "").trim();
+    const firstNorm = failuresShort[0] ? norm(failuresShort[0]) : "";
+    const allSame =
+      n > 0 && failuresShort.every((f) => norm(f) === firstNorm);
+    const resumo =
+      allSame && n > 1
+        ? `${n} tentativas, mesmo resultado: ${firstNorm}`
+        : failuresShort.slice(-4).join(" | ");
+
+    const stMissing = failuresShort.join(" ").includes("SESSION_TOKEN_MISSING") || lastFail.detail.includes("SESSION_TOKEN_MISSING");
     const dica = stMissing
       ? " Esse código em initSession costuma indicar que o PHP não recebeu Authorization/App-Token (proxy web: confira HTTP_AUTHORIZATION no Apache/Nginx) ou rota errada: cadastre também a base https://SEU-DOMÍNIO/apirest.php se o GLPI publicar essa URL."
       : "";
     lastFail = {
       ...lastFail,
-      detail: `${lastFail.detail} (última tentativa: ${lastFail.via}). Resumo: ${resumo}.${dica}`,
+      detail: `${lastFail.detail} Última rota: ${lastFail.via}. ${resumo}.${dica}`,
     };
     return { ok: false, result: lastFail };
   }

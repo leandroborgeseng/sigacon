@@ -4,7 +4,7 @@
  */
 
 import { getGlpiCredentialsResolved } from "@/lib/glpi-config";
-import { glpiLegacyInitSession } from "@/lib/glpi-apirest-session";
+import { glpiLegacyInitSession, sanitizarTokenGlpi } from "@/lib/glpi-apirest-session";
 
 export type GlpiCriterion = {
   field: number;
@@ -33,7 +33,7 @@ export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promis
     );
   }
   const { baseUrl: base, appToken, userToken } = cred;
-  const initR = await glpiLegacyInitSession(base, appToken, userToken);
+  const initR = await glpiLegacyInitSession(base, sanitizarTokenGlpi(appToken), sanitizarTokenGlpi(userToken));
   if (!initR.ok) {
     const f = initR.result;
     throw new Error(`GLPI initSession falhou: HTTP ${f.status} ${f.detail} (${f.via})`);

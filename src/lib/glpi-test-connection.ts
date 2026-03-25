@@ -212,11 +212,19 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   const initR = await glpiLegacyInitSession(base, appToken, userToken, { timeoutMs: 22000 });
   if (!initR.ok) {
     const f = initR.result;
+    let dica = "";
+    if (f.detail.includes("ERROR_WRONG_APP_TOKEN_PARAMETER")) {
+      dica =
+        " Ação: no GLPI abra Configuração → Geral → aba API, copie o ‘Token da aplicação’ (ou gere outro e salve no GLPI). Se nesse painel o App-Token estiver vazio, deixe App Token em branco no SIGACON também. Valor antigo, espaço invisível ou token de outro ambiente geram este erro.";
+    } else if (f.detail.includes("ERROR_WRONG_USER_TOKEN_PARAMETER") || f.detail.includes("user token")) {
+      dica =
+        " Ação: no usuário do GLPI (Preferências / chave de acesso remoto) gere ou copie o User Token e atualize aqui.";
+    }
     steps.push({
       id: "initSession",
       label: "Autenticação (initSession)",
       ok: false,
-      detail: `HTTP ${f.status}: ${f.detail} (última tentativa: ${f.via}). Verifique User Token, App Token e se a API REST está habilitada no GLPI.`,
+      detail: `HTTP ${f.status}: ${f.detail}${dica}`,
     });
     return { ok: false, steps };
   }

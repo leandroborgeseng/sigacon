@@ -390,6 +390,10 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             disabled={!podeEditar}
             autoComplete="off"
           />
+          <p className="text-xs text-muted-foreground">
+            Deve ser idêntico ao token em <strong className="font-medium">Configuração → Geral → API</strong> no GLPI. Se lá
+            não houver App-Token, deixe este campo vazio.
+          </p>
           <p className="text-xs text-muted-foreground">Ao sair deste campo, rodamos o teste completo se a URL e o User Token estiverem ok.</p>
         </div>
         <div className="space-y-2">
