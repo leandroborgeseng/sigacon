@@ -8,6 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -43,6 +52,49 @@ type Chamado = {
 };
 
 type Contrato = { id: string; nome: string; fornecedor: string };
+type Option = { id: number; name: string };
+type TicketDetails = {
+  ticket: {
+    id?: number;
+    name?: string;
+    content?: string;
+    date?: string;
+    date_mod?: string;
+    status?: number;
+    urgency?: number;
+    priority?: number;
+    _itilcategories_id?: string;
+    _groups_id_assign?: string;
+    _users_id_assign?: string;
+  };
+  followups: Array<{
+    id?: number;
+    content?: string;
+    date?: string;
+    _users_id?: string;
+    is_private?: number | boolean;
+  }>;
+  tasks: Array<{
+    id?: number;
+    content?: string;
+    date?: string;
+    _users_id?: string;
+    is_private?: number | boolean;
+    state?: number | string;
+  }>;
+  solutions: Array<{
+    id?: number;
+    content?: string;
+    date_creation?: string;
+    _users_id?: string;
+    status?: number | string;
+  }>;
+  documents: Array<{
+    documentId: number;
+    name: string;
+    link?: string;
+  }>;
+};
 
 export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [contratoId, setContratoId] = useState<string>("");
@@ -54,6 +106,20 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [cards, setCards] = useState<Chamado[]>([]);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [grupos, setGrupos] = useState<Option[]>([]);
+  const [categorias, setCategorias] = useState<Option[]>([]);
+  const [usuarios, setUsuarios] = useState<Option[]>([]);
+  const [detalhesId, setDetalhesId] = useState<number | null>(null);
+  const [detalhesLoading, setDetalhesLoading] = useState(false);
+  const [detalhes, setDetalhes] = useState<TicketDetails | null>(null);
+  const [comentario, setComentario] = useState("");
+  const [comentarioPrivado, setComentarioPrivado] = useState(false);
+  const [comentarioSaving, setComentarioSaving] = useState(false);
+  const [tarefa, setTarefa] = useState("");
+  const [tarefaPrivada, setTarefaPrivada] = useState(false);
+  const [tarefaSaving, setTarefaSaving] = useState(false);
+  const [solucao, setSolucao] = useState("");
+  const [solucaoSaving, setSolucaoSaving] = useState(false);
   const [edits, setEdits] = useState<
     Record<
       number,
@@ -187,6 +253,141 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     void carregar();
   }, []);
 
+  useEffect(() => {
+    // Metadados para selects (se falhar, mantém inputs numéricos como fallback mental).
+    void fetch("/api/integracao/glpi/grupos")
+      .then((r) => r.json())
+      .then((j) => setGrupos(Array.isArray(j.grupos) ? j.grupos : []))
+      .catch(() => {});
+    void fetch("/api/integracao/glpi/categorias")
+      .then((r) => r.json())
+      .then((j) => setCategorias(Array.isArray(j.categorias) ? j.categorias : []))
+      .catch(() => {});
+    void fetch("/api/integracao/glpi/usuarios")
+      .then((r) => r.json())
+      .then((j) => setUsuarios(Array.isArray(j.usuarios) ? j.usuarios : []))
+      .catch(() => {});
+  }, []);
+
+  function stripHtml(s: string): string {
+    return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  async function abrirDetalhes(ticketId: number) {
+    setDetalhesId(ticketId);
+    setDetalhesLoading(true);
+    setDetalhes(null);
+    setComentario("");
+    setComentarioPrivado(false);
+    setTarefa("");
+    setTarefaPrivada(false);
+    setSolucao("");
+    try {
+      const r = await fetch(`/api/integracao/glpi/chamados/${ticketId}`, { cache: "no-store" });
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string } & Partial<TicketDetails>;
+      if (!r.ok || j.ok === false) {
+        setMsg(j.message ?? "Erro ao carregar detalhes do ticket.");
+        return;
+      }
+      setDetalhes({
+        ticket: j.ticket ?? {},
+        followups: Array.isArray(j.followups) ? j.followups : [],
+        tasks: Array.isArray(j.tasks) ? j.tasks : [],
+        solutions: Array.isArray(j.solutions) ? j.solutions : [],
+        documents: Array.isArray(j.documents) ? j.documents : [],
+      });
+    } finally {
+      setDetalhesLoading(false);
+    }
+  }
+
+  async function enviarComentario() {
+    if (!detalhesId) return;
+    const content = comentario.trim();
+    if (!content) return;
+    setComentarioSaving(true);
+    setMsg("");
+    try {
+      const r = await fetch(`/api/integracao/glpi/chamados/${detalhesId}/comentarios`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, privado: comentarioPrivado }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+      if (!r.ok || j.ok === false) {
+        setMsg(j.message ?? "Falha ao enviar comentário.");
+        return;
+      }
+      await abrirDetalhes(detalhesId);
+    } finally {
+      setComentarioSaving(false);
+    }
+  }
+
+  async function enviarTarefa() {
+    if (!detalhesId) return;
+    const content = tarefa.trim();
+    if (!content) return;
+    setTarefaSaving(true);
+    setMsg("");
+    try {
+      const r = await fetch(`/api/integracao/glpi/chamados/${detalhesId}/tarefas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, privado: tarefaPrivada }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+      if (!r.ok || j.ok === false) {
+        setMsg(j.message ?? "Falha ao criar tarefa.");
+        return;
+      }
+      await abrirDetalhes(detalhesId);
+    } finally {
+      setTarefaSaving(false);
+    }
+  }
+
+  async function enviarSolucao() {
+    if (!detalhesId) return;
+    const content = solucao.trim();
+    if (!content) return;
+    setSolucaoSaving(true);
+    setMsg("");
+    try {
+      const r = await fetch(`/api/integracao/glpi/chamados/${detalhesId}/solucoes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+      if (!r.ok || j.ok === false) {
+        setMsg(j.message ?? "Falha ao criar solução.");
+        return;
+      }
+      await abrirDetalhes(detalhesId);
+    } finally {
+      setSolucaoSaving(false);
+    }
+  }
+
+  function colunaClasses(col: GlpiKanbanColuna) {
+    // Cores por fase do fluxo (visual, sem mudar lógica).
+    switch (col) {
+      case "BACKLOG":
+        return { header: "border-l-4 border-l-slate-400 bg-slate-50/60 dark:bg-slate-950/20", title: "text-slate-700 dark:text-slate-200" };
+      case "EM_ANDAMENTO":
+        return { header: "border-l-4 border-l-blue-500 bg-blue-50/60 dark:bg-blue-950/20", title: "text-blue-800 dark:text-blue-200" };
+      case "AGUARDANDO":
+        return { header: "border-l-4 border-l-amber-500 bg-amber-50/60 dark:bg-amber-950/20", title: "text-amber-900 dark:text-amber-200" };
+      case "RESOLVIDO":
+        return { header: "border-l-4 border-l-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20", title: "text-emerald-900 dark:text-emerald-200" };
+      case "FECHADO":
+        return { header: "border-l-4 border-l-zinc-500 bg-zinc-50/60 dark:bg-zinc-950/20", title: "text-zinc-800 dark:text-zinc-200" };
+      default:
+        return { header: "", title: "" };
+    }
+  }
+
   const porColuna = useMemo(() => {
     const m = new Map<GlpiKanbanColuna, Chamado[]>();
     ORDEM_COLUNAS.forEach((c) => m.set(c, []));
@@ -256,8 +457,8 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       <div className="grid gap-4 xl:grid-cols-5 md:grid-cols-2">
         {ORDEM_COLUNAS.map((col) => (
           <Card key={col} className="min-h-[300px]">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">
+            <CardHeader className={cn("pb-2", colunaClasses(col).header)}>
+              <CardTitle className={cn("text-sm", colunaClasses(col).title)}>
                 {GLPI_KANBAN_LABELS[col]} ({porColuna.get(col)?.length ?? 0})
               </CardTitle>
             </CardHeader>
@@ -336,51 +537,78 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         }
                         className="h-8 text-xs"
                       />
-                      <Input
-                        type="number"
-                        placeholder="Categoria ID"
+                      <Select
                         value={edits[c.glpiTicketId]?.categoriaIdGlpi ?? ""}
-                        onChange={(e) =>
+                        onValueChange={(v) =>
                           setEdits((prev) => ({
                             ...prev,
                             [c.glpiTicketId]: {
                               ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
-                              categoriaIdGlpi: e.target.value,
+                              categoriaIdGlpi: v === "__none__" ? "" : v,
                             },
                           }))
                         }
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Grupo técnico ID"
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Categoria (GLPI)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sem categoria</SelectItem>
+                          {categorias.map((o) => (
+                            <SelectItem key={o.id} value={String(o.id)}>
+                              {o.name} (#{o.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
                         value={edits[c.glpiTicketId]?.grupoTecnicoIdGlpi ?? ""}
-                        onChange={(e) =>
+                        onValueChange={(v) =>
                           setEdits((prev) => ({
                             ...prev,
                             [c.glpiTicketId]: {
                               ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
-                              grupoTecnicoIdGlpi: e.target.value,
+                              grupoTecnicoIdGlpi: v === "__none__" ? "" : v,
                             },
                           }))
                         }
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Técnico ID"
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Grupo técnico (GLPI)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sem grupo</SelectItem>
+                          {grupos.map((o) => (
+                            <SelectItem key={o.id} value={String(o.id)}>
+                              {o.name} (#{o.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
                         value={edits[c.glpiTicketId]?.tecnicoResponsavelIdGlpi ?? ""}
-                        onChange={(e) =>
+                        onValueChange={(v) =>
                           setEdits((prev) => ({
                             ...prev,
                             [c.glpiTicketId]: {
                               ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
-                              tecnicoResponsavelIdGlpi: e.target.value,
+                              tecnicoResponsavelIdGlpi: v === "__none__" ? "" : v,
                             },
                           }))
                         }
-                        className="h-8 text-xs col-span-2"
-                      />
+                      >
+                        <SelectTrigger className="h-8 text-xs col-span-2">
+                          <SelectValue placeholder="Técnico responsável (GLPI)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sem técnico</SelectItem>
+                          {usuarios.map((o) => (
+                            <SelectItem key={o.id} value={String(o.id)}>
+                              {o.name} (#{o.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <div className="col-span-2 flex gap-2">
                         <Button
                           size="sm"
@@ -402,9 +630,19 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                       </div>
                     </div>
                   ) : (
-                    <Button size="sm" variant="outline" className="h-8" onClick={() => abrirEdicao(c)}>
-                      Editar campos GLPI
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" className="h-8" onClick={() => abrirEdicao(c)}>
+                        Editar dados GLPI
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8"
+                        onClick={() => void abrirDetalhes(c.glpiTicketId)}
+                      >
+                        Detalhes &amp; comentários
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -412,6 +650,179 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
           </Card>
         ))}
       </div>
+
+      <Dialog open={detalhesId != null} onOpenChange={(o) => (o ? null : setDetalhesId(null))}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Chamado GLPI #{detalhesId ?? ""}</DialogTitle>
+            <DialogDescription>
+              Visualize o conteúdo completo e o histórico de comentários (followups) e envie novos comentários.
+            </DialogDescription>
+          </DialogHeader>
+          {detalhesLoading && <p className="text-sm text-muted-foreground">Carregando detalhes…</p>}
+          {!detalhesLoading && detalhes && (
+            <div className="space-y-4">
+              <div className="rounded-md border p-3 space-y-1">
+                <p className="text-sm font-medium">{detalhes.ticket.name ?? "(sem título)"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {detalhes.ticket._itilcategories_id ? `Categoria: ${detalhes.ticket._itilcategories_id}. ` : ""}
+                  {detalhes.ticket._groups_id_assign ? `Grupo: ${detalhes.ticket._groups_id_assign}. ` : ""}
+                  {detalhes.ticket._users_id_assign ? `Técnico: ${detalhes.ticket._users_id_assign}.` : ""}
+                </p>
+                {detalhes.ticket.content && (
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {stripHtml(String(detalhes.ticket.content))}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Linha do tempo</p>
+                <div className="rounded-md border p-3 space-y-3 max-h-[360px] overflow-auto">
+                  {(() => {
+                    const items: Array<{
+                      kind: "comentario" | "tarefa" | "solucao" | "documento";
+                      date: string;
+                      title: string;
+                      meta?: string;
+                      content?: string;
+                      link?: string;
+                    }> = [];
+                    for (const f of detalhes.followups) {
+                      items.push({
+                        kind: "comentario",
+                        date: f.date ?? "",
+                        title: "Comentário",
+                        meta: `${f._users_id ?? ""}${f.is_private ? " • privado" : ""}`.trim() || undefined,
+                        content: stripHtml(String(f.content ?? "")),
+                      });
+                    }
+                    for (const t of detalhes.tasks) {
+                      items.push({
+                        kind: "tarefa",
+                        date: t.date ?? "",
+                        title: "Tarefa",
+                        meta: `${t._users_id ?? ""}${t.is_private ? " • privada" : ""}${
+                          t.state != null ? ` • estado ${t.state}` : ""
+                        }`.trim() || undefined,
+                        content: stripHtml(String(t.content ?? "")),
+                      });
+                    }
+                    for (const s of detalhes.solutions) {
+                      items.push({
+                        kind: "solucao",
+                        date: s.date_creation ?? "",
+                        title: "Solução",
+                        meta: `${s._users_id ?? ""}${s.status != null ? ` • status ${s.status}` : ""}`.trim() || undefined,
+                        content: stripHtml(String(s.content ?? "")),
+                      });
+                    }
+                    for (const d of detalhes.documents) {
+                      items.push({
+                        kind: "documento",
+                        date: "",
+                        title: "Documento",
+                        meta: `#${d.documentId}`,
+                        content: d.name,
+                        link: d.link,
+                      });
+                    }
+                    const score = (s: string) => {
+                      const t = Date.parse(s);
+                      return Number.isFinite(t) ? t : -1;
+                    };
+                    items.sort((a, b) => score(b.date) - score(a.date));
+                    if (items.length === 0) {
+                      return <p className="text-sm text-muted-foreground">Nada encontrado ainda.</p>;
+                    }
+                    return items.map((it, idx) => (
+                      <div key={`${it.kind}-${it.date}-${idx}`} className="border-b last:border-b-0 pb-3 last:pb-0">
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{it.title}</span>
+                          {it.date ? ` • ${new Date(it.date).toLocaleString("pt-BR")}` : ""}
+                          {it.meta ? ` • ${it.meta}` : ""}
+                          {it.link ? (
+                            <>
+                              {" "}
+                              •{" "}
+                              <a href={it.link} target="_blank" rel="noreferrer" className="underline">
+                                abrir
+                              </a>
+                            </>
+                          ) : null}
+                        </p>
+                        {it.content ? <p className="text-sm whitespace-pre-wrap">{it.content}</p> : null}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Novo comentário</p>
+                <Textarea
+                  value={comentario}
+                  onChange={(e) => setComentario(e.target.value)}
+                  rows={4}
+                  placeholder="Escreva um comentário para adicionar ao chamado no GLPI…"
+                />
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input"
+                    checked={comentarioPrivado}
+                    onChange={(e) => setComentarioPrivado(e.target.checked)}
+                  />
+                  Marcar como privado (se permitido no GLPI)
+                </label>
+                <div className="flex gap-2">
+                  <Button onClick={() => void enviarComentario()} disabled={comentarioSaving || !comentario.trim()}>
+                    {comentarioSaving ? "Enviando…" : "Enviar comentário"}
+                  </Button>
+                  <Button variant="secondary" onClick={() => detalhesId && abrirDetalhes(detalhesId)} disabled={detalhesLoading}>
+                    Recarregar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Nova tarefa</p>
+                <Textarea
+                  value={tarefa}
+                  onChange={(e) => setTarefa(e.target.value)}
+                  rows={3}
+                  placeholder="Descreva uma tarefa (ITILTask) para adicionar ao chamado no GLPI…"
+                />
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input"
+                    checked={tarefaPrivada}
+                    onChange={(e) => setTarefaPrivada(e.target.checked)}
+                  />
+                  Marcar como privada (se permitido no GLPI)
+                </label>
+                <Button onClick={() => void enviarTarefa()} disabled={tarefaSaving || !tarefa.trim()}>
+                  {tarefaSaving ? "Enviando…" : "Criar tarefa"}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Nova solução</p>
+                <Textarea
+                  value={solucao}
+                  onChange={(e) => setSolucao(e.target.value)}
+                  rows={3}
+                  placeholder="Descreva a solução (ITILSolution) para registrar no GLPI…"
+                />
+                <Button onClick={() => void enviarSolucao()} disabled={solucaoSaving || !solucao.trim()}>
+                  {solucaoSaving ? "Enviando…" : "Registrar solução"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
