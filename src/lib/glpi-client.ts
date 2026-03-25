@@ -1,6 +1,6 @@
 /**
- * Cliente HTTP para API REST do GLPI (apirest.php) — compatível com GLPI 10/11.
- * Docs: https://github.com/glpi-project/glpi/blob/main/apirest.md
+ * Cliente HTTP para API REST legada do GLPI (apirest.php em /api.php/v1/… ou raiz).
+ * User Token + App Token: não use /api.php/v2.x/… (API alta — apenas OAuth Bearer). Ver apirest.md no GLPI.
  */
 
 import { getGlpiCredentialsResolved } from "@/lib/glpi-config";

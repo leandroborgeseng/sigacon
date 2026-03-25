@@ -16,7 +16,13 @@ function parseGlpiErrorBody(text: string): string {
   try {
     const j = JSON.parse(text) as unknown;
     if (Array.isArray(j) && typeof j[0] === "string") return j[0];
-    if (j && typeof j === "object" && "message" in j) return String((j as { message: unknown }).message);
+    if (j && typeof j === "object") {
+      if ("message" in j) return String((j as { message: unknown }).message);
+      const o = j as { title?: unknown; detail?: unknown };
+      if (typeof o.title === "string" || typeof o.detail === "string") {
+        return [o.title, o.detail].filter((x): x is string => typeof x === "string").join(": ");
+      }
+    }
   } catch {
     /* ignore */
   }
@@ -47,6 +53,28 @@ export function validarFormatoUrlApiGlpi(
     return { ok: false, message: "O caminho deve terminar em …/apirest.php." };
   }
   return { ok: true, normalized: base };
+}
+
+/** API “high-level” (v2+): OAuth Bearer. Esta integração usa User/App Token só na rota legada (v1). */
+export function urlApontaParaApiAltaNivelGlpi(normalizedUrl: string): boolean {
+  try {
+    const p = new URL(normalizedUrl).pathname;
+    return /\/api\.php\/v(?!1\b)/i.test(p) && /apirest\.php$/i.test(p);
+  } catch {
+    return false;
+  }
+}
+
+/** Troca …/api.php/v2.x/… por …/api.php/v1/… para usar initSession com user_token. */
+export function sugerirUrlApiLegadaGlpi(normalizedUrl: string): string | null {
+  if (!urlApontaParaApiAltaNivelGlpi(normalizedUrl)) return null;
+  try {
+    const u = new URL(normalizedUrl);
+    u.pathname = u.pathname.replace(/\/api\.php\/v[^/]+/i, "/api.php/v1");
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -106,6 +134,17 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   }
   const base = urlV.normalized;
   steps.push({ id: "url", label: "URL da API (apirest.php)", ok: true, detail: base });
+
+  if (urlApontaParaApiAltaNivelGlpi(base)) {
+    const legado = sugerirUrlApiLegadaGlpi(base);
+    steps.push({
+      id: "urlApiVersao",
+      label: "URL: API legada (v1) para User Token",
+      ok: false,
+      detail: `Este caminho é da API de alto nível (v2+), que usa OAuth2 (Bearer JWT), não User/App Token. Troque para a API legada em v1 — ex.: ${legado ?? "…/api.php/v1/apirest.php"}. Documentação: help.glpi-project.org (RESTful API V2 / version pinning).`,
+    });
+    return { ok: false, steps };
+  }
 
   const userToken = input.userToken.trim();
   const appToken = input.appToken.trim();
