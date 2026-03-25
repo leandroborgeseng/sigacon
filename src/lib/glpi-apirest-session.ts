@@ -1,6 +1,6 @@
 /**
  * initSession da API REST legada GLPI (apirest.php + user_token + App-Token).
- * Vários retries por incompatibilidades de proxy / formato de resposta.
+ * Vários retries: barra final, query com tokens, base alternativa /apirest.php na raiz.
  */
 
 export function parseGlpiApiErrorBody(text: string): string {
@@ -27,6 +27,22 @@ export function parseGlpiApiErrorBody(text: string): string {
   return trimmed.slice(0, 500);
 }
 
+/** Se a base for …/api.php/v1/apirest.php, também tenta https://mesmo-host/apirest.php (doc GLPI / instalações Railway). */
+export function alternativasBaseApirestUrl(normalizedBase: string): string[] {
+  const base = normalizedBase.replace(/\/+$/, "");
+  const list = [base];
+  try {
+    const u = new URL(base);
+    if (/\/api\.php\/v\d+/i.test(u.pathname)) {
+      const raiz = new URL("/apirest.php", u.origin).toString().replace(/\/+$/, "");
+      if (raiz !== base && !list.includes(raiz)) list.push(raiz);
+    }
+  } catch {
+    /* ignore */
+  }
+  return list;
+}
+
 export type GlpiInitSessionOk = { sessionToken: string; via: string };
 export type GlpiInitSessionFail = { status: number; body: string; detail: string; via: string };
 
@@ -38,7 +54,7 @@ function buildInitAttempts(base: string, appToken: string, userToken: string): I
 
   for (const url of paths) {
     attempts.push({
-      label: `GET + Authorization user_token (${url.endsWith("/") ? "barra final" : "sem barra"})`,
+      label: `Authorization user_token + JSON Content-Type (${url.endsWith("/") ? "/" : "sem /"})`,
       url,
       init: {
         method: "GET",
@@ -50,7 +66,7 @@ function buildInitAttempts(base: string, appToken: string, userToken: string): I
       },
     });
     attempts.push({
-      label: `GET user_token sem Content-Type (${url.endsWith("/") ? "barra" : "sem barra"})`,
+      label: `Authorization user_token sem Content-Type (${url.endsWith("/") ? "/" : "sem /"})`,
       url,
       init: {
         method: "GET",
@@ -65,9 +81,19 @@ function buildInitAttempts(base: string, appToken: string, userToken: string): I
   const qs = new URLSearchParams();
   qs.set("user_token", userToken);
   if (appToken) qs.set("app_token", appToken);
+  const q = qs.toString();
+  // doc: tokens na query; barra antes de ? alinha com apirest.php/initSession/
   attempts.push({
-    label: "GET initSession?user_token=… (fallback se proxy remove Authorization)",
-    url: `${base}/initSession?${qs.toString()}`,
+    label: "GET initSession/?user_token=… (query, barra antes de ?)",
+    url: `${base}/initSession/?${q}`,
+    init: {
+      method: "GET",
+      headers: appToken ? { "App-Token": appToken } : {},
+    },
+  });
+  attempts.push({
+    label: "GET initSession?user_token=… (query, sem barra extra)",
+    url: `${base}/initSession?${q}`,
     init: {
       method: "GET",
       headers: appToken ? { "App-Token": appToken } : {},
@@ -83,7 +109,7 @@ export async function glpiLegacyInitSession(
   userToken: string,
   opts?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<{ ok: true; result: GlpiInitSessionOk } | { ok: false; result: GlpiInitSessionFail }> {
-  const timeoutMs = opts?.timeoutMs ?? 20000;
+  const timeoutMs = opts?.timeoutMs ?? 25000;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   if (opts?.signal) {
@@ -93,56 +119,67 @@ export async function glpiLegacyInitSession(
   const signal = controller.signal;
 
   let lastFail: GlpiInitSessionFail | null = null;
+  const failuresShort: string[] = [];
   const app = appToken.trim();
   const user = userToken.trim();
 
+  const bases = alternativasBaseApirestUrl(base.replace(/\/+$/, ""));
+
   try {
-    for (const { label, url, init } of buildInitAttempts(base, app, user)) {
-      if (signal.aborted) break;
-      try {
-        const res = await fetch(url, { ...init, signal });
-        const text = await res.text();
-        if (!res.ok) {
-          lastFail = {
-            status: res.status,
-            body: text,
-            detail: parseGlpiApiErrorBody(text),
-            via: label,
-          };
-          continue;
-        }
-        let j: { session_token?: string };
+    for (const b of bases) {
+      for (const { label, url, init } of buildInitAttempts(b, app, user)) {
+        if (signal.aborted) break;
         try {
-          j = JSON.parse(text) as { session_token?: string };
-        } catch {
+          const res = await fetch(url, { ...init, signal });
+          const text = await res.text();
+          if (!res.ok) {
+            const detail = parseGlpiApiErrorBody(text);
+            const pathHint = new URL(url).pathname + new URL(url).search;
+            failuresShort.push(`${res.status} ${detail.slice(0, 100)} [${label}]`);
+            lastFail = {
+              status: res.status,
+              body: text,
+              detail,
+              via: `${label} · base ${b}`,
+            };
+            continue;
+          }
+          let j: { session_token?: string };
+          try {
+            j = JSON.parse(text) as { session_token?: string };
+          } catch {
+            lastFail = {
+              status: res.status,
+              body: text,
+              detail: "Resposta não é JSON.",
+              via: `${label} · base ${b}`,
+            };
+            failuresShort.push(`200 JSON inválido [${label}]`);
+            continue;
+          }
+          const sessionToken = j.session_token;
+          if (!sessionToken) {
+            lastFail = {
+              status: res.status,
+              body: text,
+              detail: "JSON sem session_token.",
+              via: `${label} · base ${b}`,
+            };
+            failuresShort.push(`200 sem session_token [${label}]`);
+            continue;
+          }
+          clearTimeout(timer);
+          return { ok: true, result: { sessionToken, via: `${label} · base ${b}` } };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
           lastFail = {
-            status: res.status,
-            body: text,
-            detail: "Resposta não é JSON.",
-            via: label,
+            status: 0,
+            body: "",
+            detail: signal.aborted || msg.includes("abort") ? "Tempo esgotado ou requisição cancelada." : msg.slice(0, 200),
+            via: `${label} · base ${b}`,
           };
-          continue;
+          failuresShort.push(`${lastFail.detail.slice(0, 80)} [${label}]`);
         }
-        const sessionToken = j.session_token;
-        if (!sessionToken) {
-          lastFail = {
-            status: res.status,
-            body: text,
-            detail: "JSON sem session_token.",
-            via: label,
-          };
-          continue;
-        }
-        clearTimeout(timer);
-        return { ok: true, result: { sessionToken, via: label } };
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        lastFail = {
-          status: 0,
-          body: "",
-          detail: signal.aborted || msg.includes("abort") ? "Tempo esgotado ou requisição cancelada." : msg.slice(0, 200),
-          via: label,
-        };
       }
     }
   } finally {
@@ -150,6 +187,15 @@ export async function glpiLegacyInitSession(
   }
 
   if (lastFail) {
+    const resumo = failuresShort.slice(-8).join(" · ");
+    const stMissing = resumo.includes("SESSION_TOKEN_MISSING") || lastFail.detail.includes("SESSION_TOKEN_MISSING");
+    const dica = stMissing
+      ? " Esse código em initSession costuma indicar que o PHP não recebeu Authorization/App-Token (proxy web: confira HTTP_AUTHORIZATION no Apache/Nginx) ou rota errada: cadastre também a base https://SEU-DOMÍNIO/apirest.php se o GLPI publicar essa URL."
+      : "";
+    lastFail = {
+      ...lastFail,
+      detail: `${lastFail.detail} (última tentativa: ${lastFail.via}). Resumo: ${resumo}.${dica}`,
+    };
     return { ok: false, result: lastFail };
   }
   return {

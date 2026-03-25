@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { alternativasBaseApirestUrl } from "@/lib/glpi-apirest-session";
 import {
   sugerirUrlApiLegadaGlpi,
   urlApontaParaApiAltaNivelGlpi,
@@ -246,6 +247,9 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
 
   const urlLegadoSugerida = urlFmt.kind === "ok" ? sugerirUrlApiLegadaGlpi(urlFmt.normalized) : null;
   const urlEhApiV2 = urlFmt.kind === "ok" && urlApontaParaApiAltaNivelGlpi(urlFmt.normalized);
+  const basesApirestAlt =
+    urlFmt.kind === "ok" ? alternativasBaseApirestUrl(urlFmt.normalized) : [""];
+  const urlBaseRaizApirest = basesApirestAlt.length > 1 ? basesApirestAlt[1] : null;
 
   const urlInputClass = cn(
     urlFmt.kind === "error" && "border-destructive focus-visible:ring-destructive/40",
@@ -329,6 +333,13 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           {urlFmt.kind === "ok" && (
             <p className="text-xs text-muted-foreground">
               Formato ok: <code className="text-[11px]">{urlFmt.normalized}</code>
+            </p>
+          )}
+          {urlFmt.kind === "ok" && urlBaseRaizApirest && (
+            <p className="text-xs text-amber-800/90 dark:text-amber-200/90">
+              Se <code className="text-[11px]">initSession</code> falhar com{" "}
+              <code className="text-[11px]">SESSION_TOKEN_MISSING</code>, teste a base na raiz:{" "}
+              <code className="text-[11px] break-all">{urlBaseRaizApirest}</code>
             </p>
           )}
           {urlFmt.kind === "ok" && urlPing.kind === "loading" && (
