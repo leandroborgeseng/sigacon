@@ -95,6 +95,8 @@ export type GlpiTestInput = {
   appToken: string;
   userToken: string;
   campoBuscaGrupoTecnico: number;
+  /** Campo do search/Ticket para date_mod (usado no sync incremental; não afeta o teste básico). */
+  campoDataModificacao?: number;
   criteriosExtraJson: string | null;
 };
 
