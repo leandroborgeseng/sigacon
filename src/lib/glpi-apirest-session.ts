@@ -48,7 +48,8 @@ export function alternativasBaseApirestUrl(normalizedBase: string): string[] {
   return list;
 }
 
-export type GlpiInitSessionOk = { sessionToken: string; via: string };
+/** apirestBase: URL base exata em que initSession respondeu (sempre use a mesma para get/search/kill). */
+export type GlpiInitSessionOk = { sessionToken: string; via: string; apirestBase: string };
 export type GlpiInitSessionFail = { status: number; body: string; detail: string; via: string };
 
 type InitAttempt = { label: string; url: string; init: RequestInit };
@@ -139,7 +140,6 @@ export async function glpiLegacyInitSession(
           const text = await res.text();
           if (!res.ok) {
             const detail = parseGlpiApiErrorBody(text);
-            const pathHint = new URL(url).pathname + new URL(url).search;
             failuresShort.push(`${res.status} ${detail.slice(0, 100)} [${label}]`);
             lastFail = {
               status: res.status,
@@ -174,7 +174,10 @@ export async function glpiLegacyInitSession(
             continue;
           }
           clearTimeout(timer);
-          return { ok: true, result: { sessionToken, via: `${label} · base ${b}` } };
+          return {
+            ok: true,
+            result: { sessionToken, via: `${label} · base ${b}`, apirestBase: b.replace(/\/+$/, "") },
+          };
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           lastFail = {

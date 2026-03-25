@@ -229,11 +229,14 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     return { ok: false, steps };
   }
   sessionToken = initR.result.sessionToken;
+  const apirestBase = initR.result.apirestBase;
   steps.push({
     id: "initSession",
     label: "Autenticação (initSession)",
     ok: true,
-    detail: `Sessão criada (${initR.result.via}).`,
+    detail: `Sessão criada (${initR.result.via}).${
+      apirestBase !== base ? ` As próximas chamadas usam a mesma base: ${apirestBase}.` : ""
+    }`,
   });
 
   const sessionHeaders: Record<string, string> = {
@@ -245,7 +248,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 20000);
-    const full = await fetch(`${base}/getFullSession`, {
+    const full = await fetch(`${apirestBase}/getFullSession`, {
       method: "GET",
       headers: sessionHeaders,
       signal: controller.signal,
@@ -285,7 +288,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     params.set("criteria[0][value]", "0");
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 20000);
-    const sr = await fetch(`${base}/search/Ticket?${params.toString()}`, {
+    const sr = await fetch(`${apirestBase}/search/Ticket?${params.toString()}`, {
       method: "GET",
       headers: sessionHeaders,
       signal: controller.signal,
@@ -319,7 +322,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
 
   try {
     const kh = new Headers(sessionHeaders);
-    await fetch(`${base}/killSession`, { method: "GET", headers: kh });
+    await fetch(`${apirestBase}/killSession`, { method: "GET", headers: kh });
     steps.push({ id: "killSession", label: "Encerramento (killSession)", ok: true, detail: "Sessão de teste encerrada." });
   } catch {
     steps.push({

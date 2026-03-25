@@ -39,12 +39,13 @@ export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promis
     throw new Error(`GLPI initSession falhou: HTTP ${f.status} ${f.detail} (${f.via})`);
   }
   const sessionToken = initR.result.sessionToken;
+  const apirestBase = initR.result.apirestBase;
 
-  const ctx: GlpiSessionContext = { baseUrl: base, appToken, sessionToken };
+  const ctx: GlpiSessionContext = { baseUrl: apirestBase, appToken, sessionToken };
   try {
     return await fn(ctx);
   } finally {
-    await fetch(`${base}/killSession`, {
+    await fetch(`${apirestBase}/killSession`, {
       method: "GET",
       headers: { "App-Token": appToken, "Session-Token": sessionToken },
     }).catch(() => {});
