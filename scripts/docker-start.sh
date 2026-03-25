@@ -1,36 +1,48 @@
 #!/bin/sh
 # Aplica migrações pendentes antes do Next (Railway / Docker).
-# Não depende de SSH no ambiente: roda em todo deploy.
 #
-# P3005 (banco já tem tabelas, sem histórico em _prisma_migrations): defina na Railway
-# PRISMA_BASELINE_NON_EMPTY_DB=1, faça UM deploy com sucesso e REMOVA a variável em seguida.
+# Se o Prisma retornar P3005 (banco já tem tabelas, sem _prisma_migrations), registramos
+# as pastas em prisma/migrations como já aplicadas e rodamos deploy de novo — típico após db push.
+# Opcional: PRISMA_BASELINE_NON_EMPTY_DB=1 força o mesmo baseline se migrate falhar por outro motivo
+# (use com cuidado).
 set -e
 cd /app 2>/dev/null || true
 
-run_migrate_deploy() {
-  ./node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma
+run_baseline_migrations() {
+  echo "[sigacon] Baseline: registrando migrações como já aplicadas (banco já existia sem histórico Prisma)."
+  for d in ./prisma/migrations/*/; do
+    if [ ! -d "$d" ]; then
+      continue
+    fi
+    m=$(basename "$d")
+    echo "[sigacon] prisma migrate resolve --applied \"$m\""
+    ./node_modules/.bin/prisma migrate resolve --applied "$m" --schema=./prisma/schema.prisma
+  done
 }
 
 echo "[sigacon] Prisma migrate deploy..."
-if run_migrate_deploy; then
+set +e
+MIGRATE_OUT=$(./node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma 2>&1)
+MIGRATE_EC=$?
+set -e
+printf '%s\n' "$MIGRATE_OUT"
+
+if [ "$MIGRATE_EC" -eq 0 ]; then
   :
 else
-  deploy_err=$?
-  if [ "$PRISMA_BASELINE_NON_EMPTY_DB" = "1" ]; then
-    echo "[sigacon] Baseline: registrando migrações em prisma/migrations como já aplicadas (use só se o schema do banco já bate com elas)."
-    for d in ./prisma/migrations/*/; do
-      if [ ! -d "$d" ]; then
-        continue
-      fi
-      m=$(basename "$d")
-      echo "[sigacon] prisma migrate resolve --applied \"$m\""
-      ./node_modules/.bin/prisma migrate resolve --applied "$m" --schema=./prisma/schema.prisma
-    done
+  P3005=0
+  case "$MIGRATE_OUT" in
+    *P3005*) P3005=1 ;;
+  esac
+  if [ "$P3005" -eq 1 ] || [ "$PRISMA_BASELINE_NON_EMPTY_DB" = "1" ]; then
+    if [ "$P3005" -ne 1 ] && [ "$PRISMA_BASELINE_NON_EMPTY_DB" = "1" ]; then
+      echo "[sigacon] Aviso: migrate falhou sem P3005; baseline forçado por PRISMA_BASELINE_NON_EMPTY_DB=1."
+    fi
+    run_baseline_migrations
     echo "[sigacon] Prisma migrate deploy (após baseline)..."
-    run_migrate_deploy
+    ./node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma
   else
-    echo "[sigacon] ERRO: migrate deploy falhou (código $deploy_err). Comum em bancos criados com db push: P3005 — schema não vazio sem _prisma_migrations."
-    echo "[sigacon] Se as tabelas do banco já refletem prisma/migrations, defina PRISMA_BASELINE_NON_EMPTY_DB=1 na Railway, redeploy uma vez e remova a variável."
+    echo "[sigacon] ERRO: migrate deploy falhou (código $MIGRATE_EC). Se for P3005 e a mensagem não foi detectada, use PRISMA_BASELINE_NON_EMPTY_DB=1 na Railway."
     exit 1
   fi
 fi
