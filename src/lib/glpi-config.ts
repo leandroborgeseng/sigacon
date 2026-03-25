@@ -15,6 +15,7 @@ export type GlpiConfigDraftBody = {
   appToken?: string;
   userToken?: string;
   campoBuscaGrupoTecnico?: number;
+  campoDataModificacao?: number;
   criteriosExtraJson?: string | null;
   /** Se true, ignora App-Token salvo/env (use quando o GLPI não tem token de aplicação). */
   limparAppToken?: boolean;
@@ -31,6 +32,7 @@ export function mergeGlpiConnectionParams(
   appToken: string;
   userToken: string;
   campoBuscaGrupoTecnico: number;
+  campoDataModificacao: number;
   criteriosExtraJson: string | null;
 } {
   const env = envCredentials();
@@ -49,11 +51,22 @@ export function mergeGlpiConnectionParams(
     body.campoBuscaGrupoTecnico != null && Number.isFinite(body.campoBuscaGrupoTecnico)
       ? Math.floor(body.campoBuscaGrupoTecnico)
       : row?.campoBuscaGrupoTecnico ?? 71;
+  const campoDataModificacao =
+    body.campoDataModificacao != null && Number.isFinite(body.campoDataModificacao)
+      ? Math.floor(body.campoDataModificacao)
+      : row?.campoDataModificacao ?? 15;
   const criteriosExtraJson =
     body.criteriosExtraJson === undefined
       ? row?.criteriosExtraJson ?? null
       : body.criteriosExtraJson?.trim() || null;
-  return { baseUrl, appToken, userToken, campoBuscaGrupoTecnico: campo, criteriosExtraJson };
+  return {
+    baseUrl,
+    appToken,
+    userToken,
+    campoBuscaGrupoTecnico: campo,
+    campoDataModificacao,
+    criteriosExtraJson,
+  };
 }
 
 /**
@@ -64,6 +77,7 @@ export async function getGlpiCredentialsResolved(): Promise<{
   appToken: string;
   userToken: string;
   campoBuscaGrupoTecnico: number;
+  campoDataModificacao: number;
 } | null> {
   const row = await prisma.glpiConfig.findUnique({ where: { id: "default" } });
   const env = envCredentials();
@@ -77,7 +91,13 @@ export async function getGlpiCredentialsResolved(): Promise<{
       ? parseInt(process.env.GLPI_CAMPO_GRUPO_TECNICO, 10)
       : 71);
   const campoBuscaGrupoTecnico = Number.isFinite(rawCampo) ? rawCampo : 71;
-  return { baseUrl, appToken, userToken, campoBuscaGrupoTecnico };
+  const rawCampoDataModificacao =
+    row?.campoDataModificacao ??
+    (process.env.GLPI_CAMPO_DATA_MODIFICACAO
+      ? parseInt(process.env.GLPI_CAMPO_DATA_MODIFICACAO, 10)
+      : 15);
+  const campoDataModificacao = Number.isFinite(rawCampoDataModificacao) ? rawCampoDataModificacao : 15;
+  return { baseUrl, appToken, userToken, campoBuscaGrupoTecnico, campoDataModificacao };
 }
 
 export async function glpiEstaConfigurado(): Promise<boolean> {

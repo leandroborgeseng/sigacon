@@ -132,6 +132,7 @@ async function releasePgAdvisoryLock(lockKey: number): Promise<void> {
  * Busca tickets no GLPI e faz upsert local.
  * Com grupos vinculados ao contrato: busca por grupo técnico atribuído (OR entre grupos).
  * Sem grupos: fallback para título contém fornecedor do contrato ou termoTitulo.
+ * Sem contrato e sem termo: busca ampla (sem critérios), útil para bootstrap do Kanban.
  */
 export async function sincronizarChamadosGlpi(params: SincronizarParams): Promise<SyncResumo> {
   const erros: string[] = [];
@@ -140,6 +141,7 @@ export async function sincronizarChamadosGlpi(params: SincronizarParams): Promis
     return { processados: 0, erros: ["GLPI não configurado (use Configuração GLPI ou variáveis de ambiente)"] };
   }
   const campoGrupo = cred.campoBuscaGrupoTecnico;
+  const campoDataModificacao = cred.campoDataModificacao;
 
   let contratoId = params.contratoId;
   let fornecedorNome: string | null = null;
@@ -185,18 +187,17 @@ export async function sincronizarChamadosGlpi(params: SincronizarParams): Promis
       criteria.push({ ...ex, link: ex.link ?? "AND" });
     }
   } else {
-    return {
-      processados: 0,
-      erros: [
-        "Informe contratoId (com grupos GLPI ou fornecedor) ou termoTitulo para filtrar chamados",
-      ],
-    };
+    // Bootstrap: sem filtro explícito, consulta ampla.
+    criteria = [];
+    for (const ex of extra) {
+      criteria.push({ ...ex, link: ex.link ?? "AND" });
+    }
   }
 
   if (params.alteradosApos) {
-    // Campo 15 costuma mapear "date_mod" em Ticket/search no GLPI.
+    // Campo configurável em glpi_config para "date_mod" no search/Ticket.
     criteria.push({
-      field: 15,
+      field: campoDataModificacao,
       searchtype: "morethan",
       value: dateToGlpiSearchValue(params.alteradosApos),
       link: "AND",

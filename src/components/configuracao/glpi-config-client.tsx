@@ -25,6 +25,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   const [appToken, setAppToken] = useState("");
   const [userToken, setUserToken] = useState("");
   const [campoBusca, setCampoBusca] = useState(71);
+  const [campoDataModificacao, setCampoDataModificacao] = useState(15);
   const [criteriosExtra, setCriteriosExtra] = useState("");
   const [appJaSalvo, setAppJaSalvo] = useState(false);
   const [userJaSalvo, setUserJaSalvo] = useState(false);
@@ -48,6 +49,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       .then((d) => {
         setBaseUrl(d.baseUrl ?? "");
         setCampoBusca(typeof d.campoBuscaGrupoTecnico === "number" ? d.campoBuscaGrupoTecnico : 71);
+        setCampoDataModificacao(typeof d.campoDataModificacao === "number" ? d.campoDataModificacao : 15);
         setCriteriosExtra(d.criteriosExtraJson ?? "");
         setAppJaSalvo(Boolean(d.appTokenPreenchido));
         setUserJaSalvo(Boolean(d.userTokenPreenchido));
@@ -117,6 +119,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       appToken: appToken.trim() || undefined,
       userToken: userToken.trim() || undefined,
       campoBuscaGrupoTecnico: campoBusca,
+      campoDataModificacao,
       criteriosExtraJson: criteriosExtra.trim() || null,
       ...(limparAppTokenSalvo ? { limparAppToken: true as const } : {}),
     };
@@ -169,7 +172,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         if (!ac.signal.aborted) setTestando(false);
       }
     },
-    [baseUrl, appToken, userToken, campoBusca, criteriosExtra, limparAppTokenSalvo]
+    [baseUrl, appToken, userToken, campoBusca, campoDataModificacao, criteriosExtra, limparAppTokenSalvo]
   );
 
   function podeTestarCredenciais(): boolean {
@@ -229,6 +232,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         steps?: GlpiTestStep[];
         baseUrl?: string;
         campoBuscaGrupoTecnico?: number;
+        campoDataModificacao?: number;
         criteriosExtraJson?: string;
         persistirAppTokenVazio?: boolean;
       };
@@ -240,6 +244,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       setMsg(j.message ?? "Configuração salva.");
       setBaseUrl(j.baseUrl ?? baseUrl);
       if (typeof j.campoBuscaGrupoTecnico === "number") setCampoBusca(j.campoBuscaGrupoTecnico);
+      if (typeof j.campoDataModificacao === "number") setCampoDataModificacao(j.campoDataModificacao);
       if (j.criteriosExtraJson != null) setCriteriosExtra(j.criteriosExtraJson);
       setAppToken("");
       setUserToken("");
@@ -451,6 +456,19 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           <p className="text-xs text-muted-foreground">
             Padrão 71; se a busca não retornar tickets, ajuste conforme o seu GLPI (ex.: use{" "}
             <code className="text-xs">listSearchOptions/Ticket</code> na API).
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label>Campo de busca: data de modificação (Ticket)</Label>
+          <Input
+            type="number"
+            value={campoDataModificacao}
+            onChange={(e) => setCampoDataModificacao(Number(e.target.value))}
+            disabled={!podeEditar}
+          />
+          <p className="text-xs text-muted-foreground">
+            Usado na sincronização incremental automática (date_mod). Padrão 15; confirme em{" "}
+            <code className="text-xs">listSearchOptions/Ticket</code> no GLPI se necessário.
           </p>
         </div>
         <div className="space-y-2">

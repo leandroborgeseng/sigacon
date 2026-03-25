@@ -204,7 +204,8 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
           <p className="text-sm text-muted-foreground">
             Com <strong>contrato</strong> selecionado, a sincronização usa os{" "}
             <strong>grupos técnicos</strong> vinculados ao contrato (cadastro do contrato). Sem grupos, usa o nome do
-            fornecedor no título. Sem contrato, informe o termo de sync. Credenciais em{" "}
+            fornecedor no título. Sem contrato e sem termo, a sincronização tenta trazer chamados de forma ampla para
+            facilitar o bootstrap inicial do Kanban. Credenciais em{" "}
             <Link href="/configuracao/glpi" className="text-primary underline">
               Configuração GLPI
             </Link>
@@ -237,7 +238,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
             <Input value={termo} onChange={(e) => setTermo(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Sync por termo (sem contrato)</Label>
+            <Label>Sync por termo (sem contrato, opcional)</Label>
             <Input value={syncTermo} onChange={(e) => setSyncTermo(e.target.value)} />
           </div>
           <div className="md:col-span-5 flex flex-wrap gap-2">

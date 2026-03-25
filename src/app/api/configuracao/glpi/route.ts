@@ -29,6 +29,7 @@ export async function GET() {
     appTokenPreenchido: Boolean(row?.appToken?.trim()),
     userTokenPreenchido: Boolean(row?.userToken?.trim()),
     campoBuscaGrupoTecnico: row?.campoBuscaGrupoTecnico ?? 71,
+    campoDataModificacao: row?.campoDataModificacao ?? 15,
     criteriosExtraJson: row?.criteriosExtraJson ?? "",
   });
 }
@@ -48,6 +49,7 @@ export async function PUT(request: Request) {
     appToken?: string;
     userToken?: string;
     campoBuscaGrupoTecnico?: number;
+    campoDataModificacao?: number;
     criteriosExtraJson?: string | null;
     limparAppToken?: boolean;
   };
@@ -77,6 +79,7 @@ export async function PUT(request: Request) {
     appToken: merged.appToken,
     userToken: merged.userToken,
     campoBuscaGrupoTecnico: merged.campoBuscaGrupoTecnico,
+    campoDataModificacao: merged.campoDataModificacao,
     criteriosExtraJson: merged.criteriosExtraJson,
   });
   if (!teste.ok) {
@@ -106,6 +109,10 @@ export async function PUT(request: Request) {
     body.campoBuscaGrupoTecnico != null && Number.isFinite(body.campoBuscaGrupoTecnico)
       ? Math.floor(body.campoBuscaGrupoTecnico)
       : (existing?.campoBuscaGrupoTecnico ?? 71);
+  const campoDataModificacao =
+    body.campoDataModificacao != null && Number.isFinite(body.campoDataModificacao)
+      ? Math.floor(body.campoDataModificacao)
+      : (existing?.campoDataModificacao ?? 15);
 
   const criteriosExtraJson =
     body.criteriosExtraJson === undefined
@@ -120,6 +127,7 @@ export async function PUT(request: Request) {
       appToken,
       userToken,
       campoBuscaGrupoTecnico: campo,
+      campoDataModificacao,
       criteriosExtraJson,
     },
     update: {
@@ -127,6 +135,7 @@ export async function PUT(request: Request) {
       appToken,
       userToken,
       campoBuscaGrupoTecnico: campo,
+      campoDataModificacao,
       criteriosExtraJson,
     },
   });
@@ -137,6 +146,7 @@ export async function PUT(request: Request) {
     appTokenMasked: maskToken(saved.appToken),
     userTokenMasked: maskToken(saved.userToken),
     campoBuscaGrupoTecnico: saved.campoBuscaGrupoTecnico,
+    campoDataModificacao: saved.campoDataModificacao,
     criteriosExtraJson: saved.criteriosExtraJson ?? "",
     steps: teste.steps,
     persistirAppTokenVazio: teste.persistirAppTokenVazio,
