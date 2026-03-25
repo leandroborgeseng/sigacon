@@ -4,6 +4,7 @@
  */
 
 import { getGlpiCredentialsResolved } from "@/lib/glpi-config";
+import { glpiLegacyInitSession } from "@/lib/glpi-apirest-session";
 
 export type GlpiCriterion = {
   field: number;
@@ -32,20 +33,12 @@ export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promis
     );
   }
   const { baseUrl: base, appToken, userToken } = cred;
-  const init = await fetch(`${base}/initSession`, {
-    method: "GET",
-    headers: {
-      "App-Token": appToken,
-      Authorization: `user_token ${userToken}`,
-    },
-  });
-  if (!init.ok) {
-    const t = await init.text();
-    throw new Error(`GLPI initSession falhou: ${init.status} ${t.slice(0, 300)}`);
+  const initR = await glpiLegacyInitSession(base, appToken, userToken);
+  if (!initR.ok) {
+    const f = initR.result;
+    throw new Error(`GLPI initSession falhou: HTTP ${f.status} ${f.detail} (${f.via})`);
   }
-  const j = (await init.json()) as { session_token?: string };
-  const sessionToken = j.session_token;
-  if (!sessionToken) throw new Error("GLPI retornou session_token vazio");
+  const sessionToken = initR.result.sessionToken;
 
   const ctx: GlpiSessionContext = { baseUrl: base, appToken, sessionToken };
   try {

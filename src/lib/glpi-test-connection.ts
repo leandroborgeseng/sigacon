@@ -5,29 +5,14 @@
  * Compatível com GLPI 10/11; o número de versão “2.2” costuma referir-se a módulos/plugins — o fluxo REST padrão é o acima.
  */
 
+import { glpiLegacyInitSession, parseGlpiApiErrorBody } from "@/lib/glpi-apirest-session";
+
 export type GlpiTestStep = {
   id: string;
   label: string;
   ok: boolean;
   detail?: string;
 };
-
-function parseGlpiErrorBody(text: string): string {
-  try {
-    const j = JSON.parse(text) as unknown;
-    if (Array.isArray(j) && typeof j[0] === "string") return j[0];
-    if (j && typeof j === "object") {
-      if ("message" in j) return String((j as { message: unknown }).message);
-      const o = j as { title?: unknown; detail?: unknown };
-      if (typeof o.title === "string" || typeof o.detail === "string") {
-        return [o.title, o.detail].filter((x): x is string => typeof x === "string").join(": ");
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return text.slice(0, 280);
-}
 
 function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
@@ -223,70 +208,25 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     return { ok: false, steps };
   }
 
-  const initHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `user_token ${userToken}`,
-  };
-  if (appToken) initHeaders["App-Token"] = appToken;
-
   let sessionToken: string | null = null;
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 20000);
-    const init = await fetch(`${base}/initSession`, {
-      method: "GET",
-      headers: initHeaders,
-      signal: controller.signal,
-    });
-    clearTimeout(t);
-    const text = await init.text();
-    if (!init.ok) {
-      steps.push({
-        id: "initSession",
-        label: "Autenticação (initSession)",
-        ok: false,
-        detail: `HTTP ${init.status}: ${parseGlpiErrorBody(text)}`,
-      });
-      return { ok: false, steps };
-    }
-    let j: { session_token?: string };
-    try {
-      j = JSON.parse(text) as { session_token?: string };
-    } catch {
-      steps.push({
-        id: "initSession",
-        label: "Autenticação (initSession)",
-        ok: false,
-        detail: "Resposta não é JSON válido.",
-      });
-      return { ok: false, steps };
-    }
-    sessionToken = j.session_token ?? null;
-    if (!sessionToken) {
-      steps.push({
-        id: "initSession",
-        label: "Autenticação (initSession)",
-        ok: false,
-        detail: "Resposta sem session_token.",
-      });
-      return { ok: false, steps };
-    }
-    steps.push({
-      id: "initSession",
-      label: "Autenticação (initSession)",
-      ok: true,
-      detail: "Sessão REST criada com sucesso.",
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+  const initR = await glpiLegacyInitSession(base, appToken, userToken, { timeoutMs: 22000 });
+  if (!initR.ok) {
+    const f = initR.result;
     steps.push({
       id: "initSession",
       label: "Autenticação (initSession)",
       ok: false,
-      detail: msg.includes("abort") ? "Tempo esgotado ao contatar o GLPI." : msg.slice(0, 200),
+      detail: `HTTP ${f.status}: ${f.detail} (última tentativa: ${f.via}). Verifique User Token, App Token e se a API REST está habilitada no GLPI.`,
     });
     return { ok: false, steps };
   }
+  sessionToken = initR.result.sessionToken;
+  steps.push({
+    id: "initSession",
+    label: "Autenticação (initSession)",
+    ok: true,
+    detail: `Sessão criada (${initR.result.via}).`,
+  });
 
   const sessionHeaders: Record<string, string> = {
     "Content-Type": "application/json",
@@ -309,7 +249,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
         id: "getFullSession",
         label: "Sessão ativa (getFullSession)",
         ok: false,
-        detail: `HTTP ${full.status}: ${parseGlpiErrorBody(tx)}`,
+        detail: `HTTP ${full.status}: ${parseGlpiApiErrorBody(tx)}`,
       });
     } else {
       steps.push({
@@ -349,7 +289,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
         id: "campoBusca",
         label: `Campo ${campo} em search/Ticket`,
         ok: false,
-        detail: `HTTP ${sr.status}: ${parseGlpiErrorBody(st)} — ajuste o ID em listSearchOptions/Ticket no GLPI.`,
+        detail: `HTTP ${sr.status}: ${parseGlpiApiErrorBody(st)} — ajuste o ID em listSearchOptions/Ticket no GLPI.`,
       });
     } else {
       steps.push({
