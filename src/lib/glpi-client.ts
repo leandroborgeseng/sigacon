@@ -70,6 +70,12 @@ export type GlpiTicketPayload = {
   status?: number;
   urgency?: number;
   priority?: number;
+  itilcategories_id?: number | string;
+  _itilcategories_id?: string;
+  groups_id_assign?: number | string;
+  _groups_id_assign?: string;
+  users_id_assign?: number | string;
+  _users_id_assign?: string;
   date?: string;
   date_mod?: string;
 };
@@ -87,7 +93,16 @@ export async function glpiGetTicket(ctx: GlpiSessionContext, ticketId: number): 
 export async function glpiUpdateTicket(
   ctx: GlpiSessionContext,
   ticketId: number,
-  input: { status?: number; name?: string; content?: string }
+  input: {
+    status?: number;
+    name?: string;
+    content?: string;
+    priority?: number;
+    urgency?: number;
+    itilcategories_id?: number;
+    groups_id_assign?: number;
+    users_id_assign?: number;
+  }
 ): Promise<void> {
   const body: Record<string, unknown> = { input };
   const r = await fetch(`${ctx.baseUrl}/Ticket/${ticketId}`, {

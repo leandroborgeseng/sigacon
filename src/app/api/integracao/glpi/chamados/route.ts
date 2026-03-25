@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { moverChamadoKanbanEGlpi } from "@/server/services/glpi-sync";
+import { atualizarChamadoGlpi } from "@/server/services/glpi-sync";
 import { PerfilUsuario, RecursoPermissao, type GlpiKanbanColuna } from "@prisma/client";
 
 async function checkPermissao() {
@@ -54,16 +54,41 @@ export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     glpiTicketId?: number;
     colunaKanban?: GlpiKanbanColuna;
+    prioridade?: number;
+    urgencia?: number;
+    categoriaIdGlpi?: number;
+    grupoTecnicoIdGlpi?: number;
+    tecnicoResponsavelIdGlpi?: number;
   };
-  if (!body.glpiTicketId || !body.colunaKanban) {
+  if (!body.glpiTicketId) {
     return NextResponse.json(
-      { message: "Informe glpiTicketId e colunaKanban" },
+      { message: "Informe glpiTicketId" },
+      { status: 400 }
+    );
+  }
+  if (
+    !body.colunaKanban &&
+    typeof body.prioridade !== "number" &&
+    typeof body.urgencia !== "number" &&
+    typeof body.categoriaIdGlpi !== "number" &&
+    typeof body.grupoTecnicoIdGlpi !== "number" &&
+    typeof body.tecnicoResponsavelIdGlpi !== "number"
+  ) {
+    return NextResponse.json(
+      { message: "Informe ao menos um campo para atualizar (coluna/prioridade/urgência/categoria/grupo/técnico)." },
       { status: 400 }
     );
   }
 
   try {
-    await moverChamadoKanbanEGlpi(body.glpiTicketId, body.colunaKanban);
+    await atualizarChamadoGlpi(body.glpiTicketId, {
+      colunaKanban: body.colunaKanban,
+      prioridade: body.prioridade,
+      urgencia: body.urgencia,
+      categoriaIdGlpi: body.categoriaIdGlpi,
+      grupoTecnicoIdGlpi: body.grupoTecnicoIdGlpi,
+      tecnicoResponsavelIdGlpi: body.tecnicoResponsavelIdGlpi,
+    });
     const atualizado = await prisma.glpiChamado.findUnique({
       where: { glpiTicketId: body.glpiTicketId },
     });

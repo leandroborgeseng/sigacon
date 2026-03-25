@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { GlpiKanbanColuna } from "@prisma/client";
 import { ORDEM_COLUNAS, GLPI_KANBAN_LABELS } from "@/lib/glpi-kanban-map";
@@ -23,7 +23,20 @@ type Chamado = {
   fornecedorNome: string | null;
   titulo: string;
   conteudoPreview: string | null;
+  urgencia: number | null;
+  prioridade: number | null;
+  categoriaIdGlpi: number | null;
+  categoriaNome: string | null;
+  grupoTecnicoIdGlpi: number | null;
+  grupoTecnicoNome: string | null;
+  tecnicoResponsavelIdGlpi: number | null;
+  tecnicoResponsavelNome: string | null;
   statusGlpi: number;
+  statusLabel: string | null;
+  syncStatus: string | null;
+  syncErro: string | null;
+  ultimoPullEm: string | null;
+  ultimoPushEm: string | null;
   colunaKanban: GlpiKanbanColuna;
   dataModificacao: string | null;
   contrato?: { id: string; nome: string } | null;
@@ -39,6 +52,20 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [cards, setCards] = useState<Chamado[]>([]);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [edits, setEdits] = useState<
+    Record<
+      number,
+      {
+        prioridade: string;
+        urgencia: string;
+        categoriaIdGlpi: string;
+        grupoTecnicoIdGlpi: string;
+        tecnicoResponsavelIdGlpi: string;
+      }
+    >
+  >({});
 
   async function carregar() {
     setLoading(true);
@@ -102,6 +129,63 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       setMsg(j.message ?? "Falha ao mover chamado");
     }
   }
+
+  function valorInicialParaEdicao(c: Chamado) {
+    return {
+      prioridade: c.prioridade == null ? "" : String(c.prioridade),
+      urgencia: c.urgencia == null ? "" : String(c.urgencia),
+      categoriaIdGlpi: c.categoriaIdGlpi == null ? "" : String(c.categoriaIdGlpi),
+      grupoTecnicoIdGlpi: c.grupoTecnicoIdGlpi == null ? "" : String(c.grupoTecnicoIdGlpi),
+      tecnicoResponsavelIdGlpi:
+        c.tecnicoResponsavelIdGlpi == null ? "" : String(c.tecnicoResponsavelIdGlpi),
+    };
+  }
+
+  function abrirEdicao(c: Chamado) {
+    setEditandoId(c.glpiTicketId);
+    setEdits((prev) => ({ ...prev, [c.glpiTicketId]: valorInicialParaEdicao(c) }));
+  }
+
+  async function salvarEdicao(c: Chamado) {
+    const e = edits[c.glpiTicketId] ?? valorInicialParaEdicao(c);
+    const body: Record<string, unknown> = { glpiTicketId: c.glpiTicketId };
+    const parseNum = (v: string) => (v.trim() ? Number.parseInt(v.trim(), 10) : undefined);
+    const prioridade = parseNum(e.prioridade);
+    const urgencia = parseNum(e.urgencia);
+    const categoriaIdGlpi = parseNum(e.categoriaIdGlpi);
+    const grupoTecnicoIdGlpi = parseNum(e.grupoTecnicoIdGlpi);
+    const tecnicoResponsavelIdGlpi = parseNum(e.tecnicoResponsavelIdGlpi);
+    if (typeof prioridade === "number" && Number.isFinite(prioridade)) body.prioridade = prioridade;
+    if (typeof urgencia === "number" && Number.isFinite(urgencia)) body.urgencia = urgencia;
+    if (typeof categoriaIdGlpi === "number" && Number.isFinite(categoriaIdGlpi)) body.categoriaIdGlpi = categoriaIdGlpi;
+    if (typeof grupoTecnicoIdGlpi === "number" && Number.isFinite(grupoTecnicoIdGlpi)) body.grupoTecnicoIdGlpi = grupoTecnicoIdGlpi;
+    if (typeof tecnicoResponsavelIdGlpi === "number" && Number.isFinite(tecnicoResponsavelIdGlpi)) {
+      body.tecnicoResponsavelIdGlpi = tecnicoResponsavelIdGlpi;
+    }
+    setSavingId(c.glpiTicketId);
+    setMsg("");
+    try {
+      const r = await fetch("/api/integracao/glpi/chamados", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = (await r.json().catch(() => ({}))) as Chamado & { message?: string };
+      if (!r.ok) {
+        setMsg(j.message ?? "Falha ao atualizar chamado no GLPI");
+        return;
+      }
+      setCards((prev) => prev.map((x) => (x.glpiTicketId === c.glpiTicketId ? { ...x, ...j } : x)));
+      setEditandoId(null);
+      setMsg(`Chamado #${c.glpiTicketId} atualizado no GLPI.`);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  useEffect(() => {
+    void carregar();
+  }, []);
 
   const porColuna = useMemo(() => {
     const m = new Map<GlpiKanbanColuna, Chamado[]>();
@@ -180,6 +264,9 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               {(porColuna.get(col) ?? []).map((c) => (
                 <div key={c.id} className="rounded border p-2 space-y-2 bg-background">
                   <p className="text-sm font-medium">#{c.glpiTicketId} - {c.titulo}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.statusLabel ?? `Status ${c.statusGlpi}`} | prio {c.prioridade ?? "-"} | urg {c.urgencia ?? "-"}
+                  </p>
                   {c.contrato?.nome && (
                     <p className="text-xs text-muted-foreground">Contrato: {c.contrato.nome}</p>
                   )}
@@ -189,6 +276,21 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   {c.conteudoPreview && (
                     <p className="text-xs text-muted-foreground">{c.conteudoPreview}</p>
                   )}
+                  {(c.categoriaNome || c.grupoTecnicoNome || c.tecnicoResponsavelNome) && (
+                    <p className="text-xs text-muted-foreground">
+                      {c.categoriaNome ? `Categoria: ${c.categoriaNome}. ` : ""}
+                      {c.grupoTecnicoNome ? `Grupo: ${c.grupoTecnicoNome}. ` : ""}
+                      {c.tecnicoResponsavelNome ? `Técnico: ${c.tecnicoResponsavelNome}.` : ""}
+                    </p>
+                  )}
+                  {c.syncStatus && (
+                    <p className="text-xs text-muted-foreground">
+                      Sync: {c.syncStatus}
+                      {c.ultimoPullEm ? ` | pull: ${new Date(c.ultimoPullEm).toLocaleString("pt-BR")}` : ""}
+                      {c.ultimoPushEm ? ` | push: ${new Date(c.ultimoPushEm).toLocaleString("pt-BR")}` : ""}
+                    </p>
+                  )}
+                  {c.syncErro && <p className="text-xs text-destructive line-clamp-2">Último erro: {c.syncErro}</p>}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Mover para:</span>
                     <Select
@@ -207,6 +309,102 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                       </SelectContent>
                     </Select>
                   </div>
+                  {editandoId === c.glpiTicketId ? (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <Input
+                        type="number"
+                        placeholder="Prioridade"
+                        value={edits[c.glpiTicketId]?.prioridade ?? ""}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.glpiTicketId]: { ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)), prioridade: e.target.value },
+                          }))
+                        }
+                        className="h-8 text-xs"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Urgência"
+                        value={edits[c.glpiTicketId]?.urgencia ?? ""}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.glpiTicketId]: { ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)), urgencia: e.target.value },
+                          }))
+                        }
+                        className="h-8 text-xs"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Categoria ID"
+                        value={edits[c.glpiTicketId]?.categoriaIdGlpi ?? ""}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.glpiTicketId]: {
+                              ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
+                              categoriaIdGlpi: e.target.value,
+                            },
+                          }))
+                        }
+                        className="h-8 text-xs"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Grupo técnico ID"
+                        value={edits[c.glpiTicketId]?.grupoTecnicoIdGlpi ?? ""}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.glpiTicketId]: {
+                              ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
+                              grupoTecnicoIdGlpi: e.target.value,
+                            },
+                          }))
+                        }
+                        className="h-8 text-xs"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Técnico ID"
+                        value={edits[c.glpiTicketId]?.tecnicoResponsavelIdGlpi ?? ""}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.glpiTicketId]: {
+                              ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
+                              tecnicoResponsavelIdGlpi: e.target.value,
+                            },
+                          }))
+                        }
+                        className="h-8 text-xs col-span-2"
+                      />
+                      <div className="col-span-2 flex gap-2">
+                        <Button
+                          size="sm"
+                          className="h-8"
+                          disabled={savingId === c.glpiTicketId}
+                          onClick={() => void salvarEdicao(c)}
+                        >
+                          {savingId === c.glpiTicketId ? "Salvando..." : "Salvar no GLPI"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-8"
+                          disabled={savingId === c.glpiTicketId}
+                          onClick={() => setEditandoId(null)}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-8" onClick={() => abrirEdicao(c)}>
+                      Editar campos GLPI
+                    </Button>
+                  )}
                 </div>
               ))}
             </CardContent>

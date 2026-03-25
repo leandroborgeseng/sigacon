@@ -616,12 +616,22 @@ model GlpiChamado {
   conteudoPreview  String?          @map("conteudo_preview") @db.Text
   urgencia         Int?
   prioridade       Int?
+  categoriaIdGlpi  Int?             @map("categoria_id_glpi")
+  categoriaNome    String?          @map("categoria_nome") @db.VarChar(500)
+  grupoTecnicoIdGlpi Int?           @map("grupo_tecnico_id_glpi")
+  grupoTecnicoNome String?          @map("grupo_tecnico_nome") @db.VarChar(500)
+  tecnicoResponsavelIdGlpi Int?     @map("tecnico_responsavel_id_glpi")
+  tecnicoResponsavelNome String?    @map("tecnico_responsavel_nome") @db.VarChar(500)
   /** Status numérico retornado pelo GLPI (ITILSolution / Ticket) */
   statusGlpi       Int              @map("status_glpi")
   statusLabel      String?          @map("status_label") @db.VarChar(160)
   colunaKanban     GlpiKanbanColuna @map("coluna_kanban")
   dataAbertura     DateTime?        @map("data_abertura")
   dataModificacao  DateTime?        @map("data_modificacao")
+  ultimoPullEm     DateTime?        @map("ultimo_pull_em")
+  ultimoPushEm     DateTime?        @map("ultimo_push_em")
+  syncStatus       String?          @map("sync_status") @db.VarChar(30)
+  syncErro         String?          @map("sync_erro") @db.Text
   sincronizadoEm   DateTime         @default(now()) @map("sincronizado_em")
   atualizadoEm     DateTime         @updatedAt @map("atualizado_em")
 
@@ -630,6 +640,7 @@ model GlpiChamado {
   @@index([contratoId])
   @@index([colunaKanban])
   @@index([fornecedorNome])
+  @@index([dataModificacao])
   @@map("glpi_chamados")
 }
 

@@ -28,7 +28,7 @@ export default async function IntegracaoGlpiPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Kanban de chamados GLPI</h1>
         <p className="text-muted-foreground">
-          MVP para testes: sincronização manual, cache local e atualização bidirecional de status.
+          Sincronização manual com cache local, movimentação de status e edição de campos principais do ticket no GLPI.
         </p>
       </div>
       <GlpiKanbanClient contratos={contratos} />

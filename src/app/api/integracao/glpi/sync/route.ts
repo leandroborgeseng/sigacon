@@ -3,7 +3,7 @@ import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 import { glpiEstaConfigurado } from "@/lib/glpi-config";
-import { sincronizarChamadosGlpi } from "@/server/services/glpi-sync";
+import { sincronizarChamadosGlpi, sincronizarChamadosGlpiAutomatico } from "@/server/services/glpi-sync";
 
 /**
  * POST: busca tickets no GLPI e atualiza o cache local.
@@ -11,14 +11,29 @@ import { sincronizarChamadosGlpi } from "@/server/services/glpi-sync";
  * Sem contrato: termoTitulo no título.
  */
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
-  const pode = await canRecurso(
-    session.perfil as PerfilUsuario,
-    RecursoPermissao.CUSTOMIZACAO,
-    "visualizar"
-  );
-  if (!pode) return NextResponse.json({ message: "Sem permissão" }, { status: 403 });
+  const body = (await request.json().catch(() => ({}))) as {
+    contratoId?: string;
+    termoTitulo?: string;
+    automatico?: boolean;
+    maxRetries?: number;
+    incremental?: boolean;
+  };
+  const autoHeader = request.headers.get("x-glpi-sync-secret")?.trim();
+  const autoSecret = process.env.GLPI_SYNC_SECRET?.trim();
+  const isAuto = body.automatico === true || (autoSecret && autoHeader === autoSecret);
+
+  if (!isAuto) {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+    const pode = await canRecurso(
+      session.perfil as PerfilUsuario,
+      RecursoPermissao.CUSTOMIZACAO,
+      "visualizar"
+    );
+    if (!pode) return NextResponse.json({ message: "Sem permissão" }, { status: 403 });
+  } else if (!autoSecret || autoHeader !== autoSecret) {
+    return NextResponse.json({ message: "Sync automático não autorizado (segredo inválido)." }, { status: 401 });
+  }
 
   if (!(await glpiEstaConfigurado())) {
     return NextResponse.json(
@@ -28,14 +43,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = (await request.json().catch(() => ({}))) as {
-      contratoId?: string;
-      termoTitulo?: string;
-    };
-    const result = await sincronizarChamadosGlpi({
-      contratoId: body.contratoId,
-      termoTitulo: body.termoTitulo,
-    });
+    const result = isAuto
+      ? await sincronizarChamadosGlpiAutomatico({
+          contratoId: body.contratoId,
+          maxRetries: body.maxRetries,
+          incremental: body.incremental ?? true,
+        })
+      : await sincronizarChamadosGlpi({
+          contratoId: body.contratoId,
+          termoTitulo: body.termoTitulo,
+        });
     return NextResponse.json(result);
   } catch (e) {
     console.error(e);
