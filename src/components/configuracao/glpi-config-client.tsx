@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { validarFormatoUrlApiGlpi } from "@/lib/glpi-test-connection";
+import { cn } from "@/lib/utils";
 
 type GlpiTestStep = { id: string; label: string; ok: boolean; detail?: string };
+
+type UrlFmt = { kind: "empty" } | { kind: "error"; message: string } | { kind: "ok"; normalized: string };
+type UrlPing = { kind: "idle" } | { kind: "loading" } | { kind: "ok"; detail: string } | { kind: "error"; detail: string };
 
 export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   const [baseUrl, setBaseUrl] = useState("");
@@ -23,9 +28,16 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   const [loading, setLoading] = useState(true);
   const [testando, setTestando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [urlFmt, setUrlFmt] = useState<UrlFmt>({ kind: "empty" });
+  const [urlPing, setUrlPing] = useState<UrlPing>({ kind: "idle" });
+
+  const fmtTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pingAbortRef = useRef<AbortController | null>(null);
+  const testAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    fetch("/api/configuracao/glpi")
+    fetch("/api/configuracao/glpi", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
         setBaseUrl(d.baseUrl ?? "");
@@ -40,6 +52,59 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (fmtTimerRef.current) clearTimeout(fmtTimerRef.current);
+    if (pingTimerRef.current) clearTimeout(pingTimerRef.current);
+    pingAbortRef.current?.abort();
+    pingAbortRef.current = null;
+
+    if (!baseUrl.trim()) {
+      setUrlFmt({ kind: "empty" });
+      setUrlPing({ kind: "idle" });
+      return;
+    }
+
+    fmtTimerRef.current = setTimeout(() => {
+      const v = validarFormatoUrlApiGlpi(baseUrl);
+      if (!v.ok) {
+        setUrlFmt({ kind: "error", message: v.message });
+        setUrlPing({ kind: "idle" });
+        return;
+      }
+      setUrlFmt({ kind: "ok", normalized: v.normalized });
+
+      pingTimerRef.current = setTimeout(() => {
+        const ac = new AbortController();
+        pingAbortRef.current = ac;
+        setUrlPing({ kind: "loading" });
+        fetch("/api/configuracao/glpi/ping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ baseUrl }),
+          cache: "no-store",
+          signal: ac.signal,
+        })
+          .then(async (r) => {
+            const j = (await r.json()) as { ok?: boolean; detail?: string };
+            if (ac.signal.aborted) return;
+            if (j.ok) setUrlPing({ kind: "ok", detail: j.detail ?? "Resposta recebida." });
+            else setUrlPing({ kind: "error", detail: j.detail ?? "Falha ao contatar o servidor." });
+          })
+          .catch((e) => {
+            if (ac.signal.aborted) return;
+            const m = e instanceof Error ? e.message : String(e);
+            setUrlPing({ kind: "error", detail: m.includes("abort") ? "Verificação cancelada." : m.slice(0, 200) });
+          });
+      }, 400);
+    }, 450);
+
+    return () => {
+      if (fmtTimerRef.current) clearTimeout(fmtTimerRef.current);
+      if (pingTimerRef.current) clearTimeout(pingTimerRef.current);
+      pingAbortRef.current?.abort();
+    };
+  }, [baseUrl]);
+
   function bodyAtual() {
     return {
       baseUrl,
@@ -50,28 +115,75 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
     };
   }
 
-  async function testarConexao() {
-    setMsg(null);
-    setSteps(null);
-    setTestando(true);
-    try {
-      const r = await fetch("/api/configuracao/glpi/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyAtual()),
-      });
-      const j = (await r.json()) as { message?: string; steps?: GlpiTestStep[]; ok?: boolean };
-      setSteps(Array.isArray(j.steps) ? j.steps : []);
-      if (!r.ok) {
-        setMsg(j.message ?? "Teste não pôde ser concluído.");
-        return;
+  const testarConexao = useCallback(
+    async (opts?: { automatico?: boolean }) => {
+      const automatico = Boolean(opts?.automatico);
+      if (!automatico) {
+        setMsg(null);
+        setSteps(null);
       }
-      setMsg(j.message ?? (j.ok ? "Conexão validada." : "Teste concluído com falhas."));
-    } catch {
-      setMsg("Erro de rede ao testar conexão.");
-    } finally {
-      setTestando(false);
+      testAbortRef.current?.abort();
+      const ac = new AbortController();
+      testAbortRef.current = ac;
+      setTestando(true);
+      try {
+        const r = await fetch("/api/configuracao/glpi/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyAtual()),
+          cache: "no-store",
+          signal: ac.signal,
+        });
+        const j = (await r.json()) as { message?: string; steps?: GlpiTestStep[]; ok?: boolean };
+        if (ac.signal.aborted) return;
+        setSteps(Array.isArray(j.steps) ? j.steps : []);
+        if (!r.ok) {
+          setMsg(j.message ?? "Teste não pôde ser concluído.");
+          return;
+        }
+        setMsg(
+          automatico
+            ? j.ok
+              ? "Tokens e integração verificados automaticamente."
+              : j.message ?? "Verificação automática encontrou problemas."
+            : j.message ?? (j.ok ? "Conexão validada." : "Teste concluído com falhas.")
+        );
+      } catch (e) {
+        if (ac.signal.aborted) return;
+        setMsg(e instanceof Error && e.name === "AbortError" ? null : "Erro de rede ao testar conexão.");
+      } finally {
+        if (!ac.signal.aborted) setTestando(false);
+      }
+    },
+    [baseUrl, appToken, userToken, campoBusca, criteriosExtra]
+  );
+
+  function podeTestarCredenciais(): boolean {
+    const urlOk = validarFormatoUrlApiGlpi(baseUrl).ok;
+    const temUser = userToken.trim().length > 0 || userJaSalvo;
+    return urlOk && temUser;
+  }
+
+  function onBlurUserToken() {
+    if (!podeEditar || testando || salvando) return;
+    if (!userToken.trim() && !userJaSalvo) {
+      setMsg("Informe o User Token (ou salve um no banco) para validar a integração.");
+      return;
     }
+    if (!validarFormatoUrlApiGlpi(baseUrl).ok) {
+      setMsg("Corrija a URL da API antes de validar os tokens.");
+      return;
+    }
+    void testarConexao({ automatico: true });
+  }
+
+  function onBlurAppToken() {
+    if (!podeEditar || testando || salvando) return;
+    if (!podeTestarCredenciais()) {
+      setMsg("Preencha uma URL válida e o User Token antes de validar o App Token.");
+      return;
+    }
+    void testarConexao({ automatico: true });
   }
 
   async function salvar() {
@@ -79,6 +191,10 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
     setSteps(null);
     if (!baseUrl.trim()) {
       setMsg("Preencha a URL da API (…/apirest.php) ou defina GLPI_URL no servidor.");
+      return;
+    }
+    if (!validarFormatoUrlApiGlpi(baseUrl).ok) {
+      setMsg("A URL ainda não está no formato esperado (deve terminar em apirest.php).");
       return;
     }
     if (!userToken.trim() && !userJaSalvo) {
@@ -91,6 +207,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyAtual()),
+        cache: "no-store",
       });
       const j = (await r.json()) as {
         message?: string;
@@ -123,30 +240,39 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
     return <p className="text-muted-foreground">Carregando…</p>;
   }
 
+  const urlInputClass = cn(
+    urlFmt.kind === "error" && "border-destructive focus-visible:ring-destructive/40",
+    urlFmt.kind === "ok" && urlPing.kind === "ok" && "border-emerald-600/70 focus-visible:ring-emerald-600/30",
+    urlFmt.kind === "ok" && urlPing.kind === "error" && "border-amber-600/60"
+  );
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Conexão com o GLPI</CardTitle>
         <CardDescription className="space-y-2">
-          <p>
-            A integração usa a API REST oficial do GLPI (<code className="text-xs">apirest.php</code>
-            ), documentada no repositório do GLPI. Autenticação típica: cabeçalho{" "}
-            <code className="text-xs">App-Token</code> (definido em Configuração → Geral → API) e{" "}
-            <code className="text-xs">Authorization: user_token …</code> (chave de acesso remoto do
-            usuário, em Preferências do usuário no GLPI). Alternativa na documentação: login e senha via
-            Basic Auth.
+          <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
+            <strong className="font-medium">Validação em tempo real:</strong> o formato da URL é conferido ao digitar; em
+            seguida o servidor tenta contatar o GLPI. Ao sair do campo User Token ou App Token (após preencher), a
+            autenticação e o restante da integração são testados automaticamente.
           </p>
           <p>
-            Deixe App Token / User Token em branco no formulário para manter os valores já salvos no
-            banco; o servidor também pode usar <code className="text-xs">GLPI_URL</code>,{" "}
-            <code className="text-xs">GLPI_APP_TOKEN</code> e <code className="text-xs">GLPI_USER_TOKEN</code>{" "}
-            no ambiente.
+            A integração usa a API REST oficial do GLPI (<code className="text-xs">apirest.php</code>
+            ). Autenticação típica: cabeçalho <code className="text-xs">App-Token</code> e{" "}
+            <code className="text-xs">Authorization: user_token …</code> (chave de acesso remoto do usuário no GLPI).
+          </p>
+          <p>
+            Deixe tokens em branco para manter os salvos no banco; o servidor pode usar{" "}
+            <code className="text-xs">GLPI_URL</code>, <code className="text-xs">GLPI_APP_TOKEN</code> e{" "}
+            <code className="text-xs">GLPI_USER_TOKEN</code> no ambiente.
           </p>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 max-w-xl">
         {msg && (
-          <p className={`text-sm ${msg.includes("falhou") || msg.includes("Erro") ? "text-destructive" : "text-muted-foreground"}`}>
+          <p
+            className={`text-sm ${msg.includes("falhou") || msg.includes("Erro") || msg.includes("problemas") ? "text-destructive" : "text-muted-foreground"}`}
+          >
             {msg}
           </p>
         )}
@@ -177,7 +303,24 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             onChange={(e) => setBaseUrl(e.target.value)}
             placeholder="https://glpi.empresa.com/apirest.php"
             disabled={!podeEditar}
+            className={urlInputClass}
+            aria-invalid={urlFmt.kind === "error"}
           />
+          {urlFmt.kind === "error" && <p className="text-xs text-destructive">{urlFmt.message}</p>}
+          {urlFmt.kind === "ok" && (
+            <p className="text-xs text-muted-foreground">
+              Formato ok: <code className="text-[11px]">{urlFmt.normalized}</code>
+            </p>
+          )}
+          {urlFmt.kind === "ok" && urlPing.kind === "loading" && (
+            <p className="text-xs text-muted-foreground">Verificando se o servidor responde…</p>
+          )}
+          {urlFmt.kind === "ok" && urlPing.kind === "ok" && (
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">{urlPing.detail}</p>
+          )}
+          {urlFmt.kind === "ok" && urlPing.kind === "error" && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">{urlPing.detail}</p>
+          )}
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -192,10 +335,12 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             type="password"
             value={appToken}
             onChange={(e) => setAppToken(e.target.value)}
-            placeholder="Preencha apenas para alterar"
+            onBlur={onBlurAppToken}
+            placeholder="Preencha apenas para alterar — valida ao sair do campo"
             disabled={!podeEditar}
             autoComplete="off"
           />
+          <p className="text-xs text-muted-foreground">Ao sair deste campo, rodamos o teste completo se a URL e o User Token estiverem ok.</p>
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -210,7 +355,8 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             type="password"
             value={userToken}
             onChange={(e) => setUserToken(e.target.value)}
-            placeholder="Preencha apenas para alterar"
+            onBlur={onBlurUserToken}
+            placeholder="Cole o token e saia do campo para validar"
             disabled={!podeEditar}
             autoComplete="off"
           />
@@ -241,7 +387,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         </div>
         {podeEditar && (
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={testarConexao} disabled={testando || salvando} variant="secondary">
+            <Button type="button" onClick={() => testarConexao()} disabled={testando || salvando} variant="secondary">
               {testando ? "Testando…" : "Testar conexão"}
             </Button>
             <Button type="button" onClick={salvar} disabled={salvando || testando}>

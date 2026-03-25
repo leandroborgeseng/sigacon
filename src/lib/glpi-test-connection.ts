@@ -27,6 +27,56 @@ function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
 
+/** Validação só de formato (cliente ou servidor), sem rede. */
+export function validarFormatoUrlApiGlpi(
+  raw: string
+): { ok: true; normalized: string } | { ok: false; message: string } {
+  const base = normalizeBaseUrl(raw);
+  if (!base) return { ok: false, message: "Digite a URL completa até apirest.php." };
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(base);
+  } catch {
+    return { ok: false, message: "Formato de URL inválido." };
+  }
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+    return { ok: false, message: "Use http:// ou https://." };
+  }
+  const pathOk = /apirest\.php$/i.test(parsedUrl.pathname.replace(/\/$/, ""));
+  if (!pathOk) {
+    return { ok: false, message: "O caminho deve terminar em …/apirest.php." };
+  }
+  return { ok: true, normalized: base };
+}
+
+/**
+ * Verifica se o host responde em initSession (sem credenciais: costuma ser 400/401, o que já prova alcance).
+ */
+export async function pingGlpiApiEndpoint(rawUrl: string): Promise<{ ok: boolean; detail: string }> {
+  const v = validarFormatoUrlApiGlpi(rawUrl);
+  if (!v.ok) return { ok: false, detail: v.message };
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 15000);
+    const r = await fetch(`${v.normalized}/initSession`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+    });
+    clearTimeout(t);
+    return {
+      ok: true,
+      detail: `Servidor GLPI respondeu (HTTP ${r.status}). Credenciais ainda não foram testadas.`,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("abort")) {
+      return { ok: false, detail: "Tempo esgotado ao contatar a URL." };
+    }
+    return { ok: false, detail: `Não foi possível alcançar a URL: ${msg.slice(0, 180)}` };
+  }
+}
+
 export type GlpiTestInput = {
   baseUrl: string;
   appToken: string;
@@ -44,42 +94,17 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   steps: GlpiTestStep[];
 }> {
   const steps: GlpiTestStep[] = [];
-  const base = normalizeBaseUrl(input.baseUrl);
-
-  if (!base) {
-    steps.push({ id: "url", label: "URL da API (apirest.php)", ok: false, detail: "Preencha a URL." });
-    return { ok: false, steps };
-  }
-
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(base);
-  } catch {
-    steps.push({ id: "url", label: "URL da API (apirest.php)", ok: false, detail: "Formato de URL inválido." });
-    return { ok: false, steps };
-  }
-
-  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+  const urlV = validarFormatoUrlApiGlpi(input.baseUrl);
+  if (!urlV.ok) {
     steps.push({
       id: "url",
       label: "URL da API (apirest.php)",
       ok: false,
-      detail: "Use http:// ou https://.",
+      detail: urlV.message,
     });
     return { ok: false, steps };
   }
-
-  const pathOk = /apirest\.php$/i.test(parsedUrl.pathname.replace(/\/$/, ""));
-  if (!pathOk) {
-    steps.push({
-      id: "url",
-      label: "URL da API (apirest.php)",
-      ok: false,
-      detail: "A URL deve terminar em …/apirest.php (endpoint REST do GLPI).",
-    });
-    return { ok: false, steps };
-  }
-
+  const base = urlV.normalized;
   steps.push({ id: "url", label: "URL da API (apirest.php)", ok: true, detail: base });
 
   const userToken = input.userToken.trim();

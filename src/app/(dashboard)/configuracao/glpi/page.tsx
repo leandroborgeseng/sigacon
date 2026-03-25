@@ -5,6 +5,8 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { GlpiConfigClient } from "@/components/configuracao/glpi-config-client";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 export default async function ConfiguracaoGlpiPage() {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -28,7 +30,8 @@ export default async function ConfiguracaoGlpiPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Integração GLPI</h1>
         <p className="text-muted-foreground">
-          Credenciais e parâmetros de busca persistidos no banco (com fallback para variáveis de ambiente).
+          A URL é validada enquanto você digita; ao sair dos campos de token, a integração é testada contra o GLPI.
+          Valores persistidos no banco com fallback para variáveis de ambiente.
         </p>
       </div>
       <GlpiConfigClient podeEditar={podeEditar} />
