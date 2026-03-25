@@ -48,6 +48,11 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: resultado.ok,
     steps: resultado.steps,
-    message: resultado.ok ? "Conexão com o GLPI validada." : "Teste de conexão falhou; veja os passos abaixo.",
+    persistirAppTokenVazio: resultado.persistirAppTokenVazio,
+    message: resultado.ok
+      ? resultado.persistirAppTokenVazio
+        ? "Conexão OK. O GLPI não exige App Token — ao salvar, remova o App Token salvo ou marque limpar."
+        : "Conexão com o GLPI validada."
+      : "Teste de conexão falhou; veja os passos abaixo.",
   });
 }

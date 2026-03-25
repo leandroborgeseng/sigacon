@@ -49,6 +49,7 @@ export async function PUT(request: Request) {
     userToken?: string;
     campoBuscaGrupoTecnico?: number;
     criteriosExtraJson?: string | null;
+    limparAppToken?: boolean;
   };
 
   const existing = await prisma.glpiConfig.findUnique({ where: { id: "default" } });
@@ -92,7 +93,9 @@ export async function PUT(request: Request) {
   const baseUrl = body.baseUrl?.trim() || null;
   let appToken = existing?.appToken ?? null;
   let userToken = existing?.userToken ?? null;
-  if (body.appToken != null && body.appToken.trim() !== "" && !body.appToken.startsWith("••")) {
+  if (teste.persistirAppTokenVazio || body.limparAppToken === true) {
+    appToken = null;
+  } else if (body.appToken != null && body.appToken.trim() !== "" && !body.appToken.startsWith("••")) {
     appToken = body.appToken.trim();
   }
   if (body.userToken != null && body.userToken.trim() !== "" && !body.userToken.startsWith("••")) {
@@ -136,6 +139,10 @@ export async function PUT(request: Request) {
     campoBuscaGrupoTecnico: saved.campoBuscaGrupoTecnico,
     criteriosExtraJson: saved.criteriosExtraJson ?? "",
     steps: teste.steps,
-    message: "Configuração salva e teste de integração com o GLPI concluído com sucesso.",
+    persistirAppTokenVazio: teste.persistirAppTokenVazio,
+    message:
+      teste.persistirAppTokenVazio || body.limparAppToken === true
+        ? "Configuração salva. App Token removido da configuração."
+        : "Configuração salva e teste de integração com o GLPI concluído com sucesso.",
   });
 }

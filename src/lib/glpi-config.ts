@@ -16,6 +16,8 @@ export type GlpiConfigDraftBody = {
   userToken?: string;
   campoBuscaGrupoTecnico?: number;
   criteriosExtraJson?: string | null;
+  /** Se true, ignora App-Token salvo/env (use quando o GLPI não tem token de aplicação). */
+  limparAppToken?: boolean;
 };
 
 /**
@@ -35,7 +37,9 @@ export function mergeGlpiConnectionParams(
   const baseUrl = (body.baseUrl?.trim() || row?.baseUrl?.trim() || env.baseUrl?.trim() || "").replace(/\/$/, "");
   let appToken = (row?.appToken?.trim() || env.appToken || "").trim();
   let userToken = (row?.userToken?.trim() || env.userToken || "").trim();
-  if (body.appToken != null && body.appToken.trim() !== "" && !body.appToken.startsWith("••")) {
+  if (body.limparAppToken === true) {
+    appToken = "";
+  } else if (body.appToken != null && body.appToken.trim() !== "" && !body.appToken.startsWith("••")) {
     appToken = body.appToken.trim();
   }
   if (body.userToken != null && body.userToken.trim() !== "" && !body.userToken.startsWith("••")) {

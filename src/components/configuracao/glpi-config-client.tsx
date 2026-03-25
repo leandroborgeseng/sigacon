@@ -35,6 +35,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   const [salvando, setSalvando] = useState(false);
   const [urlFmt, setUrlFmt] = useState<UrlFmt>({ kind: "empty" });
   const [urlPing, setUrlPing] = useState<UrlPing>({ kind: "idle" });
+  const [limparAppTokenSalvo, setLimparAppTokenSalvo] = useState(false);
 
   const fmtTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,6 +118,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       userToken: userToken.trim() || undefined,
       campoBuscaGrupoTecnico: campoBusca,
       criteriosExtraJson: criteriosExtra.trim() || null,
+      ...(limparAppTokenSalvo ? { limparAppToken: true as const } : {}),
     };
   }
 
@@ -139,7 +141,12 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           cache: "no-store",
           signal: ac.signal,
         });
-        const j = (await r.json()) as { message?: string; steps?: GlpiTestStep[]; ok?: boolean };
+        const j = (await r.json()) as {
+          message?: string;
+          steps?: GlpiTestStep[];
+          ok?: boolean;
+          persistirAppTokenVazio?: boolean;
+        };
         if (ac.signal.aborted) return;
         setSteps(Array.isArray(j.steps) ? j.steps : []);
         if (!r.ok) {
@@ -149,7 +156,9 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         setMsg(
           automatico
             ? j.ok
-              ? "Tokens e integração verificados automaticamente."
+              ? j.persistirAppTokenVazio
+                ? "Integração OK sem App Token — pode salvar; remova o token salvo ou use Salvar com limpar."
+                : "Tokens e integração verificados automaticamente."
               : j.message ?? "Verificação automática encontrou problemas."
             : j.message ?? (j.ok ? "Conexão validada." : "Teste concluído com falhas.")
         );
@@ -160,7 +169,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         if (!ac.signal.aborted) setTestando(false);
       }
     },
-    [baseUrl, appToken, userToken, campoBusca, criteriosExtra]
+    [baseUrl, appToken, userToken, campoBusca, criteriosExtra, limparAppTokenSalvo]
   );
 
   function podeTestarCredenciais(): boolean {
@@ -207,6 +216,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       return;
     }
     setSalvando(true);
+    const marcouLimparApp = limparAppTokenSalvo;
     try {
       const r = await fetch("/api/configuracao/glpi", {
         method: "PUT",
@@ -220,6 +230,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         baseUrl?: string;
         campoBuscaGrupoTecnico?: number;
         criteriosExtraJson?: string;
+        persistirAppTokenVazio?: boolean;
       };
       if (Array.isArray(j.steps)) setSteps(j.steps);
       if (!r.ok) {
@@ -232,7 +243,8 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       if (j.criteriosExtraJson != null) setCriteriosExtra(j.criteriosExtraJson);
       setAppToken("");
       setUserToken("");
-      setAppJaSalvo(true);
+      setLimparAppTokenSalvo(false);
+      setAppJaSalvo(j.persistirAppTokenVazio || marcouLimparApp ? false : true);
       setUserJaSalvo(true);
     } catch {
       setMsg("Erro de rede ao salvar.");
@@ -392,8 +404,21 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           />
           <p className="text-xs text-muted-foreground">
             Deve ser idêntico ao token em <strong className="font-medium">Configuração → Geral → API</strong> no GLPI. Se lá
-            não houver App-Token, deixe este campo vazio.
+            não houver App-Token, deixe este campo vazio ou marque a opção abaixo.
           </p>
+          <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-input"
+              checked={limparAppTokenSalvo}
+              onChange={(e) => setLimparAppTokenSalvo(e.target.checked)}
+              disabled={!podeEditar}
+            />
+            <span>
+              Ignorar App Token salvo no banco nesta operação (use se o GLPI não tem token de aplicação ou quiser
+              apagar o valor salvo ao confirmar).
+            </span>
+          </label>
           <p className="text-xs text-muted-foreground">Ao sair deste campo, rodamos o teste completo se a URL e o User Token estiverem ok.</p>
         </div>
         <div className="space-y-2">

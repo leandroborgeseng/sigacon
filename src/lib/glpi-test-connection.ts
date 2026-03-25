@@ -105,6 +105,8 @@ export type GlpiTestInput = {
 export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   ok: boolean;
   steps: GlpiTestStep[];
+  /** Salvar com app_token nulo (sessão GLPI aberta só com User Token). */
+  persistirAppTokenVazio?: boolean;
 }> {
   const steps: GlpiTestStep[] = [];
   const urlV = validarFormatoUrlApiGlpi(input.baseUrl);
@@ -230,12 +232,18 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   }
   sessionToken = initR.result.sessionToken;
   const apirestBase = initR.result.apirestBase;
+  const loginSemApp = Boolean(initR.result.loginSemAppToken);
+  const appHeaderParaSessao = loginSemApp ? "" : appToken;
   steps.push({
     id: "initSession",
     label: "Autenticação (initSession)",
     ok: true,
     detail: `Sessão criada (${initR.result.via}).${
       apirestBase !== base ? ` As próximas chamadas usam a mesma base: ${apirestBase}.` : ""
+    }${
+      loginSemApp
+        ? " O GLPI aceitou só o User Token — ao salvar, o App Token será removido da configuração."
+        : ""
     }`,
   });
 
@@ -243,7 +251,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     "Content-Type": "application/json",
     "Session-Token": sessionToken,
   };
-  if (appToken) sessionHeaders["App-Token"] = appToken;
+  if (appHeaderParaSessao) sessionHeaders["App-Token"] = appHeaderParaSessao;
 
   try {
     const controller = new AbortController();
@@ -334,5 +342,5 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   }
 
   const ok = steps.filter((s) => s.id !== "killSession").every((s) => s.ok);
-  return { ok, steps };
+  return { ok, steps, persistirAppTokenVazio: ok && loginSemApp };
 }

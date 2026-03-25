@@ -40,8 +40,9 @@ export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promis
   }
   const sessionToken = initR.result.sessionToken;
   const apirestBase = initR.result.apirestBase;
+  const appParaSessao = initR.result.loginSemAppToken ? "" : sanitizarTokenGlpi(appToken);
 
-  const ctx: GlpiSessionContext = { baseUrl: apirestBase, appToken, sessionToken };
+  const ctx: GlpiSessionContext = { baseUrl: apirestBase, appToken: appParaSessao, sessionToken };
   try {
     return await fn(ctx);
   } finally {
@@ -53,11 +54,12 @@ export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promis
 }
 
 function headers(ctx: GlpiSessionContext) {
-  return {
-    "App-Token": ctx.appToken,
+  const h: Record<string, string> = {
     "Session-Token": ctx.sessionToken,
     "Content-Type": "application/json",
   };
+  if (ctx.appToken) h["App-Token"] = ctx.appToken;
+  return h;
 }
 
 /** Resposta típica GET /Ticket/{id}?expand_dropdowns=true */
