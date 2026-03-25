@@ -127,6 +127,8 @@ export async function glpiSearchTicketIds(
 ): Promise<number[]> {
   const params = new URLSearchParams();
   params.set("range", range);
+  // Garante que o ID do item venha na resposta do search (em muitas instalações, é o campo 2).
+  params.set("forcedisplay[0]", "2");
   criteria.forEach((c, i) => {
     if (i > 0) params.set(`criteria[${i}][link]`, c.link ?? "AND");
     params.set(`criteria[${i}][field]`, String(c.field));
@@ -146,6 +148,8 @@ export async function glpiSearchTicketIds(
   for (const row of rows) {
     if (row && typeof row === "object") {
       const o = row as Record<string, unknown>;
+      // GLPI search costuma retornar campos por "forcedisplay" com chaves numéricas como string ("2").
+      const rawForcedId = o["2"];
       const id =
         typeof o.id === "number"
           ? o.id
@@ -153,7 +157,13 @@ export async function glpiSearchTicketIds(
             ? parseInt(o.id, 10)
             : typeof o["Ticket.id"] === "number"
               ? (o["Ticket.id"] as number)
-              : null;
+              : typeof o["Ticket.id"] === "string"
+                ? parseInt(o["Ticket.id"] as string, 10)
+                : typeof rawForcedId === "number"
+                  ? rawForcedId
+                  : typeof rawForcedId === "string"
+                    ? parseInt(rawForcedId, 10)
+                    : null;
       if (id != null && !Number.isNaN(id)) ids.push(id);
     }
   }
