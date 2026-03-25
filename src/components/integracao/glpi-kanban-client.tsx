@@ -94,6 +94,8 @@ type TicketDetails = {
     name: string;
     link?: string;
   }>;
+  ticketRaw?: Record<string, unknown>;
+  ticketProperties?: Array<{ key: string; rawKey: string; value: string }>;
 };
 
 export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
@@ -120,6 +122,10 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [tarefaSaving, setTarefaSaving] = useState(false);
   const [solucao, setSolucao] = useState("");
   const [solucaoSaving, setSolucaoSaving] = useState(false);
+  const [dropCol, setDropCol] = useState<GlpiKanbanColuna | null>(null);
+  const [editTicketName, setEditTicketName] = useState("");
+  const [editTicketContent, setEditTicketContent] = useState("");
+  const [editTicketSaving, setEditTicketSaving] = useState(false);
   const [edits, setEdits] = useState<
     Record<
       number,
@@ -295,7 +301,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
         tasks: Array.isArray(j.tasks) ? j.tasks : [],
         solutions: Array.isArray(j.solutions) ? j.solutions : [],
         documents: Array.isArray(j.documents) ? j.documents : [],
+        ticketRaw: (j.ticketRaw && typeof j.ticketRaw === "object") ? (j.ticketRaw as Record<string, unknown>) : undefined,
+        ticketProperties: Array.isArray(j.ticketProperties) ? (j.ticketProperties as TicketDetails["ticketProperties"]) : undefined,
       });
+      setEditTicketName(typeof j.ticket?.name === "string" ? j.ticket.name : "");
+      setEditTicketContent(typeof j.ticket?.content === "string" ? String(j.ticket.content) : "");
     } finally {
       setDetalhesLoading(false);
     }
@@ -370,6 +380,27 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     }
   }
 
+  async function salvarTicketBasico() {
+    if (!detalhesId) return;
+    setEditTicketSaving(true);
+    setMsg("");
+    try {
+      const r = await fetch(`/api/integracao/glpi/chamados/${detalhesId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editTicketName, content: editTicketContent }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+      if (!r.ok || j.ok === false) {
+        setMsg(j.message ?? "Falha ao atualizar ticket.");
+        return;
+      }
+      await abrirDetalhes(detalhesId);
+    } finally {
+      setEditTicketSaving(false);
+    }
+  }
+
   function colunaClasses(col: GlpiKanbanColuna) {
     // Cores por fase do fluxo (visual, sem mudar lógica).
     switch (col) {
@@ -385,6 +416,24 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
         return { header: "border-l-4 border-l-zinc-500 bg-zinc-50/60 dark:bg-zinc-950/20", title: "text-zinc-800 dark:text-zinc-200" };
       default:
         return { header: "", title: "" };
+    }
+  }
+
+  function cardClasses(col: GlpiKanbanColuna) {
+    // Mesma paleta da coluna, aplicada no card para padrão visual.
+    switch (col) {
+      case "BACKLOG":
+        return "border-l-4 border-l-slate-400 bg-slate-50/40 dark:bg-slate-950/10";
+      case "EM_ANDAMENTO":
+        return "border-l-4 border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/10";
+      case "AGUARDANDO":
+        return "border-l-4 border-l-amber-500 bg-amber-50/40 dark:bg-amber-950/10";
+      case "RESOLVIDO":
+        return "border-l-4 border-l-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/10";
+      case "FECHADO":
+        return "border-l-4 border-l-zinc-500 bg-zinc-50/40 dark:bg-zinc-950/10";
+      default:
+        return "";
     }
   }
 
@@ -462,9 +511,37 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 {GLPI_KANBAN_LABELS[col]} ({porColuna.get(col)?.length ?? 0})
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent
+              className={cn(
+                "space-y-2",
+                dropCol === col && "ring-2 ring-primary/30 rounded-md"
+              )}
+              onDragOver={(e) => {
+                e.preventDefault();
+              }}
+              onDragEnter={() => setDropCol(col)}
+              onDragLeave={() => setDropCol((prev) => (prev === col ? null : prev))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDropCol(null);
+                const raw = e.dataTransfer.getData("text/glpiTicketId");
+                const id = raw ? parseInt(raw, 10) : NaN;
+                if (Number.isFinite(id)) void mover(id, col);
+              }}
+            >
               {(porColuna.get(col) ?? []).map((c) => (
-                <div key={c.id} className="rounded border p-2 space-y-2 bg-background">
+                <div
+                  key={c.id}
+                  className={cn(
+                    "rounded border p-2 space-y-2",
+                    cardClasses(c.colunaKanban)
+                  )}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/glpiTicketId", String(c.glpiTicketId));
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                >
                   <p className="text-sm font-medium">#{c.glpiTicketId} - {c.titulo}</p>
                   <p className="text-xs text-muted-foreground">
                     {c.statusLabel ?? `Status ${c.statusGlpi}`} | prio {c.prioridade ?? "-"} | urg {c.urgencia ?? "-"}
@@ -651,7 +728,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
         ))}
       </div>
 
-      <Dialog open={detalhesId != null} onOpenChange={(o) => (o ? null : setDetalhesId(null))}>
+      <Dialog open={detalhesId != null} onOpenChange={(open) => (!open ? setDetalhesId(null) : null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Chamado GLPI #{detalhesId ?? ""}</DialogTitle>
@@ -675,6 +752,47 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   </p>
                 )}
               </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Editar ticket (campos principais)</p>
+                <Input value={editTicketName} onChange={(e) => setEditTicketName(e.target.value)} placeholder="Título" />
+                <Textarea
+                  value={editTicketContent}
+                  onChange={(e) => setEditTicketContent(e.target.value)}
+                  rows={4}
+                  placeholder="Descrição / conteúdo"
+                />
+                <Button onClick={() => void salvarTicketBasico()} disabled={editTicketSaving}>
+                  {editTicketSaving ? "Salvando…" : "Salvar ticket"}
+                </Button>
+              </div>
+
+              {detalhes.ticketProperties && detalhes.ticketProperties.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Propriedades (GLPI)</p>
+                  <div className="rounded-md border overflow-auto max-h-[260px]">
+                    <table className="w-full text-xs">
+                      <tbody>
+                        {detalhes.ticketProperties.map((p) => (
+                          <tr key={p.rawKey} className="border-b last:border-b-0">
+                            <td className="p-2 font-medium w-56 align-top">{p.key}</td>
+                            <td className="p-2 text-muted-foreground align-top break-all">{p.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {detalhes.ticketRaw && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">JSON bruto</p>
+                  <pre className="rounded-md border p-3 text-xs overflow-auto max-h-[260px]">
+                    {JSON.stringify(detalhes.ticketRaw, null, 2)}
+                  </pre>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">Linha do tempo</p>

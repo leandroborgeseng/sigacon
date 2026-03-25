@@ -176,6 +176,52 @@ async function listNestedOrNull<T>(ctx: GlpiSessionContext, url: string): Promis
   return [];
 }
 
+type GlpiSearchOption = { field?: string; name?: string };
+
+const searchOptionsCache = new Map<string, Record<number, GlpiSearchOption>>();
+
+async function getSearchOptions(
+  ctx: GlpiSessionContext,
+  itemType: string
+): Promise<Record<number, GlpiSearchOption>> {
+  const key = `${ctx.baseUrl}::${itemType}`;
+  const cached = searchOptionsCache.get(key);
+  if (cached) return cached;
+  const r = await fetch(`${ctx.baseUrl}/listSearchOptions/${encodeURIComponent(itemType)}`, {
+    headers: headers(ctx),
+  });
+  const j = (await fetchJsonOrThrow(r, `GLPI listSearchOptions ${itemType}`)) as unknown;
+  const out: Record<number, GlpiSearchOption> = {};
+  if (j && typeof j === "object") {
+    for (const [k, v] of Object.entries(j as Record<string, unknown>)) {
+      const id = parseId(k);
+      if (id == null) continue;
+      if (!v || typeof v !== "object") continue;
+      const o = v as Record<string, unknown>;
+      out[id] = {
+        field: typeof o.field === "string" ? o.field : undefined,
+        name: typeof o.name === "string" ? o.name : undefined,
+      };
+    }
+  }
+  searchOptionsCache.set(key, out);
+  return out;
+}
+
+async function findSearchFieldId(ctx: GlpiSessionContext, itemType: string, field: string): Promise<number | null> {
+  try {
+    const opts = await getSearchOptions(ctx, itemType);
+    for (const [idStr, o] of Object.entries(opts)) {
+      const id = parseId(idStr);
+      if (id == null) continue;
+      if (o.field === field) return id;
+    }
+  } catch {
+    // sem lista; cai para defaults
+  }
+  return null;
+}
+
 /**
  * Lista followups (comentários) do ticket.
  * Tenta primeiro a rota aninhada (quando disponível) e cai para search/ITILFollowup como fallback.
@@ -191,16 +237,16 @@ export async function glpiListTicketFollowups(
   if (nested) return nested;
 
   // Fallback: search/ITILFollowup com critérios comuns
+  const itemsIdField = (await findSearchFieldId(ctx, "ITILFollowup", "items_id")) ?? 4;
+  const itemTypeField = (await findSearchFieldId(ctx, "ITILFollowup", "itemtype")) ?? 5;
   const params = new URLSearchParams();
   params.set("range", "0-200");
   params.set("forcedisplay[0]", "2"); // id
-  // Campo 4 costuma ser items_id e 5 itemtype em várias instalações, mas pode variar.
-  // Mantemos apenas o filtro por items_id e itemtype; se não funcionar, o usuário ajusta via listSearchOptions.
-  params.set("criteria[0][field]", "4");
+  params.set("criteria[0][field]", String(itemsIdField));
   params.set("criteria[0][searchtype]", "equals");
   params.set("criteria[0][value]", String(ticketId));
   params.set("criteria[1][link]", "AND");
-  params.set("criteria[1][field]", "5");
+  params.set("criteria[1][field]", String(itemTypeField));
   params.set("criteria[1][searchtype]", "equals");
   params.set("criteria[1][value]", "Ticket");
 
@@ -256,14 +302,16 @@ export async function glpiListTicketTasks(ctx: GlpiSessionContext, ticketId: num
   );
   if (nested) return nested;
 
+  const itemsIdField = (await findSearchFieldId(ctx, "ITILTask", "items_id")) ?? 4;
+  const itemTypeField = (await findSearchFieldId(ctx, "ITILTask", "itemtype")) ?? 5;
   const params = new URLSearchParams();
   params.set("range", "0-200");
   params.set("forcedisplay[0]", "2"); // id
-  params.set("criteria[0][field]", "4");
+  params.set("criteria[0][field]", String(itemsIdField));
   params.set("criteria[0][searchtype]", "equals");
   params.set("criteria[0][value]", String(ticketId));
   params.set("criteria[1][link]", "AND");
-  params.set("criteria[1][field]", "5");
+  params.set("criteria[1][field]", String(itemTypeField));
   params.set("criteria[1][searchtype]", "equals");
   params.set("criteria[1][value]", "Ticket");
   const url = `${ctx.baseUrl}/search/ITILTask?${params.toString()}`;
@@ -318,14 +366,16 @@ export async function glpiListTicketSolutions(
   );
   if (nested) return nested;
 
+  const itemsIdField = (await findSearchFieldId(ctx, "ITILSolution", "items_id")) ?? 4;
+  const itemTypeField = (await findSearchFieldId(ctx, "ITILSolution", "itemtype")) ?? 5;
   const params = new URLSearchParams();
   params.set("range", "0-50");
   params.set("forcedisplay[0]", "2"); // id
-  params.set("criteria[0][field]", "4");
+  params.set("criteria[0][field]", String(itemsIdField));
   params.set("criteria[0][searchtype]", "equals");
   params.set("criteria[0][value]", String(ticketId));
   params.set("criteria[1][link]", "AND");
-  params.set("criteria[1][field]", "5");
+  params.set("criteria[1][field]", String(itemTypeField));
   params.set("criteria[1][searchtype]", "equals");
   params.set("criteria[1][value]", "Ticket");
   const url = `${ctx.baseUrl}/search/ITILSolution?${params.toString()}`;
@@ -389,15 +439,18 @@ export async function glpiListTicketDocuments(
   }
 
   // Fallback: Document_Item (links) -> Document
+  const itemsIdField = (await findSearchFieldId(ctx, "Document_Item", "items_id")) ?? 4;
+  const itemTypeField = (await findSearchFieldId(ctx, "Document_Item", "itemtype")) ?? 5;
+  const documentsIdField = (await findSearchFieldId(ctx, "Document_Item", "documents_id")) ?? 7;
   const params = new URLSearchParams();
   params.set("range", "0-200");
   params.set("forcedisplay[0]", "2"); // id
-  params.set("forcedisplay[1]", "7"); // documents_id (comum)
-  params.set("criteria[0][field]", "4"); // items_id (comum)
+  params.set("forcedisplay[1]", String(documentsIdField)); // documents_id
+  params.set("criteria[0][field]", String(itemsIdField));
   params.set("criteria[0][searchtype]", "equals");
   params.set("criteria[0][value]", String(ticketId));
   params.set("criteria[1][link]", "AND");
-  params.set("criteria[1][field]", "5"); // itemtype (comum)
+  params.set("criteria[1][field]", String(itemTypeField));
   params.set("criteria[1][searchtype]", "equals");
   params.set("criteria[1][value]", "Ticket");
 
@@ -410,7 +463,8 @@ export async function glpiListTicketDocuments(
     if (!row || typeof row !== "object") continue;
     const o = row as Record<string, unknown>;
     const linkId = parseId(o.id ?? o["2"] ?? o["Document_Item.id"]) ?? undefined;
-    const docId = parseId(o.documents_id ?? o["7"] ?? o["Document_Item.documents_id"]);
+    const rawDoc = o.documents_id ?? o[String(documentsIdField)] ?? o["Document_Item.documents_id"];
+    const docId = parseId(rawDoc);
     if (docId != null) links.push({ linkId, documentId: docId });
   }
   const uniqDocs = [...new Map(links.map((l) => [l.documentId, l])).values()];
