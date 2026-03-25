@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { mergeGlpiConnectionParams } from "@/lib/glpi-config";
+import { testarConexaoGlpi } from "@/lib/glpi-test-connection";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
 function maskToken(t: string | null | undefined): string | null {
@@ -51,6 +53,42 @@ export async function PUT(request: Request) {
 
   const existing = await prisma.glpiConfig.findUnique({ where: { id: "default" } });
 
+  const merged = mergeGlpiConnectionParams(existing, body);
+  if (!merged.baseUrl) {
+    return NextResponse.json(
+      { message: "Informe a URL da API (apirest.php) ou configure GLPI_URL no ambiente.", ok: false, steps: [] },
+      { status: 400 }
+    );
+  }
+  if (!merged.userToken) {
+    return NextResponse.json(
+      {
+        message: "Informe o User Token ou use o já salvo / variável GLPI_USER_TOKEN.",
+        ok: false,
+        steps: [],
+      },
+      { status: 400 }
+    );
+  }
+
+  const teste = await testarConexaoGlpi({
+    baseUrl: merged.baseUrl,
+    appToken: merged.appToken,
+    userToken: merged.userToken,
+    campoBuscaGrupoTecnico: merged.campoBuscaGrupoTecnico,
+    criteriosExtraJson: merged.criteriosExtraJson,
+  });
+  if (!teste.ok) {
+    return NextResponse.json(
+      {
+        message: "Configuração não salva: o teste de integração com o GLPI falhou.",
+        ok: false,
+        steps: teste.steps,
+      },
+      { status: 422 }
+    );
+  }
+
   const baseUrl = body.baseUrl?.trim() || null;
   let appToken = existing?.appToken ?? null;
   let userToken = existing?.userToken ?? null;
@@ -97,5 +135,7 @@ export async function PUT(request: Request) {
     userTokenMasked: maskToken(saved.userToken),
     campoBuscaGrupoTecnico: saved.campoBuscaGrupoTecnico,
     criteriosExtraJson: saved.criteriosExtraJson ?? "",
+    steps: teste.steps,
+    message: "Configuração salva e teste de integração com o GLPI concluído com sucesso.",
   });
 }
