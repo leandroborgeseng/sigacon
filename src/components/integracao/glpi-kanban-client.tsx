@@ -6,7 +6,6 @@ import type { GlpiKanbanColuna } from "@prisma/client";
 import { ORDEM_COLUNAS, GLPI_KANBAN_LABELS } from "@/lib/glpi-kanban-map";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
@@ -100,9 +99,6 @@ type TicketDetails = {
 
 export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [contratoId, setContratoId] = useState<string>("");
-  const [fornecedor, setFornecedor] = useState<string>("");
-  const [termo, setTermo] = useState<string>("");
-  const [syncTermo, setSyncTermo] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [cards, setCards] = useState<Chamado[]>([]);
@@ -145,8 +141,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     try {
       const qs = new URLSearchParams();
       if (contratoId) qs.set("contratoId", contratoId);
-      if (fornecedor.trim()) qs.set("fornecedor", fornecedor.trim());
-      if (termo.trim()) qs.set("termo", termo.trim());
       const r = await fetch(`/api/integracao/glpi/chamados?${qs.toString()}`);
       const j = await r.json();
       if (!r.ok) {
@@ -164,9 +158,8 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     setLoading(true);
     setMsg("");
     try {
-      const body: { contratoId?: string; termoTitulo?: string } = {};
+      const body: { contratoId?: string } = {};
       if (contratoId) body.contratoId = contratoId;
-      if (!contratoId && syncTermo.trim()) body.termoTitulo = syncTermo.trim();
       const r = await fetch("/api/integracao/glpi/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -453,16 +446,15 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
           <CardTitle>Filtros e sincronização GLPI</CardTitle>
           <p className="text-sm text-muted-foreground">
             Com <strong>contrato</strong> selecionado, a sincronização usa os{" "}
-            <strong>grupos técnicos</strong> vinculados ao contrato (cadastro do contrato). Sem grupos, usa o nome do
-            fornecedor no título. Sem contrato e sem termo, a sincronização tenta trazer chamados de forma ampla para
-            facilitar o bootstrap inicial do Kanban. Credenciais em{" "}
+            <strong>grupos técnicos</strong> vinculados ao contrato (cadastro do contrato), trazendo somente chamados
+            desses grupos. Sem contrato, a sincronização roda de forma ampla para bootstrap do Kanban. Credenciais em{" "}
             <Link href="/configuracao/glpi" className="text-primary underline">
               Configuração GLPI
             </Link>
             .
           </p>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-5">
+        <CardContent className="grid gap-3 md:grid-cols-3">
           <div className="space-y-2 md:col-span-2">
             <Label>Contrato (prioridade: grupos GLPI no cadastro)</Label>
             <Select value={contratoId || "__todos__"} onValueChange={(v) => setContratoId(v === "__todos__" ? "" : v)}>
@@ -479,19 +471,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Filtro fornecedor</Label>
-            <Input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Filtro texto</Label>
-            <Input value={termo} onChange={(e) => setTermo(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Sync por termo (sem contrato, opcional)</Label>
-            <Input value={syncTermo} onChange={(e) => setSyncTermo(e.target.value)} />
-          </div>
-          <div className="md:col-span-5 flex flex-wrap gap-2">
+          <div className="md:col-span-3 flex flex-wrap gap-2">
             <Button variant="outline" onClick={carregar} disabled={loading}>
               Carregar quadro
             </Button>
@@ -499,7 +479,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               Sincronizar com GLPI
             </Button>
           </div>
-          {msg && <p className="md:col-span-5 text-sm text-muted-foreground">{msg}</p>}
+          {msg && <p className="md:col-span-3 text-sm text-muted-foreground">{msg}</p>}
         </CardContent>
       </Card>
 

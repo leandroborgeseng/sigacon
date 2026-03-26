@@ -340,3 +340,70 @@ export async function getDashboardAlertas(contratoId?: string) {
   };
 }
 
+/** Resumo GLPI para gestão: volume por contrato e chamados sem interação há 7+ dias. */
+export async function getDashboardGlpiResumo(contratoId?: string) {
+  const whereBase = contratoId ? { contratoId } : {};
+  const limiteSemInteracao = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [porContrato, semInteracao] = await Promise.all([
+    prisma.glpiChamado.groupBy({
+      by: ["contratoId"],
+      where: {
+        ...whereBase,
+        contratoId: { not: null },
+      },
+      _count: true,
+      orderBy: { _count: { contratoId: "desc" } },
+    }),
+    prisma.glpiChamado.findMany({
+      where: {
+        ...whereBase,
+        contratoId: { not: null },
+        OR: [
+          { dataModificacao: { lte: limiteSemInteracao } },
+          { dataModificacao: null, ultimoPullEm: { lte: limiteSemInteracao } },
+        ],
+      },
+      include: {
+        contrato: { select: { id: true, nome: true } },
+      },
+      orderBy: [{ dataModificacao: "asc" }, { ultimoPullEm: "asc" }],
+      take: 50,
+    }),
+  ]);
+
+  const idsContrato = porContrato
+    .map((r) => r.contratoId)
+    .filter((id): id is string => typeof id === "string");
+  const contratos = await prisma.contrato.findMany({
+    where: { id: { in: idsContrato } },
+    select: { id: true, nome: true },
+  });
+  const nomeContrato = new Map(contratos.map((c) => [c.id, c.nome]));
+
+  return {
+    porContrato: porContrato
+      .filter((r) => r.contratoId)
+      .map((r) => ({
+        contratoId: r.contratoId as string,
+        contratoNome: nomeContrato.get(r.contratoId as string) ?? "Contrato",
+        totalChamados:
+          typeof r._count === "number"
+            ? r._count
+            : "_all" in r._count
+              ? r._count._all
+              : r._count.contratoId,
+      })),
+    semInteracao: semInteracao.map((c) => ({
+      id: c.id,
+      glpiTicketId: c.glpiTicketId,
+      titulo: c.titulo,
+      contratoId: c.contratoId as string,
+      contratoNome: c.contrato?.nome ?? "Contrato",
+      dataUltimaInteracao: (c.dataModificacao ?? c.ultimoPullEm ?? c.sincronizadoEm).toISOString(),
+      statusLabel: c.statusLabel,
+      colunaKanban: c.colunaKanban,
+    })),
+  };
+}
+

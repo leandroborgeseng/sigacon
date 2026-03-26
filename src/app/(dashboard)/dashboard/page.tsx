@@ -6,6 +6,7 @@ import {
   getIndicadoresPorModulo,
   getDashboardAlertas,
   getDashboardInsights,
+  getDashboardGlpiResumo,
 } from "@/server/services/indicators";
 import {
   getDashboardTarefasMes,
@@ -44,6 +45,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   };
   let tarefasMes: Awaited<ReturnType<typeof getDashboardTarefasMes>> = [];
   let serieTempo: Awaited<ReturnType<typeof getDashboardSerieTempo>> = [];
+  let glpiResumo: Awaited<ReturnType<typeof getDashboardGlpiResumo>> = {
+    porContrato: [],
+    semInteracao: [],
+  };
   try {
     insights = await getDashboardInsights(contratoId);
   } catch (e) {
@@ -54,6 +59,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     serieTempo = await getDashboardSerieTempo(contratoId, 12);
   } catch (e) {
     console.error("[dashboard] tarefas/serie:", e);
+  }
+  try {
+    glpiResumo = await getDashboardGlpiResumo(contratoId);
+  } catch (e) {
+    console.error("[dashboard] glpiResumo:", e);
   }
   try {
     [indicators, porModulo, alertas] = await Promise.all([
@@ -96,6 +106,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           }))}
           tarefasMes={tarefasMes}
           serieTempo={serieTempo}
+          glpiResumo={glpiResumo}
         />
     </div>
   );

@@ -131,7 +131,7 @@ async function releasePgAdvisoryLock(lockKey: number): Promise<void> {
 /**
  * Busca tickets no GLPI e faz upsert local.
  * Com grupos vinculados ao contrato: busca por grupo técnico atribuído (OR entre grupos).
- * Sem grupos: fallback para título contém fornecedor do contrato ou termoTitulo.
+ * Com contrato sem grupos: não sincroniza tickets.
  * Sem contrato e sem termo: busca ampla (sem critérios), útil para bootstrap do Kanban.
  */
 export async function sincronizarChamadosGlpi(params: SincronizarParams): Promise<SyncResumo> {
@@ -163,7 +163,12 @@ export async function sincronizarChamadosGlpi(params: SincronizarParams): Promis
     fornecedorNome = c.fornecedor;
     contratoId = c.id;
     gruposIds = c.glpiGruposTecnicos;
-    if (!termoLivre) termoLivre = c.fornecedor;
+    if (gruposIds.length === 0) {
+      return {
+        processados: 0,
+        erros: ["Este contrato não possui grupos técnicos GLPI cadastrados para filtro."],
+      };
+    }
   }
 
   const extra = await parseExtraCriteria();

@@ -23,19 +23,29 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const contratoId = searchParams.get("contratoId")?.trim() || undefined;
-  const fornecedor = searchParams.get("fornecedor")?.trim() || undefined;
-  const termo = searchParams.get("termo")?.trim() || undefined;
+  let filtroGruposContrato: number[] | null = null;
+
+  if (contratoId) {
+    const contrato = await prisma.contrato.findUnique({
+      where: { id: contratoId },
+      select: { glpiGruposTecnicos: { select: { glpiGroupId: true } } },
+    });
+    if (!contrato) {
+      return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
+    }
+    const ids = contrato.glpiGruposTecnicos.map((g) => g.glpiGroupId);
+    if (ids.length === 0) {
+      return NextResponse.json([]);
+    }
+    filtroGruposContrato = ids;
+  }
 
   const chamados = await prisma.glpiChamado.findMany({
     where: {
       ...(contratoId ? { contratoId } : {}),
-      ...(fornecedor ? { fornecedorNome: { contains: fornecedor, mode: "insensitive" } } : {}),
-      ...(termo
+      ...(filtroGruposContrato
         ? {
-            OR: [
-              { titulo: { contains: termo, mode: "insensitive" } },
-              { conteudoPreview: { contains: termo, mode: "insensitive" } },
-            ],
+            grupoTecnicoIdGlpi: { in: filtroGruposContrato },
           }
         : {}),
     },

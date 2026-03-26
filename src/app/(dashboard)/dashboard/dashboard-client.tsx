@@ -50,6 +50,7 @@ export function DashboardClient({
   porModulo,
   tarefasMes,
   serieTempo,
+  glpiResumo,
 }: {
   contratos: Array<{ id: string; nome: string }>;
   contratoId: string | undefined;
@@ -116,6 +117,23 @@ export function DashboardClient({
     percentualMedio: number;
     medicoesCount: number;
   }>;
+  glpiResumo: {
+    porContrato: Array<{
+      contratoId: string;
+      contratoNome: string;
+      totalChamados: number;
+    }>;
+    semInteracao: Array<{
+      id: string;
+      glpiTicketId: number;
+      titulo: string;
+      contratoId: string;
+      contratoNome: string;
+      dataUltimaInteracao: string;
+      statusLabel: string | null;
+      colunaKanban: string;
+    }>;
+  };
 }) {
   const router = useRouter();
   const [ustModalId, setUstModalId] = useState<string | null>(null);
@@ -530,6 +548,55 @@ export function DashboardClient({
       <div className="space-y-4">{painelTarefasESerie}</div>
 
       {blocoInsights}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Chamados GLPI por contrato</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Visão de volume por contrato e alerta de chamados sem interação há mais de 7 dias.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {glpiResumo.porContrato.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum chamado GLPI vinculado a contratos no momento.</p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {glpiResumo.porContrato.map((g) => (
+                <div key={g.contratoId} className="rounded-md border p-3">
+                  <p className="text-xs text-muted-foreground">Contrato</p>
+                  <p className="text-sm font-medium">{g.contratoNome}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Chamados no Kanban: <strong>{g.totalChamados}</strong>
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+              Sem interação há mais de 7 dias ({glpiResumo.semInteracao.length})
+            </p>
+            {glpiResumo.semInteracao.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum chamado sem interação acima do limite.</p>
+            ) : (
+              <div className="rounded-md border divide-y">
+                {glpiResumo.semInteracao.slice(0, 20).map((c) => (
+                  <div key={c.id} className="px-3 py-2 text-sm">
+                    <p className="font-medium">
+                      #{c.glpiTicketId} - {c.titulo}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {c.contratoNome} • Última interação: {formatDate(c.dataUltimaInteracao)} •{" "}
+                      {c.statusLabel ?? c.colunaKanban}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
