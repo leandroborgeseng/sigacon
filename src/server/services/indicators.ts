@@ -360,8 +360,8 @@ export async function getDashboardGlpiResumo(contratoId?: string) {
         ...whereAbertos,
         contratoId: { not: null },
       },
-      _count: { _all: true },
-      orderBy: { _count: { _all: "desc" } },
+      _count: { contratoId: true },
+      orderBy: { _count: { contratoId: "desc" } },
     }),
     prisma.glpiChamado.findMany({
       where: {
@@ -397,7 +397,7 @@ export async function getDashboardGlpiResumo(contratoId?: string) {
       .map((r) => ({
         contratoId: r.contratoId as string,
         contratoNome: nomeContrato.get(r.contratoId as string) ?? "Contrato",
-        totalChamados: r._count._all,
+        totalChamados: r._count.contratoId,
       })),
     semInteracao: semInteracao.map((c) => ({
       id: c.id,
