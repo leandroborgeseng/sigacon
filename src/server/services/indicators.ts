@@ -342,73 +342,97 @@ export async function getDashboardAlertas(contratoId?: string) {
 
 /** Resumo GLPI para gestão: volume por contrato e chamados sem interação há 7+ dias. */
 export async function getDashboardGlpiResumo(contratoId?: string) {
-  const whereBase = contratoId ? { contratoId } : {};
-  const whereAbertos = { colunaKanban: { not: GlpiKanbanColuna.FECHADO } as const };
+  // Segue a mesma lógica do Kanban:
+  // quando houver filtro por contrato, o agrupamento é feito pelos grupos técnicos cadastrados no contrato,
+  // e não pela coluna `contratoId` gravada no chamado (que pode estar nula em alguns cenários).
+
+  const contratos = await prisma.contrato.findMany({
+    where: contratoId ? { id: contratoId, status: "ATIVO" } : { status: "ATIVO" },
+    select: {
+      id: true,
+      nome: true,
+      glpiGruposTecnicos: { select: { glpiGroupId: true } },
+    },
+  });
+
+  const ondeAbertos = {
+    colunaKanban: { not: GlpiKanbanColuna.FECHADO } as const,
+  };
   const limiteSemInteracao = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [totalAbertos, porContrato, semInteracao] = await Promise.all([
-    prisma.glpiChamado.count({
-      where: {
-        ...whereBase,
-        ...whereAbertos,
-      },
-    }),
-    prisma.glpiChamado.groupBy({
-      by: ["contratoId"],
-      where: {
-        ...whereBase,
-        ...whereAbertos,
-        contratoId: { not: null },
-      },
-      _count: { contratoId: true },
-      orderBy: { _count: { contratoId: "desc" } },
-    }),
-    prisma.glpiChamado.findMany({
-      where: {
-        ...whereBase,
-        ...whereAbertos,
-        contratoId: { not: null },
-        OR: [
-          { dataModificacao: { lte: limiteSemInteracao } },
-          { dataModificacao: null, ultimoPullEm: { lte: limiteSemInteracao } },
-        ],
-      },
-      include: {
-        contrato: { select: { id: true, nome: true } },
-      },
-      orderBy: [{ dataModificacao: "asc" }, { ultimoPullEm: "asc" }],
-      take: 50,
-    }),
-  ]);
-
-  const idsContrato = porContrato
-    .map((r) => r.contratoId)
-    .filter((id): id is string => typeof id === "string");
-  const contratos = await prisma.contrato.findMany({
-    where: { id: { in: idsContrato } },
-    select: { id: true, nome: true },
-  });
-  const nomeContrato = new Map(contratos.map((c) => [c.id, c.nome]));
-
-  return {
-    totalAbertos,
-    porContrato: porContrato
-      .filter((r) => r.contratoId)
-      .map((r) => ({
-        contratoId: r.contratoId as string,
-        contratoNome: nomeContrato.get(r.contratoId as string) ?? "Contrato",
-        totalChamados: r._count.contratoId,
-      })),
-    semInteracao: semInteracao.map((c) => ({
+  const contratosComGrupos = contratos
+    .map((c) => ({
       id: c.id,
-      glpiTicketId: c.glpiTicketId,
-      titulo: c.titulo,
-      contratoId: c.contratoId as string,
-      contratoNome: c.contrato?.nome ?? "Contrato",
-      dataUltimaInteracao: (c.dataModificacao ?? c.ultimoPullEm ?? c.sincronizadoEm).toISOString(),
-      statusLabel: c.statusLabel,
-      colunaKanban: c.colunaKanban,
-    })),
-  };
+      nome: c.nome,
+      grupos: c.glpiGruposTecnicos.map((g) => g.glpiGroupId).filter((id) => Number.isFinite(id)),
+    }))
+    .filter((c) => c.grupos.length > 0);
+
+  const idsGrupos = [...new Set(contratosComGrupos.flatMap((c) => c.grupos))];
+  if (idsGrupos.length === 0) {
+    return { totalAbertos: 0, porContrato: [], semInteracao: [] };
+  }
+
+  const totalAbertos = await prisma.glpiChamado.count({
+    where: {
+      ...ondeAbertos,
+      grupoTecnicoIdGlpi: { in: idsGrupos },
+    },
+  });
+
+  const porContrato = await Promise.all(
+    contratosComGrupos.map(async (c) => {
+      const totalChamados = await prisma.glpiChamado.count({
+        where: {
+          ...ondeAbertos,
+          grupoTecnicoIdGlpi: { in: c.grupos },
+        },
+      });
+      return { contratoId: c.id, contratoNome: c.nome, totalChamados };
+    })
+  );
+
+  // Mapeia grupo técnico -> contrato (para rotular o ticket sem depender de `contratoId` no chamado).
+  const gruposParaContratos = new Map<number, Array<{ contratoId: string; contratoNome: string }>>();
+  for (const c of contratosComGrupos) {
+    for (const gid of c.grupos) {
+      const arr = gruposParaContratos.get(gid) ?? [];
+      arr.push({ contratoId: c.id, contratoNome: c.nome });
+      gruposParaContratos.set(gid, arr);
+    }
+  }
+
+  const semInteracaoChamados = await prisma.glpiChamado.findMany({
+    where: {
+      ...ondeAbertos,
+      grupoTecnicoIdGlpi: { in: idsGrupos },
+      OR: [
+        { dataModificacao: { lte: limiteSemInteracao } },
+        { dataModificacao: null, ultimoPullEm: { lte: limiteSemInteracao } },
+      ],
+    },
+    orderBy: [{ dataModificacao: "asc" }, { ultimoPullEm: "asc" }],
+    take: 50,
+  });
+
+  const semInteracao = semInteracaoChamados
+    .filter((c) => c.grupoTecnicoIdGlpi != null)
+    .map((c) => {
+      const gid = c.grupoTecnicoIdGlpi as number;
+      const matches = gruposParaContratos.get(gid) ?? [];
+      const contrato = matches[0];
+      return {
+        id: c.id,
+        glpiTicketId: c.glpiTicketId,
+        titulo: c.titulo,
+        contratoId: contrato?.contratoId ?? "unknown",
+        contratoNome: contrato?.contratoNome ?? "Contrato",
+        dataUltimaInteracao: (c.dataModificacao ?? c.ultimoPullEm ?? c.sincronizadoEm).toISOString(),
+        statusLabel: c.statusLabel,
+        colunaKanban: c.colunaKanban,
+      };
+    });
+
+  return { totalAbertos, porContrato, semInteracao };
 }
 
