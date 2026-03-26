@@ -215,10 +215,7 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
               </p>
             )}
           </div>
-          <ContratoGlpiGruposField
-            selecionados={glpiGrupos.map((g) => g.glpiGroupId)}
-            onChange={setGlpiGrupos}
-          />
+          <ContratoGlpiGruposField value={glpiGrupos} onChange={setGlpiGrupos} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar

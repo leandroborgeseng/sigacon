@@ -275,10 +275,7 @@ export function ContratoEditDialog({
               })}
             />
           </div>
-          <ContratoGlpiGruposField
-            selecionados={glpiGrupos.map((g) => g.glpiGroupId)}
-            onChange={setGlpiGrupos}
-          />
+          <ContratoGlpiGruposField value={glpiGrupos} onChange={setGlpiGrupos} />
 
           <div className="grid grid-cols-2 gap-4 rounded-md border border-dashed p-3">
             <div className="space-y-2">
