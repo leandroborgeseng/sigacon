@@ -42,7 +42,6 @@ export async function GET(request: Request) {
 
   const chamados = await prisma.glpiChamado.findMany({
     where: {
-      ...(contratoId ? { contratoId } : {}),
       ...(filtroGruposContrato
         ? {
             grupoTecnicoIdGlpi: { in: filtroGruposContrato },

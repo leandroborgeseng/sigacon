@@ -46,6 +46,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   let tarefasMes: Awaited<ReturnType<typeof getDashboardTarefasMes>> = [];
   let serieTempo: Awaited<ReturnType<typeof getDashboardSerieTempo>> = [];
   let glpiResumo: Awaited<ReturnType<typeof getDashboardGlpiResumo>> = {
+    totalAbertos: 0,
     porContrato: [],
     semInteracao: [],
   };

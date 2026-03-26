@@ -118,6 +118,7 @@ export function DashboardClient({
     medicoesCount: number;
   }>;
   glpiResumo: {
+    totalAbertos: number;
     porContrato: Array<{
       contratoId: string;
       contratoNome: string;
@@ -551,14 +552,18 @@ export function DashboardClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>Chamados GLPI por contrato</CardTitle>
+          <CardTitle>Chamados GLPI abertos</CardTitle>
           <p className="text-xs text-muted-foreground">
-            Visão de volume por contrato e alerta de chamados sem interação há mais de 7 dias.
+            Visão de chamados abertos por contrato e alerta de chamados sem interação há mais de 7 dias.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">Total de chamados abertos</p>
+            <p className="text-2xl font-semibold">{glpiResumo.totalAbertos}</p>
+          </div>
           {glpiResumo.porContrato.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum chamado GLPI vinculado a contratos no momento.</p>
+            <p className="text-sm text-muted-foreground">Nenhum chamado aberto vinculado a contratos no momento.</p>
           ) : (
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {glpiResumo.porContrato.map((g) => (
@@ -566,7 +571,7 @@ export function DashboardClient({
                   <p className="text-xs text-muted-foreground">Contrato</p>
                   <p className="text-sm font-medium">{g.contratoNome}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Chamados no Kanban: <strong>{g.totalChamados}</strong>
+                    Chamados abertos: <strong>{g.totalChamados}</strong>
                   </p>
                 </div>
               ))}

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { StatusContrato, StatusItem, StatusPendencia } from "@prisma/client";
+import { GlpiKanbanColuna, StatusContrato, StatusItem, StatusPendencia } from "@prisma/client";
 import { mapTotaisUstPorContratoNoAno } from "@/lib/ust-limits";
 
 const STATUS_CONTRATO_LABEL: Record<StatusContrato, string> = {
@@ -343,13 +343,21 @@ export async function getDashboardAlertas(contratoId?: string) {
 /** Resumo GLPI para gestão: volume por contrato e chamados sem interação há 7+ dias. */
 export async function getDashboardGlpiResumo(contratoId?: string) {
   const whereBase = contratoId ? { contratoId } : {};
+  const whereAbertos = { colunaKanban: { not: GlpiKanbanColuna.FECHADO } as const };
   const limiteSemInteracao = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [porContrato, semInteracao] = await Promise.all([
+  const [totalAbertos, porContrato, semInteracao] = await Promise.all([
+    prisma.glpiChamado.count({
+      where: {
+        ...whereBase,
+        ...whereAbertos,
+      },
+    }),
     prisma.glpiChamado.groupBy({
       by: ["contratoId"],
       where: {
         ...whereBase,
+        ...whereAbertos,
         contratoId: { not: null },
       },
       _count: { _all: true },
@@ -358,6 +366,7 @@ export async function getDashboardGlpiResumo(contratoId?: string) {
     prisma.glpiChamado.findMany({
       where: {
         ...whereBase,
+        ...whereAbertos,
         contratoId: { not: null },
         OR: [
           { dataModificacao: { lte: limiteSemInteracao } },
@@ -382,6 +391,7 @@ export async function getDashboardGlpiResumo(contratoId?: string) {
   const nomeContrato = new Map(contratos.map((c) => [c.id, c.nome]));
 
   return {
+    totalAbertos,
     porContrato: porContrato
       .filter((r) => r.contratoId)
       .map((r) => ({
