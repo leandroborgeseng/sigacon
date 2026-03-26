@@ -566,58 +566,97 @@ export type GlpiGrupoLista = { id: number; name: string };
 
 /** Lista grupos do GLPI (para vínculo com contrato). Filtra `is_assign` quando o campo existir. */
 export async function glpiListAssignableGroups(ctx: GlpiSessionContext): Promise<GlpiGrupoLista[]> {
+  const parseGroupRows = (json: unknown): unknown[] => {
+    if (Array.isArray(json)) return json;
+    if (!json || typeof json !== "object") return [];
+    const o = json as Record<string, unknown>;
+    if (Array.isArray(o.data)) return o.data;
+    // Algumas instâncias retornam coleção indexada por chave ("0", "1", ...)
+    const values = Object.values(o).filter((v) => v && typeof v === "object");
+    return values;
+  };
+
+  const normalizeGroups = (rows: unknown[]): GlpiGrupoLista[] => {
+    const out: GlpiGrupoLista[] = [];
+    for (const item of rows) {
+      if (!item || typeof item !== "object") continue;
+      const o = item as Record<string, unknown>;
+      const id = parseId(o.id);
+      if (id == null) continue;
+      if (o.is_assign === 0 || o.is_assign === false) continue;
+      const name =
+        typeof o.completename === "string" && o.completename.trim()
+          ? o.completename.trim()
+          : typeof o.name === "string" && o.name.trim()
+            ? o.name.trim()
+            : `Grupo ${id}`;
+      out.push({ id, name });
+    }
+    return out;
+  };
+
+  const dedupeSort = (items: GlpiGrupoLista[]): GlpiGrupoLista[] => {
+    const byId = new Map<number, GlpiGrupoLista>();
+    for (const g of items) byId.set(g.id, g);
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  };
+
   const r = await fetch(`${ctx.baseUrl}/Group?range=0-999&sort=id`, { headers: headers(ctx) });
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`GLPI GET Group: ${r.status} ${t.slice(0, 300)}`);
   }
   const json = (await r.json()) as unknown;
-  const raw: unknown[] = Array.isArray(json)
-    ? json
-    : json && typeof json === "object" && "data" in json && Array.isArray((json as { data: unknown[] }).data)
-      ? (json as { data: unknown[] }).data
-      : [];
-  const out: GlpiGrupoLista[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const o = item as Record<string, unknown>;
-    const id =
-      typeof o.id === "number"
-        ? o.id
-        : typeof o.id === "string"
-          ? parseInt(o.id, 10)
-          : NaN;
-    if (!Number.isFinite(id)) continue;
-    if (o.is_assign === 0 || o.is_assign === false) continue;
-    const name =
-      typeof o.completename === "string" && o.completename.trim()
-        ? o.completename.trim()
-        : typeof o.name === "string"
-          ? o.name.trim()
-          : `Grupo ${id}`;
-    out.push({ id, name });
-  }
-  if (out.length === 0) {
-    for (const item of raw) {
-      if (!item || typeof item !== "object") continue;
+  const raw = parseGroupRows(json);
+  const assignable = normalizeGroups(raw);
+  if (assignable.length > 0) return dedupeSort(assignable);
+
+  // Fallback 1: sem filtro is_assign (há instalações sem esse campo útil para API)
+  const noAssignFilter = raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
       const o = item as Record<string, unknown>;
-      const id =
-        typeof o.id === "number"
-          ? o.id
-          : typeof o.id === "string"
-            ? parseInt(o.id, 10)
-            : NaN;
-      if (!Number.isFinite(id)) continue;
+      const id = parseId(o.id);
+      if (id == null) return null;
       const name =
         typeof o.completename === "string" && o.completename.trim()
           ? o.completename.trim()
-          : typeof o.name === "string"
+          : typeof o.name === "string" && o.name.trim()
             ? o.name.trim()
             : `Grupo ${id}`;
-      out.push({ id, name });
-    }
+      return { id, name } satisfies GlpiGrupoLista;
+    })
+    .filter((x): x is GlpiGrupoLista => x != null);
+  if (noAssignFilter.length > 0) return dedupeSort(noAssignFilter);
+
+  // Fallback 2: search/Group para instâncias onde /Group retorna vazio
+  const s = await fetch(`${ctx.baseUrl}/search/Group?range=0-999&forcedisplay[0]=2&forcedisplay[1]=1`, {
+    headers: headers(ctx),
+  });
+  if (!s.ok) {
+    const t = await s.text();
+    throw new Error(`GLPI search Group: ${s.status} ${t.slice(0, 300)}`);
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const sj = (await s.json()) as { data?: unknown[] };
+  const searchRows = Array.isArray(sj.data) ? sj.data : [];
+  const fromSearch = searchRows
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const o = row as Record<string, unknown>;
+      const id = parseId(o.id) ?? parseId(o["2"]);
+      if (id == null) return null;
+      const nameRaw = o["1"];
+      const name =
+        typeof nameRaw === "string" && nameRaw.trim()
+          ? nameRaw.trim()
+          : typeof o.name === "string" && o.name.trim()
+            ? o.name.trim()
+            : `Grupo ${id}`;
+      return { id, name } satisfies GlpiGrupoLista;
+    })
+    .filter((x): x is GlpiGrupoLista => x != null);
+
+  return dedupeSort(fromSearch);
 }
 
 export type GlpiCategoriaLista = { id: number; name: string };
