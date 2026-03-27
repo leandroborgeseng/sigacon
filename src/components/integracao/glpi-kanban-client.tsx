@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { GlpiKanbanColuna } from "@prisma/client";
 import { ORDEM_COLUNAS, GLPI_KANBAN_LABELS } from "@/lib/glpi-kanban-map";
+import type { GlpiTicketPayload } from "@/lib/glpi-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,9 @@ type TicketDetails = {
     status?: number;
     urgency?: number;
     priority?: number;
+    itilcategories_id?: number | string;
+    groups_id_assign?: number | string;
+    users_id_assign?: number | string;
     _itilcategories_id?: string;
     _groups_id_assign?: string;
     _users_id_assign?: string;
@@ -96,8 +99,26 @@ type TicketDetails = {
     link?: string;
   }>;
   ticketRaw?: Record<string, unknown>;
-  ticketProperties?: Array<{ key: string; rawKey: string; value: string }>;
 };
+
+/** Resposta do GET `/api/integracao/glpi/chamados/[ticketId]` — ticket alinhado ao payload GLPI. */
+type GlpiChamadoDetalheResponse = {
+  ok?: boolean;
+  message?: string;
+  avisos?: string[];
+  ticket?: GlpiTicketPayload;
+  followups?: TicketDetails["followups"];
+  tasks?: TicketDetails["tasks"];
+  solutions?: TicketDetails["solutions"];
+  documents?: TicketDetails["documents"];
+  ticketRaw?: Record<string, unknown>;
+};
+
+function glpiCampoIdParaFormulario(v: unknown): string {
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  if (typeof v === "string" && /^\d+$/.test(v.trim())) return v.trim();
+  return "";
+}
 
 function sanitizeHtml(input: string): string {
   if (!input) return "";
@@ -215,7 +236,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [editTecnicoId, setEditTecnicoId] = useState("");
   const [editTicketSaving, setEditTicketSaving] = useState(false);
 
-  async function carregar() {
+  const carregar = useCallback(async () => {
     setLoading(true);
     setMsg("");
     try {
@@ -232,7 +253,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [contratoId]);
 
   async function sincronizar() {
     setLoading(true);
@@ -276,8 +297,12 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   }
 
   useEffect(() => {
+    setContratoId(contratoIdFromUrl);
+  }, [contratoIdFromUrl]);
+
+  useEffect(() => {
     void carregar();
-  }, []);
+  }, [carregar]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -354,7 +379,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     setSolucao("");
     try {
       const r = await fetch(`/api/integracao/glpi/chamados/${ticketId}`, { cache: "no-store" });
-      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; avisos?: string[] } & Partial<TicketDetails>;
+      const j = (await r.json().catch(() => ({}))) as GlpiChamadoDetalheResponse;
       if (!r.ok || j.ok === false) {
         setMsg(j.message ?? "Erro ao carregar detalhes do ticket.");
         return;
@@ -367,7 +392,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
         solutions: Array.isArray(j.solutions) ? j.solutions : [],
         documents: Array.isArray(j.documents) ? j.documents : [],
         ticketRaw: (j.ticketRaw && typeof j.ticketRaw === "object") ? (j.ticketRaw as Record<string, unknown>) : undefined,
-        ticketProperties: Array.isArray(j.ticketProperties) ? (j.ticketProperties as TicketDetails["ticketProperties"]) : undefined,
       });
       setEditTicketName(typeof j.ticket?.name === "string" ? j.ticket.name : "");
       setEditTicketContent(typeof j.ticket?.content === "string" ? String(j.ticket.content) : "");
@@ -387,25 +411,15 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
             : ""
       );
       setEditCategoriaId(
-        card?.categoriaIdGlpi != null
-          ? String(card.categoriaIdGlpi)
-          : typeof j.ticket?.itilcategories_id === "number"
-            ? String(j.ticket.itilcategories_id)
-            : ""
+        card?.categoriaIdGlpi != null ? String(card.categoriaIdGlpi) : glpiCampoIdParaFormulario(j.ticket?.itilcategories_id)
       );
       setEditGrupoId(
-        card?.grupoTecnicoIdGlpi != null
-          ? String(card.grupoTecnicoIdGlpi)
-          : typeof j.ticket?.groups_id_assign === "number"
-            ? String(j.ticket.groups_id_assign)
-            : ""
+        card?.grupoTecnicoIdGlpi != null ? String(card.grupoTecnicoIdGlpi) : glpiCampoIdParaFormulario(j.ticket?.groups_id_assign)
       );
       setEditTecnicoId(
         card?.tecnicoResponsavelIdGlpi != null
           ? String(card.tecnicoResponsavelIdGlpi)
-          : typeof j.ticket?.users_id_assign === "number"
-            ? String(j.ticket.users_id_assign)
-            : ""
+          : glpiCampoIdParaFormulario(j.ticket?.users_id_assign)
       );
     } finally {
       setDetalhesLoading(false);

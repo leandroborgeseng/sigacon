@@ -19,11 +19,7 @@ function asPlainObject(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 }
 
-function prettyKey(k: string): string {
-  return k.replace(/^_+/, "").replace(/_/g, " ");
-}
-
-export async function GET(_: Request, ctx: { params: Promise<{ ticketId: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ ticketId: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
   const pode = await canRecurso(
@@ -42,6 +38,10 @@ export async function GET(_: Request, ctx: { params: Promise<{ ticketId: string 
   if (!Number.isFinite(idNum)) {
     return NextResponse.json({ message: "ticketId inválido" }, { status: 400 });
   }
+
+  const { searchParams } = new URL(request.url);
+  const incluirPropsDebug =
+    searchParams.get("debug") === "1" || searchParams.get("ticketProperties") === "1";
 
   try {
     const cacheLocal = await prisma.glpiChamado.findUnique({
@@ -108,7 +108,20 @@ export async function GET(_: Request, ctx: { params: Promise<{ ticketId: string 
       if (documentsR.status === "rejected") avisos.push("Não foi possível carregar documentos.");
 
       const raw = asPlainObject(ticket);
-      const properties = Object.keys(raw)
+      const base = {
+        ticket,
+        ticketRaw: raw,
+        followups,
+        tasks,
+        solutions,
+        documents,
+        avisos,
+      };
+      if (!incluirPropsDebug) return base;
+      function prettyKey(k: string): string {
+        return k.replace(/^_+/, "").replace(/_/g, " ");
+      }
+      const ticketProperties = Object.keys(raw)
         .sort((a, b) => a.localeCompare(b, "pt-BR"))
         .map((k) => {
           const v = raw[k];
@@ -122,16 +135,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ ticketId: string 
                   : JSON.stringify(v);
           return { key: prettyKey(k), rawKey: k, value };
         });
-      return {
-        ticket,
-        ticketRaw: raw,
-        ticketProperties: properties,
-        followups,
-        tasks,
-        solutions,
-        documents,
-        avisos,
-      };
+      return { ...base, ticketProperties };
     });
     return NextResponse.json({ ok: true, ...data });
   } catch (e) {
