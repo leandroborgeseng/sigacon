@@ -26,11 +26,11 @@ export default async function ConfiguracaoGlpiPage() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ label: "Configuração GLPI" }]} />
+      <Breadcrumb items={[{ label: "Integrações" }]} />
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Integração GLPI</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Integrações</h1>
         <p className="text-muted-foreground">
-          A URL é validada enquanto você digita; ao sair dos campos de token, a integração é testada contra o GLPI.
+          A URL é validada enquanto você digita; ao sair dos campos de token, a integração é testada contra o sistema de chamados.
           Valores persistidos no banco com fallback para variáveis de ambiente.
         </p>
       </div>

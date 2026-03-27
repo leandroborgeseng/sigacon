@@ -559,7 +559,7 @@ export function DashboardClient({
 
       <Card>
         <CardHeader>
-          <CardTitle>Chamados GLPI abertos</CardTitle>
+          <CardTitle>Chamados abertos</CardTitle>
           <p className="text-xs text-muted-foreground">
             Visão de chamados abertos por contrato e alerta de chamados sem interação há mais de 7 dias.
           </p>

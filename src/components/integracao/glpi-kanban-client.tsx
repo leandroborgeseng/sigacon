@@ -243,12 +243,12 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       });
       const j = (await r.json().catch(() => ({}))) as Chamado & { message?: string };
       if (!r.ok) {
-        setMsg(j.message ?? "Falha ao atualizar chamado no GLPI");
+        setMsg(j.message ?? "Falha ao atualizar chamado no sistema de chamados");
         return;
       }
       setCards((prev) => prev.map((x) => (x.glpiTicketId === c.glpiTicketId ? { ...x, ...j } : x)));
       setEditandoId(null);
-      setMsg(`Chamado #${c.glpiTicketId} atualizado no GLPI.`);
+      setMsg(`Chamado #${c.glpiTicketId} atualizado no sistema de chamados.`);
     } finally {
       setSavingId(null);
     }
@@ -475,7 +475,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               </Select>
             </div>
             <Button size="sm" onClick={sincronizar} disabled={loading} className="shrink-0">
-              Buscar no GLPI
+              Buscar no sistema de chamados
             </Button>
             <Button
               type="button"
@@ -633,7 +633,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         }
                       >
                         <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Categoria (GLPI)" />
+                          <SelectValue placeholder="Categoria" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Sem categoria</SelectItem>
@@ -657,7 +657,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         }
                       >
                         <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Grupo técnico (GLPI)" />
+                          <SelectValue placeholder="Grupo técnico" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Sem grupo</SelectItem>
@@ -681,7 +681,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         }
                       >
                         <SelectTrigger className="h-8 text-xs col-span-2">
-                          <SelectValue placeholder="Técnico responsável (GLPI)" />
+                          <SelectValue placeholder="Técnico responsável" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Sem técnico</SelectItem>
@@ -699,7 +699,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                           disabled={savingId === c.glpiTicketId}
                           onClick={() => void salvarEdicao(c)}
                         >
-                          {savingId === c.glpiTicketId ? "Salvando..." : "Salvar no GLPI"}
+                          {savingId === c.glpiTicketId ? "Salvando..." : "Salvar no sistema"}
                         </Button>
                         <Button
                           size="sm"
@@ -715,7 +715,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" className="h-8" onClick={() => abrirEdicao(c)}>
-                        Editar dados GLPI
+                        Editar dados do chamado
                       </Button>
                       <Button
                         size="sm"
@@ -737,7 +737,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       <Dialog open={detalhesId != null} onOpenChange={(open) => (!open ? setDetalhesId(null) : null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Chamado GLPI #{detalhesId ?? ""}</DialogTitle>
+            <DialogTitle>Chamado #{detalhesId ?? ""}</DialogTitle>
             <DialogDescription>
               Visualize o conteúdo completo e o histórico de comentários (followups) e envie novos comentários.
             </DialogDescription>
@@ -775,7 +775,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
 
               {detalhes.ticketProperties && detalhes.ticketProperties.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Propriedades (GLPI)</p>
+                  <p className="text-sm font-medium">Propriedades do chamado</p>
                   <div className="rounded-md border overflow-auto max-h-[260px]">
                     <table className="w-full text-xs">
                       <tbody>
@@ -888,7 +888,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   value={comentario}
                   onChange={(e) => setComentario(e.target.value)}
                   rows={4}
-                  placeholder="Escreva um comentário para adicionar ao chamado no GLPI…"
+                  placeholder="Escreva um comentário para adicionar ao chamado…"
                 />
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
                   <input
@@ -897,7 +897,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                     checked={comentarioPrivado}
                     onChange={(e) => setComentarioPrivado(e.target.checked)}
                   />
-                  Marcar como privado (se permitido no GLPI)
+                  Marcar como privado (se permitido no sistema)
                 </label>
                 <div className="flex gap-2">
                   <Button onClick={() => void enviarComentario()} disabled={comentarioSaving || !comentario.trim()}>
@@ -915,7 +915,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   value={tarefa}
                   onChange={(e) => setTarefa(e.target.value)}
                   rows={3}
-                  placeholder="Descreva uma tarefa (ITILTask) para adicionar ao chamado no GLPI…"
+                  placeholder="Descreva uma tarefa (ITILTask) para adicionar ao chamado…"
                 />
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
                   <input
@@ -924,7 +924,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                     checked={tarefaPrivada}
                     onChange={(e) => setTarefaPrivada(e.target.checked)}
                   />
-                  Marcar como privada (se permitido no GLPI)
+                  Marcar como privada (se permitido no sistema)
                 </label>
                 <Button onClick={() => void enviarTarefa()} disabled={tarefaSaving || !tarefa.trim()}>
                   {tarefaSaving ? "Enviando…" : "Criar tarefa"}
@@ -937,7 +937,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   value={solucao}
                   onChange={(e) => setSolucao(e.target.value)}
                   rows={3}
-                  placeholder="Descreva a solução (ITILSolution) para registrar no GLPI…"
+                  placeholder="Descreva a solução (ITILSolution) para registrar no chamado…"
                 />
                 <Button onClick={() => void enviarSolucao()} disabled={solucaoSaving || !solucao.trim()}>
                   {solucaoSaving ? "Enviando…" : "Registrar solução"}

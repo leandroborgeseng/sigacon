@@ -24,11 +24,11 @@ export default async function IntegracaoGlpiPage() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumb items={[{ label: "Integração GLPI" }]} />
+      <Breadcrumb items={[{ label: "Integrações" }]} />
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Kanban de chamados GLPI</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Kanban de chamados</h1>
         <p className="text-muted-foreground">
-          Sincronização manual com cache local, movimentação de status e edição de campos principais do ticket no GLPI.
+          Sincronização manual com cache local, movimentação de status e edição de campos principais do ticket no sistema de chamados.
         </p>
       </div>
       <GlpiKanbanClient contratos={contratos} />

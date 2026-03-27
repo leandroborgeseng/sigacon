@@ -54,13 +54,13 @@ const NAV: Record<string, NavItem> = {
   manual: { href: "/manual", label: "Manual do sistema", icon: BookMarked },
   configGlpi: {
     href: "/configuracao/glpi",
-    label: "Configuração GLPI",
+    label: "Configuração do sistema de chamados",
     icon: Settings,
     configuracaoGlpi: true,
   },
   kanbanGlpi: {
     href: "/integracao/glpi",
-    label: "GLPI Kanban",
+    label: "Integrações",
     icon: KanbanSquare,
     integracaoGlpi: true,
   },
@@ -76,7 +76,7 @@ const NAV: Record<string, NavItem> = {
 };
 
 const GROUP_DEF: { id: string; label: string; keys: (keyof typeof NAV)[] }[] = [
-  { id: "principal", label: "Visão geral", keys: ["dashboard"] },
+  { id: "principal", label: "Visão geral", keys: ["dashboard", "admin"] },
   {
     id: "contratos",
     label: "Contratos e entregas",
@@ -85,10 +85,10 @@ const GROUP_DEF: { id: string; label: string; keys: (keyof typeof NAV)[] }[] = [
   { id: "apoio", label: "Dados e apoio", keys: ["importacao", "manual"] },
   {
     id: "integracao",
-    label: "Integração e relatórios",
+    label: "Integrações e relatórios",
     keys: ["configGlpi", "kanbanGlpi", "relExec"],
   },
-  { id: "admin", label: "Administração", keys: ["admin", "usuarios", "perfis"] },
+  { id: "admin", label: "Administração", keys: ["usuarios", "perfis"] },
 ];
 
 function itemVisible(
