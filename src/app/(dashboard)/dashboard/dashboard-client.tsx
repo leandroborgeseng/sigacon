@@ -123,6 +123,13 @@ export function DashboardClient({
       contratoId: string;
       contratoNome: string;
       totalChamados: number;
+      porColuna: {
+        BACKLOG: number;
+        EM_ANDAMENTO: number;
+        AGUARDANDO: number;
+        RESOLVIDO: number;
+        FECHADO: number;
+      };
     }>;
     semInteracao: Array<{
       id: string;
@@ -567,13 +574,21 @@ export function DashboardClient({
           ) : (
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {glpiResumo.porContrato.map((g) => (
-                <div key={g.contratoId} className="rounded-md border p-3">
+                <Link
+                  key={g.contratoId}
+                  href={`/integracao/glpi?contratoId=${encodeURIComponent(g.contratoId)}`}
+                  className="rounded-md border p-3 block hover:bg-muted/40 transition-colors"
+                >
                   <p className="text-xs text-muted-foreground">Contrato</p>
                   <p className="text-sm font-medium">{g.contratoNome}</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Chamados abertos: <strong>{g.totalChamados}</strong>
                   </p>
-                </div>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Backlog {g.porColuna.BACKLOG} • Em andamento {g.porColuna.EM_ANDAMENTO} • Aguardando{" "}
+                    {g.porColuna.AGUARDANDO} • Resolvido {g.porColuna.RESOLVIDO} • Fechado {g.porColuna.FECHADO}
+                  </p>
+                </Link>
               ))}
             </div>
           )}

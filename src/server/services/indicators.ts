@@ -382,15 +382,42 @@ export async function getDashboardGlpiResumo(contratoId?: string) {
 
   const porContrato = await Promise.all(
     contratosComGrupos.map(async (c) => {
-      const totalChamados = await prisma.glpiChamado.count({
-        where: {
-          ...ondeAbertos,
-          grupoTecnicoIdGlpi: { in: c.grupos },
-        },
-      });
-      return { contratoId: c.id, contratoNome: c.nome, totalChamados };
+      const [totalChamados, porColuna] = await Promise.all([
+        prisma.glpiChamado.count({
+          where: {
+            ...ondeAbertos,
+            grupoTecnicoIdGlpi: { in: c.grupos },
+          },
+        }),
+        prisma.glpiChamado.groupBy({
+          by: ["colunaKanban"],
+          where: {
+            grupoTecnicoIdGlpi: { in: c.grupos },
+          },
+          _count: { colunaKanban: true },
+        }),
+      ]);
+
+      const colunas = {
+        BACKLOG: 0,
+        EM_ANDAMENTO: 0,
+        AGUARDANDO: 0,
+        RESOLVIDO: 0,
+        FECHADO: 0,
+      };
+      for (const row of porColuna) {
+        colunas[row.colunaKanban] = row._count.colunaKanban;
+      }
+
+      return {
+        contratoId: c.id,
+        contratoNome: c.nome,
+        totalChamados,
+        porColuna: colunas,
+      };
     })
   );
+  const porContratoOrdenado = porContrato.sort((a, b) => b.totalChamados - a.totalChamados);
 
   // Mapeia grupo técnico -> contrato (para rotular o ticket sem depender de `contratoId` no chamado).
   const gruposParaContratos = new Map<number, Array<{ contratoId: string; contratoNome: string }>>();
@@ -433,6 +460,6 @@ export async function getDashboardGlpiResumo(contratoId?: string) {
       };
     });
 
-  return { totalAbertos, porContrato, semInteracao };
+  return { totalAbertos, porContrato: porContratoOrdenado, semInteracao };
 }
 

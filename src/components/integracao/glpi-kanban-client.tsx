@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { GlpiKanbanColuna } from "@prisma/client";
 import { ORDEM_COLUNAS, GLPI_KANBAN_LABELS } from "@/lib/glpi-kanban-map";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,7 +100,9 @@ type TicketDetails = {
 };
 
 export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
-  const [contratoId, setContratoId] = useState<string>("");
+  const searchParams = useSearchParams();
+  const contratoInicial = searchParams.get("contratoId")?.trim() ?? "";
+  const [contratoId, setContratoId] = useState<string>(contratoInicial);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [cards, setCards] = useState<Chamado[]>([]);
