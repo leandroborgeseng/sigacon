@@ -474,11 +474,8 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 </SelectContent>
               </Select>
             </div>
-            <Button size="sm" variant="outline" onClick={carregar} disabled={loading} className="shrink-0">
-              Carregar
-            </Button>
             <Button size="sm" onClick={sincronizar} disabled={loading} className="shrink-0">
-              Sincronizar
+              Buscar no GLPI
             </Button>
             <Button
               type="button"
@@ -495,11 +492,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
             >
               {fullscreen ? "Sair tela cheia" : "Tela cheia"}
             </Button>
-            <span className="text-xs text-muted-foreground shrink-0">
-              <Link href="/configuracao/glpi" className="underline text-primary">
-                Configuração GLPI
-              </Link>
-            </span>
             {msg && <span className="text-xs text-muted-foreground shrink-0">{msg}</span>}
           </div>
         </CardContent>
