@@ -123,6 +123,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [solucao, setSolucao] = useState("");
   const [solucaoSaving, setSolucaoSaving] = useState(false);
   const [dropCol, setDropCol] = useState<GlpiKanbanColuna | null>(null);
+  const [draggingTicketId, setDraggingTicketId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [editTicketName, setEditTicketName] = useState("");
   const [editTicketContent, setEditTicketContent] = useState("");
@@ -455,13 +456,35 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   return (
     <div className={cn("space-y-4", fullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto")}>
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Filtros e sincronização GLPI</CardTitle>
+        <CardContent className="pt-4">
+          <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+            <span className="text-xs text-muted-foreground shrink-0">Contrato</span>
+            <div className="w-[280px] shrink-0">
+              <Select value={contratoId || "__todos__"} onValueChange={(v) => setContratoId(v === "__todos__" ? "" : v)}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__todos__">Todos</SelectItem>
+                  {contratos.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" variant="outline" onClick={carregar} disabled={loading} className="shrink-0">
+              Carregar
+            </Button>
+            <Button size="sm" onClick={sincronizar} disabled={loading} className="shrink-0">
+              Sincronizar
+            </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="shrink-0"
               onClick={async () => {
                 if (document.fullscreenElement) {
                   await document.exitFullscreen();
@@ -470,43 +493,15 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 }
               }}
             >
-              {fullscreen ? "Sair da tela inteira" : "Tela inteira"}
+              {fullscreen ? "Sair tela cheia" : "Tela cheia"}
             </Button>
+            <span className="text-xs text-muted-foreground shrink-0">
+              <Link href="/configuracao/glpi" className="underline text-primary">
+                Configuração GLPI
+              </Link>
+            </span>
+            {msg && <span className="text-xs text-muted-foreground shrink-0">{msg}</span>}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Filtro por contrato (grupos técnicos do cadastro).{" "}
-            <Link href="/configuracao/glpi" className="text-primary underline">
-              Configuração GLPI
-            </Link>
-            .
-          </p>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3 pt-0">
-          <div className="space-y-2 md:col-span-2">
-            <Label>Contrato (prioridade: grupos GLPI no cadastro)</Label>
-            <Select value={contratoId || "__todos__"} onValueChange={(v) => setContratoId(v === "__todos__" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__todos__">Todos</SelectItem>
-                {contratos.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="md:col-span-3 flex flex-wrap gap-2">
-            <Button variant="outline" onClick={carregar} disabled={loading}>
-              Carregar quadro
-            </Button>
-            <Button onClick={sincronizar} disabled={loading}>
-              Sincronizar com GLPI
-            </Button>
-          </div>
-          {msg && <p className="md:col-span-3 text-sm text-muted-foreground">{msg}</p>}
         </CardContent>
       </Card>
 
@@ -520,8 +515,8 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
             </CardHeader>
             <CardContent
               className={cn(
-                "space-y-2",
-                dropCol === col && "ring-2 ring-primary/30 rounded-md"
+                "space-y-2 transition-colors",
+                dropCol === col && "ring-2 ring-primary rounded-md bg-primary/5"
               )}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -533,20 +528,32 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 setDropCol(null);
                 const raw = e.dataTransfer.getData("text/glpiTicketId");
                 const id = raw ? parseInt(raw, 10) : NaN;
-                if (Number.isFinite(id)) void mover(id, col);
+                const atual = cards.find((x) => x.glpiTicketId === id)?.colunaKanban;
+                if (Number.isFinite(id) && atual && atual !== col) void mover(id, col);
               }}
             >
+              {dropCol === col && (
+                <div className="rounded border border-dashed border-primary px-2 py-1 text-[11px] text-primary">
+                  Solte aqui para mover
+                </div>
+              )}
               {(porColuna.get(col) ?? []).map((c) => (
                 <div
                   key={c.id}
                   className={cn(
-                    "rounded border p-2 space-y-2",
+                    "rounded border p-2 space-y-2 cursor-grab active:cursor-grabbing transition-opacity",
+                    draggingTicketId === c.glpiTicketId && "opacity-50",
                     cardClasses(c.colunaKanban)
                   )}
                   draggable
                   onDragStart={(e) => {
+                    setDraggingTicketId(c.glpiTicketId);
                     e.dataTransfer.setData("text/glpiTicketId", String(c.glpiTicketId));
                     e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => {
+                    setDraggingTicketId(null);
+                    setDropCol(null);
                   }}
                 >
                   <p className="text-sm font-medium">#{c.glpiTicketId} - {c.titulo}</p>
