@@ -189,8 +189,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [cards, setCards] = useState<Chamado[]>([]);
-  const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [savingId, setSavingId] = useState<number | null>(null);
   const [grupos, setGrupos] = useState<Option[]>([]);
   const [categorias, setCategorias] = useState<Option[]>([]);
   const [usuarios, setUsuarios] = useState<Option[]>([]);
@@ -210,19 +208,12 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [editTicketName, setEditTicketName] = useState("");
   const [editTicketContent, setEditTicketContent] = useState("");
+  const [editPrioridade, setEditPrioridade] = useState("");
+  const [editUrgencia, setEditUrgencia] = useState("");
+  const [editCategoriaId, setEditCategoriaId] = useState("");
+  const [editGrupoId, setEditGrupoId] = useState("");
+  const [editTecnicoId, setEditTecnicoId] = useState("");
   const [editTicketSaving, setEditTicketSaving] = useState(false);
-  const [edits, setEdits] = useState<
-    Record<
-      number,
-      {
-        prioridade: string;
-        urgencia: string;
-        categoriaIdGlpi: string;
-        grupoTecnicoIdGlpi: string;
-        tecnicoResponsavelIdGlpi: string;
-      }
-    >
-  >({});
 
   async function carregar() {
     setLoading(true);
@@ -281,59 +272,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       const j = await r.json().catch(() => ({}));
       setCards(antes);
       setMsg(j.message ?? "Falha ao mover chamado");
-    }
-  }
-
-  function valorInicialParaEdicao(c: Chamado) {
-    return {
-      prioridade: c.prioridade == null ? "" : String(c.prioridade),
-      urgencia: c.urgencia == null ? "" : String(c.urgencia),
-      categoriaIdGlpi: c.categoriaIdGlpi == null ? "" : String(c.categoriaIdGlpi),
-      grupoTecnicoIdGlpi: c.grupoTecnicoIdGlpi == null ? "" : String(c.grupoTecnicoIdGlpi),
-      tecnicoResponsavelIdGlpi:
-        c.tecnicoResponsavelIdGlpi == null ? "" : String(c.tecnicoResponsavelIdGlpi),
-    };
-  }
-
-  function abrirEdicao(c: Chamado) {
-    setEditandoId(c.glpiTicketId);
-    setEdits((prev) => ({ ...prev, [c.glpiTicketId]: valorInicialParaEdicao(c) }));
-  }
-
-  async function salvarEdicao(c: Chamado) {
-    const e = edits[c.glpiTicketId] ?? valorInicialParaEdicao(c);
-    const body: Record<string, unknown> = { glpiTicketId: c.glpiTicketId };
-    const parseNum = (v: string) => (v.trim() ? Number.parseInt(v.trim(), 10) : undefined);
-    const prioridade = parseNum(e.prioridade);
-    const urgencia = parseNum(e.urgencia);
-    const categoriaIdGlpi = parseNum(e.categoriaIdGlpi);
-    const grupoTecnicoIdGlpi = parseNum(e.grupoTecnicoIdGlpi);
-    const tecnicoResponsavelIdGlpi = parseNum(e.tecnicoResponsavelIdGlpi);
-    if (typeof prioridade === "number" && Number.isFinite(prioridade)) body.prioridade = prioridade;
-    if (typeof urgencia === "number" && Number.isFinite(urgencia)) body.urgencia = urgencia;
-    if (typeof categoriaIdGlpi === "number" && Number.isFinite(categoriaIdGlpi)) body.categoriaIdGlpi = categoriaIdGlpi;
-    if (typeof grupoTecnicoIdGlpi === "number" && Number.isFinite(grupoTecnicoIdGlpi)) body.grupoTecnicoIdGlpi = grupoTecnicoIdGlpi;
-    if (typeof tecnicoResponsavelIdGlpi === "number" && Number.isFinite(tecnicoResponsavelIdGlpi)) {
-      body.tecnicoResponsavelIdGlpi = tecnicoResponsavelIdGlpi;
-    }
-    setSavingId(c.glpiTicketId);
-    setMsg("");
-    try {
-      const r = await fetch("/api/integracao/glpi/chamados", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const j = (await r.json().catch(() => ({}))) as Chamado & { message?: string };
-      if (!r.ok) {
-        setMsg(j.message ?? "Falha ao atualizar chamado no sistema de chamados");
-        return;
-      }
-      setCards((prev) => prev.map((x) => (x.glpiTicketId === c.glpiTicketId ? { ...x, ...j } : x)));
-      setEditandoId(null);
-      setMsg(`Chamado #${c.glpiTicketId} atualizado no sistema de chamados.`);
-    } finally {
-      setSavingId(null);
     }
   }
 
@@ -433,6 +371,42 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       });
       setEditTicketName(typeof j.ticket?.name === "string" ? j.ticket.name : "");
       setEditTicketContent(typeof j.ticket?.content === "string" ? String(j.ticket.content) : "");
+      const card = cards.find((x) => x.glpiTicketId === ticketId);
+      setEditPrioridade(
+        card?.prioridade != null
+          ? String(card.prioridade)
+          : typeof j.ticket?.priority === "number"
+            ? String(j.ticket.priority)
+            : ""
+      );
+      setEditUrgencia(
+        card?.urgencia != null
+          ? String(card.urgencia)
+          : typeof j.ticket?.urgency === "number"
+            ? String(j.ticket.urgency)
+            : ""
+      );
+      setEditCategoriaId(
+        card?.categoriaIdGlpi != null
+          ? String(card.categoriaIdGlpi)
+          : typeof j.ticket?.itilcategories_id === "number"
+            ? String(j.ticket.itilcategories_id)
+            : ""
+      );
+      setEditGrupoId(
+        card?.grupoTecnicoIdGlpi != null
+          ? String(card.grupoTecnicoIdGlpi)
+          : typeof j.ticket?.groups_id_assign === "number"
+            ? String(j.ticket.groups_id_assign)
+            : ""
+      );
+      setEditTecnicoId(
+        card?.tecnicoResponsavelIdGlpi != null
+          ? String(card.tecnicoResponsavelIdGlpi)
+          : typeof j.ticket?.users_id_assign === "number"
+            ? String(j.ticket.users_id_assign)
+            : ""
+      );
     } finally {
       setDetalhesLoading(false);
     }
@@ -512,10 +486,24 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     setEditTicketSaving(true);
     setMsg("");
     try {
+      const parseNum = (v: string) => {
+        const t = v.trim();
+        if (!t) return undefined;
+        const n = Number.parseInt(t, 10);
+        return Number.isFinite(n) ? n : undefined;
+      };
       const r = await fetch(`/api/integracao/glpi/chamados/${detalhesId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editTicketName, content: editTicketContent }),
+        body: JSON.stringify({
+          name: editTicketName,
+          content: editTicketContent,
+          ...(parseNum(editPrioridade) != null ? { priority: parseNum(editPrioridade) } : {}),
+          ...(parseNum(editUrgencia) != null ? { urgency: parseNum(editUrgencia) } : {}),
+          ...(parseNum(editCategoriaId) != null ? { itilcategories_id: parseNum(editCategoriaId) } : {}),
+          ...(parseNum(editGrupoId) != null ? { groups_id_assign: parseNum(editGrupoId) } : {}),
+          ...(parseNum(editTecnicoId) != null ? { users_id_assign: parseNum(editTecnicoId) } : {}),
+        }),
       });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!r.ok || j.ok === false) {
@@ -669,6 +657,15 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   }}
                 >
                   <p className="text-sm font-medium">#{c.glpiTicketId} - {c.titulo}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.statusLabel ?? `Status ${c.statusGlpi}`} | prio {c.prioridade ?? "-"} | urg {c.urgencia ?? "-"}
+                  </p>
+                  {(c.grupoTecnicoNome || c.tecnicoResponsavelNome) && (
+                    <p className="text-xs text-muted-foreground">
+                      {c.grupoTecnicoNome ? `Grupo: ${c.grupoTecnicoNome}. ` : ""}
+                      {c.tecnicoResponsavelNome ? `Técnico: ${c.tecnicoResponsavelNome}.` : ""}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Mover para:</span>
                     <Select
@@ -687,139 +684,16 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                       </SelectContent>
                     </Select>
                   </div>
-                  {editandoId === c.glpiTicketId ? (
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <Input
-                        type="number"
-                        placeholder="Prioridade"
-                        value={edits[c.glpiTicketId]?.prioridade ?? ""}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.glpiTicketId]: { ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)), prioridade: e.target.value },
-                          }))
-                        }
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Urgência"
-                        value={edits[c.glpiTicketId]?.urgencia ?? ""}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.glpiTicketId]: { ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)), urgencia: e.target.value },
-                          }))
-                        }
-                        className="h-8 text-xs"
-                      />
-                      <Select
-                        value={edits[c.glpiTicketId]?.categoriaIdGlpi ?? ""}
-                        onValueChange={(v) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.glpiTicketId]: {
-                              ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
-                              categoriaIdGlpi: v === "__none__" ? "" : v,
-                            },
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Categoria" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Sem categoria</SelectItem>
-                          {categorias.map((o) => (
-                            <SelectItem key={o.id} value={String(o.id)}>
-                              {o.name} (#{o.id})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={edits[c.glpiTicketId]?.grupoTecnicoIdGlpi ?? ""}
-                        onValueChange={(v) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.glpiTicketId]: {
-                              ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
-                              grupoTecnicoIdGlpi: v === "__none__" ? "" : v,
-                            },
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Grupo técnico" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Sem grupo</SelectItem>
-                          {grupos.map((o) => (
-                            <SelectItem key={o.id} value={String(o.id)}>
-                              {o.name} (#{o.id})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={edits[c.glpiTicketId]?.tecnicoResponsavelIdGlpi ?? ""}
-                        onValueChange={(v) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.glpiTicketId]: {
-                              ...(prev[c.glpiTicketId] ?? valorInicialParaEdicao(c)),
-                              tecnicoResponsavelIdGlpi: v === "__none__" ? "" : v,
-                            },
-                          }))
-                        }
-                      >
-                        <SelectTrigger className="h-8 text-xs col-span-2">
-                          <SelectValue placeholder="Técnico responsável" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Sem técnico</SelectItem>
-                          {usuarios.map((o) => (
-                            <SelectItem key={o.id} value={String(o.id)}>
-                              {o.name} (#{o.id})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="col-span-2 flex gap-2">
-                        <Button
-                          size="sm"
-                          className="h-8"
-                          disabled={savingId === c.glpiTicketId}
-                          onClick={() => void salvarEdicao(c)}
-                        >
-                          {savingId === c.glpiTicketId ? "Salvando..." : "Salvar no sistema"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="h-8"
-                          disabled={savingId === c.glpiTicketId}
-                          onClick={() => setEditandoId(null)}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" className="h-8" onClick={() => abrirEdicao(c)}>
-                        Editar dados do chamado
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-8"
-                        onClick={() => void abrirDetalhes(c.glpiTicketId)}
-                      >
-                        Detalhes &amp; comentários
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-8"
+                      onClick={() => void abrirDetalhes(c.glpiTicketId)}
+                    >
+                      Detalhes &amp; comentários
+                    </Button>
+                  </div>
                 </div>
               ))}
             </CardContent>
@@ -996,6 +870,64 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 <summary className="cursor-pointer text-sm font-medium">Editar ticket (campos principais)</summary>
                 <div className="mt-3 space-y-2">
                   <Input value={editTicketName} onChange={(e) => setEditTicketName(e.target.value)} placeholder="Título" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Prioridade"
+                      value={editPrioridade}
+                      onChange={(e) => setEditPrioridade(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Urgência"
+                      value={editUrgencia}
+                      onChange={(e) => setEditUrgencia(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <Select value={editCategoriaId || "__none__"} onValueChange={(v) => setEditCategoriaId(v === "__none__" ? "" : v)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Sem categoria</SelectItem>
+                        {categorias.map((o) => (
+                          <SelectItem key={o.id} value={String(o.id)}>
+                            {o.name} (#{o.id})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={editGrupoId || "__none__"} onValueChange={(v) => setEditGrupoId(v === "__none__" ? "" : v)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Grupo técnico" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Sem grupo</SelectItem>
+                        {grupos.map((o) => (
+                          <SelectItem key={o.id} value={String(o.id)}>
+                            {o.name} (#{o.id})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={editTecnicoId || "__none__"}
+                      onValueChange={(v) => setEditTecnicoId(v === "__none__" ? "" : v)}
+                    >
+                      <SelectTrigger className="h-8 text-xs col-span-2">
+                        <SelectValue placeholder="Técnico responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Sem técnico</SelectItem>
+                        {usuarios.map((o) => (
+                          <SelectItem key={o.id} value={String(o.id)}>
+                            {o.name} (#{o.id})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <RichTextEditor
                     value={editTicketContent}
                     onChange={setEditTicketContent}
