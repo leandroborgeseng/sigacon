@@ -123,6 +123,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [solucao, setSolucao] = useState("");
   const [solucaoSaving, setSolucaoSaving] = useState(false);
   const [dropCol, setDropCol] = useState<GlpiKanbanColuna | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const [editTicketName, setEditTicketName] = useState("");
   const [editTicketContent, setEditTicketContent] = useState("");
   const [editTicketSaving, setEditTicketSaving] = useState(false);
@@ -254,6 +255,14 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
 
   useEffect(() => {
     void carregar();
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
 
   useEffect(() => {
@@ -444,21 +453,35 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   }, [cards]);
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", fullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto")}>
       <Card>
-        <CardHeader>
-          <CardTitle>Filtros e sincronização GLPI</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Com <strong>contrato</strong> selecionado, a sincronização usa os{" "}
-            <strong>grupos técnicos</strong> vinculados ao contrato (cadastro do contrato), trazendo somente chamados
-            desses grupos. Sem contrato, a sincronização roda de forma ampla para bootstrap do Kanban. Credenciais em{" "}
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Filtros e sincronização GLPI</CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (document.fullscreenElement) {
+                  await document.exitFullscreen();
+                } else {
+                  await document.documentElement.requestFullscreen();
+                }
+              }}
+            >
+              {fullscreen ? "Sair da tela inteira" : "Tela inteira"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Filtro por contrato (grupos técnicos do cadastro).{" "}
             <Link href="/configuracao/glpi" className="text-primary underline">
               Configuração GLPI
             </Link>
             .
           </p>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
+        <CardContent className="grid gap-3 md:grid-cols-3 pt-0">
           <div className="space-y-2 md:col-span-2">
             <Label>Contrato (prioridade: grupos GLPI no cadastro)</Label>
             <Select value={contratoId || "__todos__"} onValueChange={(v) => setContratoId(v === "__todos__" ? "" : v)}>
