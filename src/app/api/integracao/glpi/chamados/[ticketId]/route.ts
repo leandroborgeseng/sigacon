@@ -44,12 +44,69 @@ export async function GET(_: Request, ctx: { params: Promise<{ ticketId: string 
   }
 
   try {
+    const cacheLocal = await prisma.glpiChamado.findUnique({
+      where: { glpiTicketId: idNum },
+      select: {
+        glpiTicketId: true,
+        titulo: true,
+        conteudoPreview: true,
+        statusGlpi: true,
+        prioridade: true,
+        urgencia: true,
+        categoriaIdGlpi: true,
+        categoriaNome: true,
+        grupoTecnicoIdGlpi: true,
+        grupoTecnicoNome: true,
+        tecnicoResponsavelIdGlpi: true,
+        tecnicoResponsavelNome: true,
+        dataAbertura: true,
+        dataModificacao: true,
+      },
+    });
+
     const data = await glpiWithSession(async (s) => {
-      const ticket = await glpiGetTicket(s, idNum);
-      const followups = await glpiListTicketFollowups(s, idNum);
-      const tasks = await glpiListTicketTasks(s, idNum);
-      const solutions = await glpiListTicketSolutions(s, idNum);
-      const documents = await glpiListTicketDocuments(s, idNum);
+      const avisos: string[] = [];
+
+      const ticket = await glpiGetTicket(s, idNum).catch(() => {
+        if (!cacheLocal) return null;
+        avisos.push("Ticket carregado do cache local (consulta direta indisponível).");
+        return {
+          id: cacheLocal.glpiTicketId,
+          name: cacheLocal.titulo,
+          content: cacheLocal.conteudoPreview,
+          status: cacheLocal.statusGlpi,
+          priority: cacheLocal.prioridade,
+          urgency: cacheLocal.urgencia,
+          itilcategories_id: cacheLocal.categoriaIdGlpi,
+          _itilcategories_id: cacheLocal.categoriaNome,
+          groups_id_assign: cacheLocal.grupoTecnicoIdGlpi,
+          _groups_id_assign: cacheLocal.grupoTecnicoNome,
+          users_id_assign: cacheLocal.tecnicoResponsavelIdGlpi,
+          _users_id_assign: cacheLocal.tecnicoResponsavelNome,
+          date: cacheLocal.dataAbertura?.toISOString(),
+          date_mod: cacheLocal.dataModificacao?.toISOString(),
+        };
+      });
+      if (!ticket) {
+        throw new Error("Não foi possível carregar o ticket no sistema de chamados.");
+      }
+
+      const [followupsR, tasksR, solutionsR, documentsR] = await Promise.allSettled([
+        glpiListTicketFollowups(s, idNum),
+        glpiListTicketTasks(s, idNum),
+        glpiListTicketSolutions(s, idNum),
+        glpiListTicketDocuments(s, idNum),
+      ]);
+      const followups = followupsR.status === "fulfilled" ? followupsR.value : [];
+      const tasks = tasksR.status === "fulfilled" ? tasksR.value : [];
+      const solutions = solutionsR.status === "fulfilled" ? solutionsR.value : [];
+      const documents = documentsR.status === "fulfilled" ? documentsR.value : [];
+
+      if (followupsR.status === "rejected") avisos.push("Não foi possível carregar comentários.");
+      if (tasksR.status === "rejected") avisos.push("Não foi possível carregar tarefas.");
+      if (solutionsR.status === "rejected") avisos.push("Não foi possível carregar soluções.");
+      if (documentsR.status === "rejected") avisos.push("Não foi possível carregar documentos.");
+
       const raw = asPlainObject(ticket);
       const properties = Object.keys(raw)
         .sort((a, b) => a.localeCompare(b, "pt-BR"))
@@ -65,7 +122,16 @@ export async function GET(_: Request, ctx: { params: Promise<{ ticketId: string 
                   : JSON.stringify(v);
           return { key: prettyKey(k), rawKey: k, value };
         });
-      return { ticket, ticketRaw: raw, ticketProperties: properties, followups, tasks, solutions, documents };
+      return {
+        ticket,
+        ticketRaw: raw,
+        ticketProperties: properties,
+        followups,
+        tasks,
+        solutions,
+        documents,
+        avisos,
+      };
     });
     return NextResponse.json({ ok: true, ...data });
   } catch (e) {

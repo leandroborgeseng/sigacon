@@ -60,7 +60,7 @@ const NAV: Record<string, NavItem> = {
   },
   kanbanGlpi: {
     href: "/integracao/glpi",
-    label: "Integrações",
+    label: "Kanban",
     icon: KanbanSquare,
     integracaoGlpi: true,
   },

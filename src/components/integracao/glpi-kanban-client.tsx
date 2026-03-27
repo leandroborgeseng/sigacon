@@ -55,6 +55,7 @@ type Chamado = {
 type Contrato = { id: string; nome: string; fornecedor: string };
 type Option = { id: number; name: string };
 type TicketDetails = {
+  avisos?: string[];
   ticket: {
     id?: number;
     name?: string;
@@ -297,12 +298,13 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     setSolucao("");
     try {
       const r = await fetch(`/api/integracao/glpi/chamados/${ticketId}`, { cache: "no-store" });
-      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string } & Partial<TicketDetails>;
+      const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; avisos?: string[] } & Partial<TicketDetails>;
       if (!r.ok || j.ok === false) {
         setMsg(j.message ?? "Erro ao carregar detalhes do ticket.");
         return;
       }
       setDetalhes({
+        avisos: Array.isArray(j.avisos) ? j.avisos : [],
         ticket: j.ticket ?? {},
         followups: Array.isArray(j.followups) ? j.followups : [],
         tasks: Array.isArray(j.tasks) ? j.tasks : [],
@@ -745,6 +747,18 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
           {detalhesLoading && <p className="text-sm text-muted-foreground">Carregando detalhes…</p>}
           {!detalhesLoading && detalhes && (
             <div className="space-y-4">
+              {detalhes.avisos && detalhes.avisos.length > 0 && (
+                <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 p-3">
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-200">Avisos de carregamento</p>
+                  <ul className="mt-1 space-y-1">
+                    {detalhes.avisos.map((a, i) => (
+                      <li key={`${a}-${i}`} className="text-xs text-amber-700 dark:text-amber-300">
+                        - {a}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="rounded-md border p-3 space-y-1">
                 <p className="text-sm font-medium">{detalhes.ticket.name ?? "(sem título)"}</p>
                 <p className="text-xs text-muted-foreground">
