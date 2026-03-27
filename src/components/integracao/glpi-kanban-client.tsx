@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { GlpiKanbanColuna } from "@prisma/client";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -99,6 +98,89 @@ type TicketDetails = {
   ticketRaw?: Record<string, unknown>;
   ticketProperties?: Array<{ key: string; rawKey: string; value: string }>;
 };
+
+function sanitizeHtml(input: string): string {
+  if (!input) return "";
+  let html = input;
+  html = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "");
+  html = html.replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "");
+  html = html.replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, "");
+  html = html.replace(/\son\w+="[^"]*"/gi, "");
+  html = html.replace(/\son\w+='[^']*'/gi, "");
+  html = html.replace(/javascript:/gi, "");
+  return html;
+}
+
+function RichTextEditor({
+  value,
+  onChange,
+  placeholder,
+  minHeight = 120,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  minHeight?: number;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!ref.current || focused.current) return;
+    const next = value || "";
+    if (ref.current.innerHTML !== next) ref.current.innerHTML = next;
+  }, [value]);
+
+  function cmd(command: string, arg?: string) {
+    document.execCommand(command, false, arg);
+    if (ref.current) onChange(ref.current.innerHTML);
+  }
+
+  return (
+    <div className="rounded-md border">
+      <div className="flex flex-wrap gap-1 border-b p-2">
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => cmd("bold")}>
+          B
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 italic" onClick={() => cmd("italic")}>
+          I
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2 underline" onClick={() => cmd("underline")}>
+          U
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => cmd("insertUnorderedList")}>
+          Lista
+        </Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 px-2" onClick={() => cmd("insertOrderedList")}>
+          1.
+        </Button>
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        className="p-3 text-sm outline-none"
+        style={{ minHeight }}
+        data-placeholder={placeholder ?? ""}
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onBlur={() => {
+          focused.current = false;
+          if (ref.current) onChange(ref.current.innerHTML);
+        }}
+        onInput={(e) => onChange((e.currentTarget as HTMLDivElement).innerHTML)}
+      />
+      <style jsx>{`
+        [contenteditable][data-placeholder]:empty:before {
+          content: attr(data-placeholder);
+          color: hsl(var(--muted-foreground));
+          pointer-events: none;
+        }
+      `}</style>
+    </div>
+  );
+}
 
 export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const searchParams = useSearchParams();
@@ -282,10 +364,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       .then((j) => setUsuarios(Array.isArray(j.usuarios) ? j.usuarios : []))
       .catch(() => {});
   }, []);
-
-  function stripHtml(s: string): string {
-    return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  }
 
   function ticketField(details: TicketDetails, ...keys: string[]): string | null {
     const raw = details.ticketRaw ?? {};
@@ -757,7 +835,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       </div>
 
       <Dialog open={detalhesId != null} onOpenChange={(open) => (!open ? setDetalhesId(null) : null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Chamado #{detalhesId ?? ""}</DialogTitle>
             <DialogDescription>
@@ -787,9 +865,10 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   {detalhes.ticket._users_id_assign ? `Técnico: ${detalhes.ticket._users_id_assign}.` : ""}
                 </p>
                 {detalhes.ticket.content && (
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {stripHtml(String(detalhes.ticket.content))}
-                  </p>
+                  <div
+                    className="text-sm text-muted-foreground prose prose-sm max-w-none dark:prose-invert"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(String(detalhes.ticket.content)) }}
+                  />
                 )}
               </div>
 
@@ -833,11 +912,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               <div className="space-y-2">
                 <p className="text-sm font-medium">Editar ticket (campos principais)</p>
                 <Input value={editTicketName} onChange={(e) => setEditTicketName(e.target.value)} placeholder="Título" />
-                <Textarea
+                <RichTextEditor
                   value={editTicketContent}
-                  onChange={(e) => setEditTicketContent(e.target.value)}
-                  rows={4}
+                  onChange={setEditTicketContent}
                   placeholder="Descrição / conteúdo"
+                  minHeight={140}
                 />
                 <Button onClick={() => void salvarTicketBasico()} disabled={editTicketSaving}>
                   {editTicketSaving ? "Salvando…" : "Salvar ticket"}
@@ -862,7 +941,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         date: f.date ?? "",
                         title: "Comentário",
                         meta: `${f._users_id ?? ""}${f.is_private ? " • privado" : ""}`.trim() || undefined,
-                        content: stripHtml(String(f.content ?? "")),
+                        content: String(f.content ?? ""),
                       });
                     }
                     for (const t of detalhes.tasks) {
@@ -873,7 +952,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         meta: `${t._users_id ?? ""}${t.is_private ? " • privada" : ""}${
                           t.state != null ? ` • estado ${t.state}` : ""
                         }`.trim() || undefined,
-                        content: stripHtml(String(t.content ?? "")),
+                        content: String(t.content ?? ""),
                       });
                     }
                     for (const s of detalhes.solutions) {
@@ -882,7 +961,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         date: s.date_creation ?? "",
                         title: "Solução",
                         meta: `${s._users_id ?? ""}${s.status != null ? ` • status ${s.status}` : ""}`.trim() || undefined,
-                        content: stripHtml(String(s.content ?? "")),
+                        content: String(s.content ?? ""),
                       });
                     }
                     for (const d of detalhes.documents) {
@@ -919,7 +998,12 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                             </>
                           ) : null}
                         </p>
-                        {it.content ? <p className="text-sm whitespace-pre-wrap">{it.content}</p> : null}
+                        {it.content ? (
+                          <div
+                            className="text-sm prose prose-sm max-w-none dark:prose-invert"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(it.content) }}
+                          />
+                        ) : null}
                       </div>
                     ));
                   })()}
@@ -928,11 +1012,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">Novo comentário</p>
-                <Textarea
+                <RichTextEditor
                   value={comentario}
-                  onChange={(e) => setComentario(e.target.value)}
-                  rows={4}
+                  onChange={setComentario}
                   placeholder="Escreva um comentário para adicionar ao chamado…"
+                  minHeight={130}
                 />
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
                   <input
@@ -955,11 +1039,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">Nova tarefa</p>
-                <Textarea
+                <RichTextEditor
                   value={tarefa}
-                  onChange={(e) => setTarefa(e.target.value)}
-                  rows={3}
+                  onChange={setTarefa}
                   placeholder="Descreva uma tarefa (ITILTask) para adicionar ao chamado…"
+                  minHeight={120}
                 />
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
                   <input
@@ -977,11 +1061,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">Nova solução</p>
-                <Textarea
+                <RichTextEditor
                   value={solucao}
-                  onChange={(e) => setSolucao(e.target.value)}
-                  rows={3}
+                  onChange={setSolucao}
                   placeholder="Descreva a solução (ITILSolution) para registrar no chamado…"
+                  minHeight={120}
                 />
                 <Button onClick={() => void enviarSolucao()} disabled={solucaoSaving || !solucao.trim()}>
                   {solucaoSaving ? "Enviando…" : "Registrar solução"}
