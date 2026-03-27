@@ -385,6 +385,26 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     return new Date(t).toLocaleString("pt-BR");
   }
 
+  function actorLabel(v: unknown): string | null {
+    if (!v || typeof v !== "object") return null;
+    const o = v as Record<string, unknown>;
+    const nome =
+      (typeof o._users_id === "string" && o._users_id.trim()) ||
+      (typeof o._users_id_editor === "string" && o._users_id_editor.trim()) ||
+      (typeof o._users_id_recipient === "string" && o._users_id_recipient.trim()) ||
+      "";
+    if (nome) return nome;
+    const id =
+      (typeof o.users_id === "number" || typeof o.users_id === "string" ? String(o.users_id) : "") ||
+      (typeof o.users_id_editor === "number" || typeof o.users_id_editor === "string"
+        ? String(o.users_id_editor)
+        : "") ||
+      (typeof o.users_id_recipient === "number" || typeof o.users_id_recipient === "string"
+        ? String(o.users_id_recipient)
+        : "");
+    return id ? `Usuário #${id}` : null;
+  }
+
   async function abrirDetalhes(ticketId: number) {
     setDetalhesId(ticketId);
     setDetalhesLoading(true);
@@ -649,33 +669,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   }}
                 >
                   <p className="text-sm font-medium">#{c.glpiTicketId} - {c.titulo}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {c.statusLabel ?? `Status ${c.statusGlpi}`} | prio {c.prioridade ?? "-"} | urg {c.urgencia ?? "-"}
-                  </p>
-                  {c.contrato?.nome && (
-                    <p className="text-xs text-muted-foreground">Contrato: {c.contrato.nome}</p>
-                  )}
-                  {c.fornecedorNome && (
-                    <p className="text-xs text-muted-foreground">Fornecedor: {c.fornecedorNome}</p>
-                  )}
-                  {c.conteudoPreview && (
-                    <p className="text-xs text-muted-foreground">{c.conteudoPreview}</p>
-                  )}
-                  {(c.categoriaNome || c.grupoTecnicoNome || c.tecnicoResponsavelNome) && (
-                    <p className="text-xs text-muted-foreground">
-                      {c.categoriaNome ? `Categoria: ${c.categoriaNome}. ` : ""}
-                      {c.grupoTecnicoNome ? `Grupo: ${c.grupoTecnicoNome}. ` : ""}
-                      {c.tecnicoResponsavelNome ? `Técnico: ${c.tecnicoResponsavelNome}.` : ""}
-                    </p>
-                  )}
-                  {c.syncStatus && (
-                    <p className="text-xs text-muted-foreground">
-                      Sync: {c.syncStatus}
-                      {c.ultimoPullEm ? ` | pull: ${new Date(c.ultimoPullEm).toLocaleString("pt-BR")}` : ""}
-                      {c.ultimoPushEm ? ` | push: ${new Date(c.ultimoPushEm).toLocaleString("pt-BR")}` : ""}
-                    </p>
-                  )}
-                  {c.syncErro && <p className="text-xs text-destructive line-clamp-2">Último erro: {c.syncErro}</p>}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Mover para:</span>
                     <Select
@@ -922,31 +915,34 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                       link?: string;
                     }> = [];
                     for (const f of detalhes.followups) {
+                      const autor = actorLabel(f);
                       items.push({
                         kind: "comentario",
                         date: f.date ?? "",
                         title: "Comentário",
-                        meta: `${f._users_id ?? ""}${f.is_private ? " • privado" : ""}`.trim() || undefined,
+                        meta: `${autor ? `por ${autor}` : ""}${f.is_private ? `${autor ? " • " : ""}privado` : ""}`.trim() || undefined,
                         content: String(f.content ?? ""),
                       });
                     }
                     for (const t of detalhes.tasks) {
+                      const autor = actorLabel(t);
                       items.push({
                         kind: "tarefa",
                         date: t.date ?? "",
                         title: "Tarefa",
-                        meta: `${t._users_id ?? ""}${t.is_private ? " • privada" : ""}${
+                        meta: `${autor ? `por ${autor}` : ""}${t.is_private ? `${autor ? " • " : ""}privada` : ""}${
                           t.state != null ? ` • estado ${t.state}` : ""
                         }`.trim() || undefined,
                         content: String(t.content ?? ""),
                       });
                     }
                     for (const s of detalhes.solutions) {
+                      const autor = actorLabel(s);
                       items.push({
                         kind: "solucao",
                         date: s.date_creation ?? "",
                         title: "Solução",
-                        meta: `${s._users_id ?? ""}${s.status != null ? ` • status ${s.status}` : ""}`.trim() || undefined,
+                        meta: `${autor ? `por ${autor}` : ""}${s.status != null ? `${autor ? " • " : ""}status ${s.status}` : ""}`.trim() || undefined,
                         content: String(s.content ?? ""),
                       });
                     }
