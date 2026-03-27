@@ -205,8 +205,8 @@ function RichTextEditor({
 
 export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const searchParams = useSearchParams();
-  const contratoInicial = searchParams.get("contratoId")?.trim() ?? "";
-  const [contratoId, setContratoId] = useState<string>(contratoInicial);
+  const contratoIdFromUrl = searchParams.get("contratoId")?.trim() ?? "";
+  const [contratoId, setContratoId] = useState<string>(contratoIdFromUrl);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [cards, setCards] = useState<Chamado[]>([]);
