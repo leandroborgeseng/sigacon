@@ -910,22 +910,8 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-medium">Editar ticket (campos principais)</p>
-                <Input value={editTicketName} onChange={(e) => setEditTicketName(e.target.value)} placeholder="Título" />
-                <RichTextEditor
-                  value={editTicketContent}
-                  onChange={setEditTicketContent}
-                  placeholder="Descrição / conteúdo"
-                  minHeight={140}
-                />
-                <Button onClick={() => void salvarTicketBasico()} disabled={editTicketSaving}>
-                  {editTicketSaving ? "Salvando…" : "Salvar ticket"}
-                </Button>
-              </div>
-
-              <div className="space-y-2">
                 <p className="text-sm font-medium">Linha do tempo</p>
-                <div className="rounded-md border p-3 space-y-3 max-h-[360px] overflow-auto">
+                <div className="rounded-md border p-3 space-y-3 max-h-[440px] overflow-auto">
                   {(() => {
                     const items: Array<{
                       kind: "comentario" | "tarefa" | "solucao" | "documento";
@@ -1010,67 +996,89 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Novo comentário</p>
-                <RichTextEditor
-                  value={comentario}
-                  onChange={setComentario}
-                  placeholder="Escreva um comentário para adicionar ao chamado…"
-                  minHeight={130}
-                />
-                <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-input"
-                    checked={comentarioPrivado}
-                    onChange={(e) => setComentarioPrivado(e.target.checked)}
+              <details className="rounded-md border px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium">Editar ticket (campos principais)</summary>
+                <div className="mt-3 space-y-2">
+                  <Input value={editTicketName} onChange={(e) => setEditTicketName(e.target.value)} placeholder="Título" />
+                  <RichTextEditor
+                    value={editTicketContent}
+                    onChange={setEditTicketContent}
+                    placeholder="Descrição / conteúdo"
+                    minHeight={140}
                   />
-                  Marcar como privado (se permitido no sistema)
-                </label>
-                <div className="flex gap-2">
-                  <Button onClick={() => void enviarComentario()} disabled={comentarioSaving || !comentario.trim()}>
-                    {comentarioSaving ? "Enviando…" : "Enviar comentário"}
-                  </Button>
-                  <Button variant="secondary" onClick={() => detalhesId && abrirDetalhes(detalhesId)} disabled={detalhesLoading}>
-                    Recarregar
+                  <Button onClick={() => void salvarTicketBasico()} disabled={editTicketSaving}>
+                    {editTicketSaving ? "Salvando…" : "Salvar ticket"}
                   </Button>
                 </div>
-              </div>
+              </details>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Nova tarefa</p>
-                <RichTextEditor
-                  value={tarefa}
-                  onChange={setTarefa}
-                  placeholder="Descreva uma tarefa (ITILTask) para adicionar ao chamado…"
-                  minHeight={120}
-                />
-                <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-input"
-                    checked={tarefaPrivada}
-                    onChange={(e) => setTarefaPrivada(e.target.checked)}
+              <details className="rounded-md border px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium">Novo comentário</summary>
+                <div className="mt-3 space-y-2">
+                  <RichTextEditor
+                    value={comentario}
+                    onChange={setComentario}
+                    placeholder="Escreva um comentário para adicionar ao chamado…"
+                    minHeight={130}
                   />
-                  Marcar como privada (se permitido no sistema)
-                </label>
-                <Button onClick={() => void enviarTarefa()} disabled={tarefaSaving || !tarefa.trim()}>
-                  {tarefaSaving ? "Enviando…" : "Criar tarefa"}
-                </Button>
-              </div>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-input"
+                      checked={comentarioPrivado}
+                      onChange={(e) => setComentarioPrivado(e.target.checked)}
+                    />
+                    Marcar como privado (se permitido no sistema)
+                  </label>
+                  <div className="flex gap-2">
+                    <Button onClick={() => void enviarComentario()} disabled={comentarioSaving || !comentario.trim()}>
+                      {comentarioSaving ? "Enviando…" : "Enviar comentário"}
+                    </Button>
+                    <Button variant="secondary" onClick={() => detalhesId && abrirDetalhes(detalhesId)} disabled={detalhesLoading}>
+                      Recarregar
+                    </Button>
+                  </div>
+                </div>
+              </details>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Nova solução</p>
-                <RichTextEditor
-                  value={solucao}
-                  onChange={setSolucao}
-                  placeholder="Descreva a solução (ITILSolution) para registrar no chamado…"
-                  minHeight={120}
-                />
-                <Button onClick={() => void enviarSolucao()} disabled={solucaoSaving || !solucao.trim()}>
-                  {solucaoSaving ? "Enviando…" : "Registrar solução"}
-                </Button>
-              </div>
+              <details className="rounded-md border px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium">Nova tarefa</summary>
+                <div className="mt-3 space-y-2">
+                  <RichTextEditor
+                    value={tarefa}
+                    onChange={setTarefa}
+                    placeholder="Descreva uma tarefa (ITILTask) para adicionar ao chamado…"
+                    minHeight={120}
+                  />
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-input"
+                      checked={tarefaPrivada}
+                      onChange={(e) => setTarefaPrivada(e.target.checked)}
+                    />
+                    Marcar como privada (se permitido no sistema)
+                  </label>
+                  <Button onClick={() => void enviarTarefa()} disabled={tarefaSaving || !tarefa.trim()}>
+                    {tarefaSaving ? "Enviando…" : "Criar tarefa"}
+                  </Button>
+                </div>
+              </details>
+
+              <details className="rounded-md border px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium">Nova solução</summary>
+                <div className="mt-3 space-y-2">
+                  <RichTextEditor
+                    value={solucao}
+                    onChange={setSolucao}
+                    placeholder="Descreva a solução (ITILSolution) para registrar no chamado…"
+                    minHeight={120}
+                  />
+                  <Button onClick={() => void enviarSolucao()} disabled={solucaoSaving || !solucao.trim()}>
+                    {solucaoSaving ? "Enviando…" : "Registrar solução"}
+                  </Button>
+                </div>
+              </details>
             </div>
           )}
         </DialogContent>
