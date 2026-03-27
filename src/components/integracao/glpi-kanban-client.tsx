@@ -287,6 +287,26 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   }
 
+  function ticketField(details: TicketDetails, ...keys: string[]): string | null {
+    const raw = details.ticketRaw ?? {};
+    for (const key of keys) {
+      const fromTicket = (details.ticket as Record<string, unknown>)[key];
+      if (typeof fromTicket === "string" && fromTicket.trim()) return fromTicket.trim();
+      if (typeof fromTicket === "number" || typeof fromTicket === "boolean") return String(fromTicket);
+      const fromRaw = raw[key];
+      if (typeof fromRaw === "string" && fromRaw.trim()) return fromRaw.trim();
+      if (typeof fromRaw === "number" || typeof fromRaw === "boolean") return String(fromRaw);
+    }
+    return null;
+  }
+
+  function formatDateTime(v: string | null): string {
+    if (!v) return "-";
+    const t = Date.parse(v);
+    if (!Number.isFinite(t)) return v;
+    return new Date(t).toLocaleString("pt-BR");
+  }
+
   async function abrirDetalhes(ticketId: number) {
     setDetalhesId(ticketId);
     setDetalhesLoading(true);
@@ -773,6 +793,43 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 )}
               </div>
 
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-sm font-medium">Resumo do chamado</p>
+                  <div className="grid grid-cols-2 gap-y-1 text-xs">
+                    <span className="text-muted-foreground">Status</span>
+                    <span>{ticketField(detalhes, "status") ?? "-"}</span>
+                    <span className="text-muted-foreground">Prioridade</span>
+                    <span>{ticketField(detalhes, "priority", "prioridade") ?? "-"}</span>
+                    <span className="text-muted-foreground">Urgência</span>
+                    <span>{ticketField(detalhes, "urgency", "urgencia") ?? "-"}</span>
+                    <span className="text-muted-foreground">Categoria</span>
+                    <span>{ticketField(detalhes, "_itilcategories_id", "itilcategories_id", "categoria_nome") ?? "-"}</span>
+                    <span className="text-muted-foreground">Grupo técnico</span>
+                    <span>{ticketField(detalhes, "_groups_id_assign", "groups_id_assign", "grupo_tecnico_nome") ?? "-"}</span>
+                    <span className="text-muted-foreground">Técnico</span>
+                    <span>{ticketField(detalhes, "_users_id_assign", "users_id_assign", "tecnico_responsavel_nome") ?? "-"}</span>
+                  </div>
+                </div>
+                <div className="rounded-md border p-3 space-y-2">
+                  <p className="text-sm font-medium">Rastreabilidade</p>
+                  <div className="grid grid-cols-2 gap-y-1 text-xs">
+                    <span className="text-muted-foreground">ID do ticket</span>
+                    <span>{ticketField(detalhes, "id") ?? "-"}</span>
+                    <span className="text-muted-foreground">Abertura</span>
+                    <span>{formatDateTime(ticketField(detalhes, "date", "data_abertura"))}</span>
+                    <span className="text-muted-foreground">Última atualização</span>
+                    <span>{formatDateTime(ticketField(detalhes, "date_mod", "data_modificacao"))}</span>
+                    <span className="text-muted-foreground">Entidade</span>
+                    <span>{ticketField(detalhes, "entities_id", "_entities_id") ?? "-"}</span>
+                    <span className="text-muted-foreground">Solicitante</span>
+                    <span>{ticketField(detalhes, "_users_id_requester", "users_id_recipient") ?? "-"}</span>
+                    <span className="text-muted-foreground">Origem</span>
+                    <span>{ticketField(detalhes, "requesttypes_id", "_requesttypes_id") ?? "-"}</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <p className="text-sm font-medium">Editar ticket (campos principais)</p>
                 <Input value={editTicketName} onChange={(e) => setEditTicketName(e.target.value)} placeholder="Título" />
@@ -786,33 +843,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   {editTicketSaving ? "Salvando…" : "Salvar ticket"}
                 </Button>
               </div>
-
-              {detalhes.ticketProperties && detalhes.ticketProperties.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Propriedades do chamado</p>
-                  <div className="rounded-md border overflow-auto max-h-[260px]">
-                    <table className="w-full text-xs">
-                      <tbody>
-                        {detalhes.ticketProperties.map((p) => (
-                          <tr key={p.rawKey} className="border-b last:border-b-0">
-                            <td className="p-2 font-medium w-56 align-top">{p.key}</td>
-                            <td className="p-2 text-muted-foreground align-top break-all">{p.value}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {detalhes.ticketRaw && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">JSON bruto</p>
-                  <pre className="rounded-md border p-3 text-xs overflow-auto max-h-[260px]">
-                    {JSON.stringify(detalhes.ticketRaw, null, 2)}
-                  </pre>
-                </div>
-              )}
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">Linha do tempo</p>
