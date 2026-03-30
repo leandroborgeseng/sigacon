@@ -50,6 +50,25 @@ enum TipoContrato {
   DATACENTER
 }
 
+/**
+ * Tipos de recurso previstos no contrato de datacenter (medição e rateio mensal).
+ * Alinhados às linhas típicas de edital (ex.: colocation, licença Windows, processador VPS, SQL, RAM, SSD, HD, fibra).
+ * LINK_METROPOLITANO mantido para compatibilidade; novos cadastros usam CONECTIVIDADE_FIBRA_OPTICA.
+ */
+enum TipoRecursoDatacenter {
+  COLOCATION_RACK_U
+  LICENCA_WINDOWS_SERVER_CORE
+  /** Locação de processamento para VPS (ex.: vCPU). */
+  LOCACAO_PROCESSADOR_VPS
+  /** Locação de processamento para VPS com licença SQL Server. */
+  VPS_VCPU_COM_SQL_SERVER
+  MEMORIA_RAM_GB
+  DISCO_SSD_RAPIDO_GB
+  DISCO_BACKUP_GB
+  CONECTIVIDADE_FIBRA_OPTICA
+  LINK_METROPOLITANO
+}
+
 enum FormaCalculoMedicao {
   PESO_IGUAL_POR_ITEM
 }
@@ -235,8 +254,9 @@ model Contrato {
   parcelasPagamento   ParcelaPagamento[]
   glpiChamados        GlpiChamado[]
   glpiGruposTecnicos  ContratoGlpiGrupoTecnico[]
-  datacenter          ContratoDatacenter?
-  linksMetropolitanos ContratoLinkMetropolitano[]
+  datacenter               ContratoDatacenter?
+  linksMetropolitanos      ContratoLinkMetropolitano[]
+  datacenterItensPrevistos ContratoDatacenterItemPrevisto[]
 
   @@map("contratos")
 }
@@ -279,6 +299,28 @@ model ContratoLinkMetropolitano {
 
   @@index([contratoId])
   @@map("contratos_links_metropolitanos")
+}
+
+/**
+ * Marca quais categorias de recurso entram no escopo de medição / valor mensal do datacenter.
+ * Quantidade e preço unitário mensal são opcionais até a operação de medição.
+ */
+model ContratoDatacenterItemPrevisto {
+  id                    String                @id @default(cuid())
+  contratoId            String                @map("contrato_id")
+  tipo                  TipoRecursoDatacenter
+  /** Quantidade contratada / referência para medição (preenchimento posterior). */
+  quantidadeContratada  Decimal?              @map("quantidade_contratada") @db.Decimal(18, 4)
+  /** R$ por unidade do recurso no mês (preenchimento posterior). */
+  valorUnitarioMensal   Decimal?              @map("valor_unitario_mensal") @db.Decimal(18, 4)
+  criadoEm              DateTime              @default(now()) @map("criado_em")
+  atualizadoEm          DateTime              @updatedAt @map("atualizado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, tipo])
+  @@index([contratoId])
+  @@map("contratos_datacenter_itens_previstos")
 }
 
 /** Configuração da API GLPI (persistida; fallback opcional via variáveis de ambiente). */

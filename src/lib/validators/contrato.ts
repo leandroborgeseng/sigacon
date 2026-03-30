@@ -4,6 +4,7 @@ import {
   FormaCalculoMedicao,
   LeiLicitacao,
   TipoContrato,
+  TipoRecursoDatacenter,
 } from "@prisma/client";
 
 /** Grupos técnicos GLPI vinculados ao contrato (filtro de chamados). */
@@ -53,6 +54,11 @@ export const contratoDatacenterBodySchema = z.object({
   discoBackupGb: z.coerce.number().min(0).optional().nullable(),
   rackU: z.coerce.number().min(0).optional().nullable(),
   observacoes: z.string().max(8000).optional().nullable(),
+  /** Tipos de linha de medição / faturamento previstos para este contrato. */
+  tiposRecursoPrevistos: z
+    .array(z.nativeEnum(TipoRecursoDatacenter))
+    .optional()
+    .default([]),
   links: z.array(contratoLinkMetropolitanoSchema).optional().default([]),
 });
 

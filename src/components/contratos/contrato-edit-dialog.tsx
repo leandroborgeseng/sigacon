@@ -31,7 +31,7 @@ import {
   payloadFromDatacenterForm,
   type DatacenterFormState,
 } from "@/components/contratos/contrato-datacenter-fields";
-import { StatusContrato, LeiLicitacao, TipoContrato } from "@prisma/client";
+import { StatusContrato, LeiLicitacao, TipoContrato, type TipoRecursoDatacenter } from "@prisma/client";
 import { Pencil } from "lucide-react";
 
 type ContratoParaEdicao = {
@@ -69,6 +69,7 @@ type ContratoParaEdicao = {
     velocidadeMbps: number | null;
     quantidade: number;
   }>;
+  datacenterItensPrevistos?: Array<{ tipo: TipoRecursoDatacenter }>;
 };
 
 export function ContratoEditDialog({
@@ -90,7 +91,11 @@ export function ContratoEditDialog({
     contrato.tipoContrato ?? TipoContrato.SOFTWARE
   );
   const [dcForm, setDcForm] = useState<DatacenterFormState>(() =>
-    hydrateDatacenterForm(contrato.datacenter ?? null, contrato.linksMetropolitanos ?? [])
+    hydrateDatacenterForm(
+      contrato.datacenter ?? null,
+      contrato.linksMetropolitanos ?? [],
+      contrato.datacenterItensPrevistos ?? []
+    )
   );
 
   useEffect(() => {
@@ -102,8 +107,22 @@ export function ContratoEditDialog({
       }))
     );
     setTipoContrato(contrato.tipoContrato ?? TipoContrato.SOFTWARE);
-    setDcForm(hydrateDatacenterForm(contrato.datacenter ?? null, contrato.linksMetropolitanos ?? []));
-  }, [open, contrato.id, contrato.glpiGruposTecnicos, contrato.tipoContrato, contrato.datacenter, contrato.linksMetropolitanos]);
+    setDcForm(
+      hydrateDatacenterForm(
+        contrato.datacenter ?? null,
+        contrato.linksMetropolitanos ?? [],
+        contrato.datacenterItensPrevistos ?? []
+      )
+    );
+  }, [
+    open,
+    contrato.id,
+    contrato.glpiGruposTecnicos,
+    contrato.tipoContrato,
+    contrato.datacenter,
+    contrato.linksMetropolitanos,
+    contrato.datacenterItensPrevistos,
+  ]);
 
   const form = useForm<Partial<ContratoInput>>({
     resolver: zodResolver(contratoSchema.partial()),

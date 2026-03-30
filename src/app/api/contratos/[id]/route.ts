@@ -31,6 +31,7 @@ export async function GET(
       reajustes: { orderBy: { dataReajuste: "desc" } },
       datacenter: true,
       linksMetropolitanos: { orderBy: { ordem: "asc" } },
+      datacenterItensPrevistos: { orderBy: { tipo: "asc" } },
     },
   });
   if (!contrato) return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
@@ -166,6 +167,7 @@ export async function PATCH(
         glpiGruposTecnicos: true,
         datacenter: true,
         linksMetropolitanos: { orderBy: { ordem: "asc" } },
+        datacenterItensPrevistos: { orderBy: { tipo: "asc" } },
       },
     });
     return NextResponse.json(comGlpi ?? contrato);

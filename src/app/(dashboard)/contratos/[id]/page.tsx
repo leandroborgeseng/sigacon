@@ -19,6 +19,11 @@ import {
 import { canRecurso } from "@/lib/permissions";
 import { PerfilUsuario, RecursoPermissao, TipoContrato } from "@prisma/client";
 import { ContratoGestaoExtendida } from "@/components/contratos/contrato-gestao-extendida";
+import {
+  LABEL_TIPO_RECURSO_DATACENTER,
+  indiceOrdenacaoTipoDatacenter,
+  somaValorMensalPrevistoDatacenter,
+} from "@/lib/datacenter-recursos";
 
 export default async function ContratoDetailPage({
   params,
@@ -45,11 +50,23 @@ export default async function ContratoDetailPage({
       },
       datacenter: true,
       linksMetropolitanos: { orderBy: { ordem: "asc" } },
+      datacenterItensPrevistos: { orderBy: { tipo: "asc" } },
       _count: { select: { itens: true } },
     },
   });
 
   if (!contrato) notFound();
+
+  const itensDatacenterOrdenados =
+    contrato.tipoContrato === TipoContrato.DATACENTER
+      ? [...contrato.datacenterItensPrevistos].sort(
+          (a, b) => indiceOrdenacaoTipoDatacenter(a.tipo) - indiceOrdenacaoTipoDatacenter(b.tipo)
+        )
+      : [];
+  const valorMensalSomaPrevista =
+    contrato.tipoContrato === TipoContrato.DATACENTER
+      ? somaValorMensalPrevistoDatacenter(contrato.datacenterItensPrevistos)
+      : null;
 
   const podeEditarGestao = await canRecurso(
     session.perfil as PerfilUsuario,
@@ -177,6 +194,40 @@ export default async function ContratoDetailPage({
             <CardTitle>Infraestrutura contratada (datacenter)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
+            <div>
+              <p className="font-medium mb-1">Itens previstos (medição e valor mensal)</p>
+              {contrato.datacenterItensPrevistos.length === 0 ? (
+                <p className="text-muted-foreground">
+                  Nenhum item previsto. Em <strong>Editar contrato</strong>, marque as oito linhas do
+                  objeto (colocation, licença Windows, processadores VPS, RAM, SSD, HD, fibra, etc.).
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-1">
+                    {itensDatacenterOrdenados.map((item) => (
+                      <Badge key={item.tipo} variant="secondary" className="font-normal">
+                        {LABEL_TIPO_RECURSO_DATACENTER[item.tipo]}
+                      </Badge>
+                    ))}
+                  </div>
+                  {valorMensalSomaPrevista != null && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Soma mensal estimada (onde há quantidade e valor unitário):{" "}
+                      <span className="font-medium text-foreground">
+                        {formatCurrency(valorMensalSomaPrevista)}
+                      </span>
+                    </p>
+                  )}
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Quantidades e preços unitários mensais poderão ser preenchidos depois para fechar o
+                    cálculo linha a linha.
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="border-t pt-4">
+              <p className="font-medium mb-2">Capacidades detalhadas (opcional)</p>
+            </div>
             {!contrato.datacenter ? (
               <p className="text-muted-foreground">
                 Nenhuma capacidade registrada ainda. Use <strong>Editar contrato</strong> para informar vCPU,

@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { TipoRecursoDatacenter } from "@prisma/client";
+import {
+  LABEL_TIPO_RECURSO_DATACENTER,
+  ORDEM_TIPO_RECURSO_DATACENTER,
+  normalizarTiposRecursoDatacenterFromDb,
+  normalizarTiposRecursoDatacenterParaPersistir,
+} from "@/lib/datacenter-recursos";
 import { Plus, Trash2 } from "lucide-react";
 
 export type LinkMetroRow = {
@@ -14,6 +21,8 @@ export type LinkMetroRow = {
 };
 
 export type DatacenterFormState = {
+  /** Tipos de linha que entrarão em medição / soma mensal (marcados no contrato). */
+  tiposRecursoPrevistos: TipoRecursoDatacenter[];
   vcpus: string;
   ramGb: string;
   discoSsdGb: string;
@@ -39,6 +48,7 @@ export function emptyLinkRow(): LinkMetroRow {
 
 export function defaultDatacenterFormState(): DatacenterFormState {
   return {
+    tiposRecursoPrevistos: [...ORDEM_TIPO_RECURSO_DATACENTER],
     vcpus: "",
     ramGb: "",
     discoSsdGb: "",
@@ -72,9 +82,14 @@ export function hydrateDatacenterForm(
     descricaoVelocidade: string;
     velocidadeMbps: number | null;
     quantidade: number;
-  }>
+  }>,
+  itensPrevistos?: Array<{ tipo: TipoRecursoDatacenter }> | null
 ): DatacenterFormState {
+  const fromDb = itensPrevistos?.length
+    ? normalizarTiposRecursoDatacenterFromDb(itensPrevistos.map((i) => i.tipo))
+    : [];
   return {
+    tiposRecursoPrevistos: fromDb.length ? [...new Set(fromDb)] : [...ORDEM_TIPO_RECURSO_DATACENTER],
     vcpus: decToInput(datacenter?.vcpusContratados),
     ramGb: decToInput(datacenter?.ramGb),
     discoSsdGb: decToInput(datacenter?.discoSsdGb),
@@ -116,6 +131,9 @@ export function payloadFromDatacenterForm(dc: DatacenterFormState) {
     discoBackupGb: num(dc.discoBackupGb),
     rackU: num(dc.rackU),
     observacoes: dc.observacoes.trim() || null,
+    tiposRecursoPrevistos: normalizarTiposRecursoDatacenterParaPersistir([
+      ...new Set(dc.tiposRecursoPrevistos),
+    ]),
     links,
   };
 }
@@ -131,12 +149,45 @@ export function ContratoDatacenterFields({
     onChange({ ...value, ...partial });
   }
 
+  function toggleTipo(tipo: TipoRecursoDatacenter) {
+    const s = new Set(value.tiposRecursoPrevistos);
+    if (s.has(tipo)) s.delete(tipo);
+    else s.add(tipo);
+    patch({ tiposRecursoPrevistos: [...s] });
+  }
+
   return (
     <div className="space-y-4 rounded-md border border-dashed p-3">
       <p className="text-sm font-medium">Infraestrutura contratada (datacenter)</p>
       <p className="text-xs text-muted-foreground">
-        vCPU, RAM (GB), SSD (GB), disco backup (GB), colocation (U) e links metropolitanos (velocidade +
-        quantidade).
+        Defina quais categorias entram no contrato para medição e para o cálculo do valor mensal; as
+        quantidades e valores unitários poderão ser preenchidos depois.
+      </p>
+      <div className="rounded-md bg-muted/40 p-3 space-y-2">
+        <p className="text-xs font-medium">Itens previstos (medição / faturamento mensal)</p>
+        <p className="text-[11px] text-muted-foreground">
+          Marque os tipos que aplicam a este contrato. Não é obrigatório informar quantidades ou preços
+          agora.
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {ORDEM_TIPO_RECURSO_DATACENTER.map((tipo) => (
+            <label
+              key={tipo}
+              className="flex items-start gap-2 text-xs cursor-pointer rounded border border-transparent hover:border-border px-2 py-1.5"
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 h-3.5 w-3.5 rounded border-input"
+                checked={value.tiposRecursoPrevistos.includes(tipo)}
+                onChange={() => toggleTipo(tipo)}
+              />
+              <span>{LABEL_TIPO_RECURSO_DATACENTER[tipo]}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground border-t pt-3">
+        Detalhes opcionais (capacidades contratadas e links) — podem complementar o cadastro.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
