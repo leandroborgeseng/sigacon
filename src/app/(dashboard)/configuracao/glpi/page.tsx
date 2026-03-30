@@ -30,8 +30,7 @@ export default async function ConfiguracaoGlpiPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Integrações</h1>
         <p className="text-muted-foreground">
-          A URL é validada enquanto você digita; ao sair dos campos de token, a integração é testada contra o sistema de chamados.
-          Valores persistidos no banco com fallback para variáveis de ambiente.
+          URL e tokens: validação em tempo real e teste ao sair dos campos. Banco de dados com fallback para variáveis de ambiente.
         </p>
       </div>
       <GlpiConfigClient podeEditar={podeEditar} />

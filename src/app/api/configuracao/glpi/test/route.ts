@@ -20,9 +20,20 @@ export async function POST(request: Request) {
   const row = await prisma.glpiConfig.findUnique({ where: { id: "default" } });
   const merged = mergeGlpiConnectionParams(row, body);
 
+  const debugCredenciaisUsadas = {
+    baseUrl: merged.baseUrl,
+    userToken: merged.userToken,
+    appToken: merged.appToken,
+  };
+
   if (!merged.baseUrl) {
     return NextResponse.json(
-      { message: "Informe a URL da API GLPI ou configure GLPI_URL no ambiente.", ok: false, steps: [] },
+      {
+        message: "Informe a URL da API GLPI ou configure GLPI_URL no ambiente.",
+        ok: false,
+        steps: [],
+        debugCredenciaisUsadas,
+      },
       { status: 400 }
     );
   }
@@ -32,6 +43,7 @@ export async function POST(request: Request) {
         message: "Informe o User Token (chave de acesso remoto) ou use o valor já salvo / GLPI_USER_TOKEN.",
         ok: false,
         steps: [],
+        debugCredenciaisUsadas,
       },
       { status: 400 }
     );
@@ -41,14 +53,13 @@ export async function POST(request: Request) {
     baseUrl: merged.baseUrl,
     appToken: merged.appToken,
     userToken: merged.userToken,
-    campoBuscaGrupoTecnico: merged.campoBuscaGrupoTecnico,
-    criteriosExtraJson: merged.criteriosExtraJson,
   });
 
   return NextResponse.json({
     ok: resultado.ok,
     steps: resultado.steps,
     persistirAppTokenVazio: resultado.persistirAppTokenVazio,
+    debugCredenciaisUsadas,
     message: resultado.ok
       ? resultado.persistirAppTokenVazio
         ? "Conexão OK. O GLPI não exige App Token — ao salvar, remova o App Token salvo ou marque limpar."

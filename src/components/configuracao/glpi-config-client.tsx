@@ -5,12 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { validarFormatoUrlApiGlpi } from "@/lib/glpi-test-connection";
 import { cn } from "@/lib/utils";
 
 type GlpiTestStep = { id: string; label: string; ok: boolean; detail?: string };
+
+type GlpiDebugCredenciais = {
+  baseUrl: string;
+  userToken: string;
+  appToken: string;
+};
 
 type UrlFmt = { kind: "empty" } | { kind: "error"; message: string } | { kind: "ok"; normalized: string };
 type UrlPing = { kind: "idle" } | { kind: "loading" } | { kind: "ok"; detail: string } | { kind: "error"; detail: string };
@@ -19,13 +24,11 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   const [baseUrl, setBaseUrl] = useState("");
   const [appToken, setAppToken] = useState("");
   const [userToken, setUserToken] = useState("");
-  const [campoBusca, setCampoBusca] = useState(71);
-  const [campoDataModificacao, setCampoDataModificacao] = useState(15);
-  const [criteriosExtra, setCriteriosExtra] = useState("");
   const [appJaSalvo, setAppJaSalvo] = useState(false);
   const [userJaSalvo, setUserJaSalvo] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [steps, setSteps] = useState<GlpiTestStep[] | null>(null);
+  const [debugCredenciaisUsadas, setDebugCredenciaisUsadas] = useState<GlpiDebugCredenciais | null>(null);
   const [loading, setLoading] = useState(true);
   const [testando, setTestando] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -43,13 +46,11 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       .then((r) => r.json())
       .then((d) => {
         setBaseUrl(d.baseUrl ?? "");
-        setCampoBusca(typeof d.campoBuscaGrupoTecnico === "number" ? d.campoBuscaGrupoTecnico : 71);
-        setCampoDataModificacao(typeof d.campoDataModificacao === "number" ? d.campoDataModificacao : 15);
-        setCriteriosExtra(d.criteriosExtraJson ?? "");
         setAppJaSalvo(Boolean(d.appTokenPreenchido));
         setUserJaSalvo(Boolean(d.userTokenPreenchido));
         setMsg(null);
         setSteps(null);
+        setDebugCredenciaisUsadas(null);
       })
       .catch(() => setMsg("Erro ao carregar configuração"))
       .finally(() => setLoading(false));
@@ -113,9 +114,6 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       baseUrl,
       appToken: appToken.trim() || undefined,
       userToken: userToken.trim() || undefined,
-      campoBuscaGrupoTecnico: campoBusca,
-      campoDataModificacao,
-      criteriosExtraJson: criteriosExtra.trim() || null,
       ...(limparAppTokenSalvo ? { limparAppToken: true as const } : {}),
     };
   }
@@ -123,6 +121,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   const testarConexao = useCallback(
     async (opts?: { automatico?: boolean }) => {
       const automatico = Boolean(opts?.automatico);
+      setDebugCredenciaisUsadas(null);
       if (!automatico) {
         setMsg(null);
         setSteps(null);
@@ -144,9 +143,11 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           steps?: GlpiTestStep[];
           ok?: boolean;
           persistirAppTokenVazio?: boolean;
+          debugCredenciaisUsadas?: GlpiDebugCredenciais;
         };
         if (ac.signal.aborted) return;
         setSteps(Array.isArray(j.steps) ? j.steps : []);
+        if (j.debugCredenciaisUsadas) setDebugCredenciaisUsadas(j.debugCredenciaisUsadas);
         if (!r.ok) {
           setMsg(j.message ?? "Teste não pôde ser concluído.");
           return;
@@ -167,7 +168,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         if (!ac.signal.aborted) setTestando(false);
       }
     },
-    [baseUrl, appToken, userToken, campoBusca, campoDataModificacao, criteriosExtra, limparAppTokenSalvo]
+    [baseUrl, appToken, userToken, limparAppTokenSalvo]
   );
 
   function podeTestarCredenciais(): boolean {
@@ -201,6 +202,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   async function salvar() {
     setMsg(null);
     setSteps(null);
+    setDebugCredenciaisUsadas(null);
     if (!baseUrl.trim()) {
       setMsg("Preencha a URL da API do GLPI ou defina GLPI_URL no servidor.");
       return;
@@ -226,21 +228,17 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         message?: string;
         steps?: GlpiTestStep[];
         baseUrl?: string;
-        campoBuscaGrupoTecnico?: number;
-        campoDataModificacao?: number;
-        criteriosExtraJson?: string;
         persistirAppTokenVazio?: boolean;
+        debugCredenciaisUsadas?: GlpiDebugCredenciais;
       };
       if (Array.isArray(j.steps)) setSteps(j.steps);
+      if (j.debugCredenciaisUsadas) setDebugCredenciaisUsadas(j.debugCredenciaisUsadas);
       if (!r.ok) {
         setMsg(j.message ?? "Erro ao salvar");
         return;
       }
       setMsg(j.message ?? "Configuração salva.");
       setBaseUrl(j.baseUrl ?? baseUrl);
-      if (typeof j.campoBuscaGrupoTecnico === "number") setCampoBusca(j.campoBuscaGrupoTecnico);
-      if (typeof j.campoDataModificacao === "number") setCampoDataModificacao(j.campoDataModificacao);
-      if (j.criteriosExtraJson != null) setCriteriosExtra(j.criteriosExtraJson);
       setAppToken("");
       setUserToken("");
       setLimparAppTokenSalvo(false);
@@ -285,8 +283,10 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         )}
         {steps && steps.length > 0 && (
           <details className="rounded-md border px-3 py-2 text-sm open:pb-3">
-            <summary className="cursor-pointer font-medium outline-none">Último teste ({steps.filter((s) => s.ok).length}/{steps.length} ok)</summary>
-            <ul className="mt-3 space-y-2 list-none pl-0">
+            <summary className="cursor-pointer font-medium outline-none">
+              Último teste ({steps.filter((s) => s.ok).length}/{steps.length} ok)
+            </summary>
+            <ul className="mt-3 list-none space-y-2 pl-0">
               {steps.map((s) => (
                 <li key={s.id} className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-start sm:gap-2">
                   <Badge variant={s.ok ? "default" : "destructive"} className="w-fit shrink-0">
@@ -302,6 +302,30 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
               ))}
             </ul>
           </details>
+        )}
+        {debugCredenciaisUsadas && (
+          <div className="rounded-md border border-amber-600/50 bg-amber-50/80 p-3 text-xs dark:bg-amber-950/25">
+            <p className="font-medium text-amber-950 dark:text-amber-100">
+              Debug — valores efetivos neste teste (remover na versão final)
+            </p>
+            <p className="mt-1 text-amber-900/90 dark:text-amber-200/90">
+              Compare com o <code className="text-[11px]">curl</code>; não compartilhe esta tela publicamente.
+            </p>
+            <dl className="mt-3 space-y-2 font-mono text-[11px] break-all text-foreground">
+              <div>
+                <dt className="text-muted-foreground">URL</dt>
+                <dd>{debugCredenciaisUsadas.baseUrl || "(vazio)"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">User Token</dt>
+                <dd>{debugCredenciaisUsadas.userToken || "(vazio)"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">App Token</dt>
+                <dd>{debugCredenciaisUsadas.appToken || "(vazio)"}</dd>
+              </div>
+            </dl>
+          </div>
         )}
         <div className="space-y-2">
           <Label>URL (apirest.php)</Label>
@@ -373,44 +397,6 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           </label>
         </div>
 
-        <details className="rounded-md border text-sm open:bg-muted/30">
-          <summary className="cursor-pointer px-3 py-2 font-medium outline-none">
-            Busca de tickets (avançado)
-          </summary>
-          <div className="space-y-4 border-t px-3 py-3">
-            <div className="space-y-2">
-              <Label className="text-xs">ID do campo: grupo técnico (search/Ticket)</Label>
-              <Input
-                type="number"
-                value={campoBusca}
-                onChange={(e) => setCampoBusca(Number(e.target.value))}
-                disabled={!podeEditar}
-              />
-              <p className="text-xs text-muted-foreground">Padrão 71. Ajuste com listSearchOptions/Ticket se o Kanban vier vazio.</p>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">ID do campo: data de modificação (sync incremental)</Label>
-              <Input
-                type="number"
-                value={campoDataModificacao}
-                onChange={(e) => setCampoDataModificacao(Number(e.target.value))}
-                disabled={!podeEditar}
-              />
-              <p className="text-xs text-muted-foreground">Padrão 15.</p>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Critérios extras (JSON)</Label>
-              <Textarea
-                value={criteriosExtra}
-                onChange={(e) => setCriteriosExtra(e.target.value)}
-                rows={3}
-                disabled={!podeEditar}
-                placeholder='[{"field":12,"searchtype":"equals","value":2,"link":"AND"}]'
-                className="font-mono text-xs"
-              />
-            </div>
-          </div>
-        </details>
         {podeEditar && (
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => testarConexao()} disabled={testando || salvando} variant="secondary">

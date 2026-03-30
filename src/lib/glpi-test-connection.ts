@@ -85,15 +85,10 @@ export type GlpiTestInput = {
   baseUrl: string;
   appToken: string;
   userToken: string;
-  campoBuscaGrupoTecnico: number;
-  /** Campo do search/Ticket para date_mod (usado no sync incremental; não afeta o teste básico). */
-  campoDataModificacao?: number;
-  criteriosExtraJson: string | null;
 };
 
 /**
- * Executa initSession, chamada de leitura mínima, validação opcional de campo de busca e critérios JSON.
- * Sempre encerra com killSession.
+ * initSession, getFullSession, killSession — sem teste de search/Ticket nesta tela.
  */
 export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   ok: boolean;
@@ -132,7 +127,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     id: "userToken",
     label: "User Token",
     ok: true,
-    detail: "Preenchido (validação na autenticação abaixo).",
+    detail: `${userToken.length} caracteres — conferir no painel debug abaixo.`,
   });
 
   if (!appToken) {
@@ -140,56 +135,15 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
       id: "appToken",
       label: "App Token",
       ok: true,
-      detail:
-        "Não preenchido. Obrigatório apenas se em GLPI (Configuração → Geral → API) houver App-Token definido.",
+      detail: "Vazio neste teste — obrigatório só se o GLPI tiver App-Token em Configuração → API.",
     });
   } else {
-    steps.push({ id: "appToken", label: "App Token", ok: true, detail: "Preenchido." });
-  }
-
-  const jsonExtra = input.criteriosExtraJson?.trim() ?? "";
-  if (jsonExtra) {
-    try {
-      const arr = JSON.parse(jsonExtra) as unknown;
-      if (!Array.isArray(arr)) {
-        steps.push({
-          id: "criteriosJson",
-          label: "Critérios extras (JSON)",
-          ok: false,
-          detail: "Deve ser um array JSON de critérios.",
-        });
-        return { ok: false, steps };
-      }
-      steps.push({
-        id: "criteriosJson",
-        label: "Critérios extras (JSON)",
-        ok: true,
-        detail: `${arr.length} critério(s) no array.`,
-      });
-    } catch {
-      steps.push({
-        id: "criteriosJson",
-        label: "Critérios extras (JSON)",
-        ok: false,
-        detail: "JSON inválido (não foi possível interpretar).",
-      });
-      return { ok: false, steps };
-    }
-  } else {
-    steps.push({ id: "criteriosJson", label: "Critérios extras (JSON)", ok: true, detail: "Vazio (ok)." });
-  }
-
-  const campo = Number.isFinite(input.campoBuscaGrupoTecnico)
-    ? Math.floor(input.campoBuscaGrupoTecnico)
-    : 71;
-  if (campo < 1) {
     steps.push({
-      id: "campoBusca",
-      label: "Campo busca (grupo técnico)",
-      ok: false,
-      detail: "Use um número inteiro ≥ 1 (ID do campo em search/Ticket).",
+      id: "appToken",
+      label: "App Token",
+      ok: true,
+      detail: `${appToken.length} caracteres — conferir no painel debug abaixo.`,
     });
-    return { ok: false, steps };
   }
 
   let sessionToken: string | null = null;
@@ -265,46 +219,6 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     steps.push({
       id: "getFullSession",
       label: "Sessão ativa (getFullSession)",
-      ok: false,
-      detail: msg.slice(0, 200),
-    });
-  }
-
-  try {
-    const params = new URLSearchParams();
-    params.set("range", "0-0");
-    params.set("criteria[0][field]", String(campo));
-    params.set("criteria[0][searchtype]", "equals");
-    params.set("criteria[0][value]", "0");
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 20000);
-    const sr = await glpiFetch(`${apirestBase}/search/Ticket?${params.toString()}`, {
-      method: "GET",
-      headers: sessionHeaders,
-      signal: controller.signal,
-    });
-    clearTimeout(t);
-    const st = await sr.text();
-    if (!sr.ok) {
-      steps.push({
-        id: "campoBusca",
-        label: `Campo ${campo} em search/Ticket`,
-        ok: false,
-        detail: `HTTP ${sr.status}: ${parseGlpiApiErrorBody(st)} — ajuste o ID em listSearchOptions/Ticket no GLPI.`,
-      });
-    } else {
-      steps.push({
-        id: "campoBusca",
-        label: `Campo ${campo} em search/Ticket`,
-        ok: true,
-        detail: "Busca aceita este ID de campo (teste com valor fictício).",
-      });
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    steps.push({
-      id: "campoBusca",
-      label: `Campo ${campo} em search/Ticket`,
       ok: false,
       detail: msg.slice(0, 200),
     });

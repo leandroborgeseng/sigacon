@@ -57,9 +57,20 @@ export async function PUT(request: Request) {
   const existing = await prisma.glpiConfig.findUnique({ where: { id: "default" } });
 
   const merged = mergeGlpiConnectionParams(existing, body);
+  const debugCredenciaisUsadas = {
+    baseUrl: merged.baseUrl,
+    userToken: merged.userToken,
+    appToken: merged.appToken,
+  };
+
   if (!merged.baseUrl) {
     return NextResponse.json(
-      { message: "Informe a URL da API GLPI ou configure GLPI_URL no ambiente.", ok: false, steps: [] },
+      {
+        message: "Informe a URL da API GLPI ou configure GLPI_URL no ambiente.",
+        ok: false,
+        steps: [],
+        debugCredenciaisUsadas,
+      },
       { status: 400 }
     );
   }
@@ -69,6 +80,7 @@ export async function PUT(request: Request) {
         message: "Informe o User Token ou use o já salvo / variável GLPI_USER_TOKEN.",
         ok: false,
         steps: [],
+        debugCredenciaisUsadas,
       },
       { status: 400 }
     );
@@ -78,9 +90,6 @@ export async function PUT(request: Request) {
     baseUrl: merged.baseUrl,
     appToken: merged.appToken,
     userToken: merged.userToken,
-    campoBuscaGrupoTecnico: merged.campoBuscaGrupoTecnico,
-    campoDataModificacao: merged.campoDataModificacao,
-    criteriosExtraJson: merged.criteriosExtraJson,
   });
   if (!teste.ok) {
     return NextResponse.json(
@@ -88,6 +97,7 @@ export async function PUT(request: Request) {
         message: "Configuração não salva: o teste de integração com o GLPI falhou.",
         ok: false,
         steps: teste.steps,
+        debugCredenciaisUsadas,
       },
       { status: 422 }
     );
@@ -150,6 +160,11 @@ export async function PUT(request: Request) {
     criteriosExtraJson: saved.criteriosExtraJson ?? "",
     steps: teste.steps,
     persistirAppTokenVazio: teste.persistirAppTokenVazio,
+    debugCredenciaisUsadas: {
+      baseUrl: merged.baseUrl,
+      userToken: merged.userToken,
+      appToken: merged.appToken,
+    },
     message:
       teste.persistirAppTokenVazio || body.limparAppToken === true
         ? "Configuração salva. App Token removido da configuração."
