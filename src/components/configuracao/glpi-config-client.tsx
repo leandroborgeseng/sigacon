@@ -265,30 +265,16 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Conexão com o GLPI</CardTitle>
-        <CardDescription className="space-y-2">
-          <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
-            <strong className="font-medium">Validação em tempo real:</strong> o formato da URL é conferido ao digitar; em
-            seguida o servidor tenta contatar o GLPI. Ao sair do campo User Token ou App Token (após preencher), a
-            autenticação e o restante da integração são testados automaticamente.
-          </p>
-          <p>
-            Integração única: <strong>apirest.php</strong> com <code className="text-xs">GET …/initSession</code>, cabeçalhos{" "}
-            <code className="text-xs">Authorization: user_token …</code> e <code className="text-xs">App-Token</code>, como no
-            GLPI documentado em <span className="font-medium">apirest.md</span>. Ex.:{" "}
-            <code className="text-xs break-all">https://suporte.seudominio.gov.br/apirest.php</code> ou{" "}
-            <code className="text-xs">…/api.php/v1/apirest.php</code>. Não há suporte à API OAuth de{" "}
-            <code className="text-xs">/api.php/v2</code>+ neste módulo.
-          </p>
-          <p>
-            Deixe tokens em branco para manter os salvos no banco; o servidor pode usar{" "}
-            <code className="text-xs">GLPI_URL</code>, <code className="text-xs">GLPI_APP_TOKEN</code> e{" "}
-            <code className="text-xs">GLPI_USER_TOKEN</code> no ambiente.
-          </p>
+      <CardHeader className="pb-4">
+        <CardTitle>GLPI</CardTitle>
+        <CardDescription>
+          URL até <code className="text-[11px]">apirest.php</code>, User Token e App Token (API REST clássica). Ao sair dos
+          campos de token, a conexão é testada. Tokens em branco preservam o que já está salvo; no deploy também vale{" "}
+          <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
+          <code className="text-[11px]">GLPI_USER_TOKEN</code>.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 max-w-xl">
+      <CardContent className="space-y-5 max-w-xl">
         {msg && (
           <p
             className={`text-sm ${msg.includes("falhou") || msg.includes("Erro") || msg.includes("problemas") ? "text-destructive" : "text-muted-foreground"}`}
@@ -297,9 +283,9 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           </p>
         )}
         {steps && steps.length > 0 && (
-          <div className="rounded-md border p-3 space-y-2">
-            <p className="text-sm font-medium">Resultado do teste de integração</p>
-            <ul className="space-y-2">
+          <details className="rounded-md border px-3 py-2 text-sm open:pb-3">
+            <summary className="cursor-pointer font-medium outline-none">Último teste ({steps.filter((s) => s.ok).length}/{steps.length} ok)</summary>
+            <ul className="mt-3 space-y-2 list-none pl-0">
               {steps.map((s) => (
                 <li key={s.id} className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-start sm:gap-2">
                   <Badge variant={s.ok ? "default" : "destructive"} className="w-fit shrink-0">
@@ -314,10 +300,10 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
                 </li>
               ))}
             </ul>
-          </div>
+          </details>
         )}
         <div className="space-y-2">
-          <Label>URL até apirest.php</Label>
+          <Label>URL (apirest.php)</Label>
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
@@ -327,13 +313,8 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             aria-invalid={urlFmt.kind === "error"}
           />
           {urlFmt.kind === "error" && <p className="text-xs text-destructive">{urlFmt.message}</p>}
-          {urlFmt.kind === "ok" && (
-            <p className="text-xs text-muted-foreground">
-              Formato ok: <code className="text-[11px]">{urlFmt.normalized}</code>
-            </p>
-          )}
           {urlFmt.kind === "ok" && urlPing.kind === "loading" && (
-            <p className="text-xs text-muted-foreground">Verificando se o servidor responde…</p>
+            <p className="text-xs text-muted-foreground">Alcançando o servidor…</p>
           )}
           {urlFmt.kind === "ok" && urlPing.kind === "ok" && (
             <p className="text-xs text-emerald-700 dark:text-emerald-400">{urlPing.detail}</p>
@@ -344,47 +325,10 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
         </div>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Label>App Token</Label>
-            {appJaSalvo && (
-              <Badge variant="secondary" className="text-xs font-normal">
-                já cadastrado
-              </Badge>
-            )}
-          </div>
-          <Input
-            type="password"
-            value={appToken}
-            onChange={(e) => setAppToken(e.target.value)}
-            onBlur={onBlurAppToken}
-            placeholder="Preencha apenas para alterar — valida ao sair do campo"
-            disabled={!podeEditar}
-            autoComplete="off"
-          />
-          <p className="text-xs text-muted-foreground">
-            Deve ser idêntico ao token em <strong className="font-medium">Configuração → Geral → API</strong> no GLPI. Se lá
-            não houver App-Token, deixe este campo vazio ou marque a opção abaixo.
-          </p>
-          <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 rounded border-input"
-              checked={limparAppTokenSalvo}
-              onChange={(e) => setLimparAppTokenSalvo(e.target.checked)}
-              disabled={!podeEditar}
-            />
-            <span>
-              Ignorar App Token salvo no banco nesta operação (use se o GLPI não tem token de aplicação ou quiser
-              apagar o valor salvo ao confirmar).
-            </span>
-          </label>
-          <p className="text-xs text-muted-foreground">Ao sair deste campo, rodamos o teste completo se a URL e o User Token estiverem ok.</p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
             <Label>User Token</Label>
             {userJaSalvo && (
               <Badge variant="secondary" className="text-xs font-normal">
-                já cadastrado
+                salvo
               </Badge>
             )}
           </div>
@@ -393,48 +337,79 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             value={userToken}
             onChange={(e) => setUserToken(e.target.value)}
             onBlur={onBlurUserToken}
-            placeholder="Cole o token e saia do campo para validar"
+            placeholder="Preferências do usuário no GLPI (chave remota)"
             disabled={!podeEditar}
             autoComplete="off"
           />
         </div>
         <div className="space-y-2">
-          <Label>Campo de busca: grupo técnico atribuído (Ticket)</Label>
+          <div className="flex items-center gap-2">
+            <Label>App Token</Label>
+            {appJaSalvo && (
+              <Badge variant="secondary" className="text-xs font-normal">
+                salvo
+              </Badge>
+            )}
+          </div>
           <Input
-            type="number"
-            value={campoBusca}
-            onChange={(e) => setCampoBusca(Number(e.target.value))}
+            type="password"
+            value={appToken}
+            onChange={(e) => setAppToken(e.target.value)}
+            onBlur={onBlurAppToken}
+            placeholder="Configuração → Geral → API (opcional em alguns GLPI)"
             disabled={!podeEditar}
+            autoComplete="off"
           />
-          <p className="text-xs text-muted-foreground">
-            Padrão 71; se a busca não retornar tickets, ajuste conforme o seu GLPI (ex.: use{" "}
-            <code className="text-xs">listSearchOptions/Ticket</code> na API).
-          </p>
+          <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-input"
+              checked={limparAppTokenSalvo}
+              onChange={(e) => setLimparAppTokenSalvo(e.target.checked)}
+              disabled={!podeEditar}
+            />
+            <span>Salvar sem App Token (apaga o token salvo nesta confirmação).</span>
+          </label>
         </div>
-        <div className="space-y-2">
-          <Label>Campo de busca: data de modificação (Ticket)</Label>
-          <Input
-            type="number"
-            value={campoDataModificacao}
-            onChange={(e) => setCampoDataModificacao(Number(e.target.value))}
-            disabled={!podeEditar}
-          />
-          <p className="text-xs text-muted-foreground">
-            Usado na sincronização incremental automática (date_mod). Padrão 15; confirme em{" "}
-            <code className="text-xs">listSearchOptions/Ticket</code> no GLPI se necessário.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <Label>Critérios extras de busca (JSON opcional)</Label>
-          <Textarea
-            value={criteriosExtra}
-            onChange={(e) => setCriteriosExtra(e.target.value)}
-            rows={4}
-            disabled={!podeEditar}
-            placeholder='[{"field":12,"searchtype":"equals","value":2,"link":"AND"}]'
-            className="font-mono text-xs"
-          />
-        </div>
+
+        <details className="rounded-md border text-sm open:bg-muted/30">
+          <summary className="cursor-pointer px-3 py-2 font-medium outline-none">
+            Busca de tickets (avançado)
+          </summary>
+          <div className="space-y-4 border-t px-3 py-3">
+            <div className="space-y-2">
+              <Label className="text-xs">ID do campo: grupo técnico (search/Ticket)</Label>
+              <Input
+                type="number"
+                value={campoBusca}
+                onChange={(e) => setCampoBusca(Number(e.target.value))}
+                disabled={!podeEditar}
+              />
+              <p className="text-xs text-muted-foreground">Padrão 71. Ajuste com listSearchOptions/Ticket se o Kanban vier vazio.</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">ID do campo: data de modificação (sync incremental)</Label>
+              <Input
+                type="number"
+                value={campoDataModificacao}
+                onChange={(e) => setCampoDataModificacao(Number(e.target.value))}
+                disabled={!podeEditar}
+              />
+              <p className="text-xs text-muted-foreground">Padrão 15.</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Critérios extras (JSON)</Label>
+              <Textarea
+                value={criteriosExtra}
+                onChange={(e) => setCriteriosExtra(e.target.value)}
+                rows={3}
+                disabled={!podeEditar}
+                placeholder='[{"field":12,"searchtype":"equals","value":2,"link":"AND"}]'
+                className="font-mono text-xs"
+              />
+            </div>
+          </div>
+        </details>
         {podeEditar && (
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => testarConexao()} disabled={testando || salvando} variant="secondary">
