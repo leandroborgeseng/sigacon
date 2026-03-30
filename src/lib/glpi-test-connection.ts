@@ -4,6 +4,7 @@
  */
 
 import { glpiLegacyInitSession, parseGlpiApiErrorBody } from "@/lib/glpi-apirest-session";
+import { glpiFetch, glpiTlsInsecureHintParaErroDeRede } from "@/lib/glpi-fetch";
 
 export type GlpiTestStep = {
   id: string;
@@ -58,7 +59,7 @@ export async function pingGlpiApiEndpoint(rawUrl: string): Promise<{ ok: boolean
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 15000);
-    const r = await fetch(`${v.normalized}/initSession`, {
+    const r = await glpiFetch(`${v.normalized}/initSession`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
@@ -73,7 +74,10 @@ export async function pingGlpiApiEndpoint(rawUrl: string): Promise<{ ok: boolean
     if (msg.includes("abort")) {
       return { ok: false, detail: "Tempo esgotado ao contatar a URL." };
     }
-    return { ok: false, detail: `Não foi possível alcançar a URL: ${msg.slice(0, 180)}` };
+    return {
+      ok: false,
+      detail: `Não foi possível alcançar a URL: ${msg.slice(0, 180)}${glpiTlsInsecureHintParaErroDeRede(msg)}`,
+    };
   }
 }
 
@@ -234,7 +238,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 20000);
-    const full = await fetch(`${apirestBase}/getFullSession`, {
+    const full = await glpiFetch(`${apirestBase}/getFullSession`, {
       method: "GET",
       headers: sessionHeaders,
       signal: controller.signal,
@@ -274,7 +278,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     params.set("criteria[0][value]", "0");
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 20000);
-    const sr = await fetch(`${apirestBase}/search/Ticket?${params.toString()}`, {
+    const sr = await glpiFetch(`${apirestBase}/search/Ticket?${params.toString()}`, {
       method: "GET",
       headers: sessionHeaders,
       signal: controller.signal,
@@ -308,7 +312,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
 
   try {
     const kh = new Headers(sessionHeaders);
-    await fetch(`${apirestBase}/killSession`, { method: "GET", headers: kh });
+    await glpiFetch(`${apirestBase}/killSession`, { method: "GET", headers: kh });
     steps.push({ id: "killSession", label: "Encerramento (killSession)", ok: true, detail: "Sessão de teste encerrada." });
   } catch {
     steps.push({

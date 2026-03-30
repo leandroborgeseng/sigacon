@@ -4,6 +4,7 @@
 
 import { getGlpiCredentialsResolved } from "@/lib/glpi-config";
 import { glpiLegacyInitSession, sanitizarTokenGlpi } from "@/lib/glpi-apirest-session";
+import { glpiFetch } from "@/lib/glpi-fetch";
 
 export type GlpiCriterion = {
   field: number;
@@ -47,7 +48,7 @@ export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promis
   } finally {
     const killH: Record<string, string> = { "Session-Token": sessionToken };
     if (appParaSessao) killH["App-Token"] = appParaSessao;
-    await fetch(`${apirestBase}/killSession`, { method: "GET", headers: killH }).catch(() => {});
+    await glpiFetch(`${apirestBase}/killSession`, { method: "GET", headers: killH }).catch(() => {});
   }
 }
 
@@ -137,7 +138,7 @@ export type GlpiDocumentPayload = {
 
 export async function glpiGetTicket(ctx: GlpiSessionContext, ticketId: number): Promise<GlpiTicketPayload> {
   const url = `${ctx.baseUrl}/Ticket/${ticketId}?expand_dropdowns=true`;
-  const r = await fetch(url, { headers: headers(ctx) });
+  const r = await glpiFetch(url, { headers: headers(ctx) });
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`GLPI GET Ticket ${ticketId}: ${r.status} ${t.slice(0, 200)}`);
@@ -163,7 +164,7 @@ function parseId(raw: unknown): number | null {
 }
 
 async function listNestedOrNull<T>(ctx: GlpiSessionContext, url: string): Promise<T[] | null> {
-  const r = await fetch(url, { headers: headers(ctx) });
+  const r = await glpiFetch(url, { headers: headers(ctx) });
   if (!r.ok) return null;
   const j = await r.json().catch(() => null);
   if (Array.isArray(j)) return j as T[];
@@ -185,7 +186,7 @@ async function getSearchOptions(
   const key = `${ctx.baseUrl}::${itemType}`;
   const cached = searchOptionsCache.get(key);
   if (cached) return cached;
-  const r = await fetch(`${ctx.baseUrl}/listSearchOptions/${encodeURIComponent(itemType)}`, {
+  const r = await glpiFetch(`${ctx.baseUrl}/listSearchOptions/${encodeURIComponent(itemType)}`, {
     headers: headers(ctx),
   });
   const j = (await fetchJsonOrThrow(r, `GLPI listSearchOptions ${itemType}`)) as unknown;
@@ -249,7 +250,7 @@ export async function glpiListTicketFollowups(
   params.set("criteria[1][value]", "Ticket");
 
   const url = `${ctx.baseUrl}/search/ITILFollowup?${params.toString()}`;
-  const r = await fetch(url, { headers: headers(ctx) });
+  const r = await glpiFetch(url, { headers: headers(ctx) });
   const json = (await fetchJsonOrThrow(r, "GLPI search ITILFollowup")) as {
     data?: unknown[];
   };
@@ -264,7 +265,7 @@ export async function glpiListTicketFollowups(
   }
   const out: GlpiFollowupPayload[] = [];
   for (const id of [...new Set(ids)]) {
-    const fr = await fetch(`${ctx.baseUrl}/ITILFollowup/${id}?expand_dropdowns=true`, { headers: headers(ctx) });
+    const fr = await glpiFetch(`${ctx.baseUrl}/ITILFollowup/${id}?expand_dropdowns=true`, { headers: headers(ctx) });
     const fj = (await fetchJsonOrThrow(fr, `GLPI GET ITILFollowup ${id}`)) as GlpiFollowupPayload;
     out.push(fj);
   }
@@ -284,7 +285,7 @@ export async function glpiCreateTicketFollowup(
       is_private: input.privado ? 1 : 0,
     },
   };
-  const r = await fetch(`${ctx.baseUrl}/ITILFollowup`, {
+  const r = await glpiFetch(`${ctx.baseUrl}/ITILFollowup`, {
     method: "POST",
     headers: headers(ctx),
     body: JSON.stringify(body),
@@ -313,7 +314,7 @@ export async function glpiListTicketTasks(ctx: GlpiSessionContext, ticketId: num
   params.set("criteria[1][searchtype]", "equals");
   params.set("criteria[1][value]", "Ticket");
   const url = `${ctx.baseUrl}/search/ITILTask?${params.toString()}`;
-  const r = await fetch(url, { headers: headers(ctx) });
+  const r = await glpiFetch(url, { headers: headers(ctx) });
   const json = (await fetchJsonOrThrow(r, "GLPI search ITILTask")) as { data?: unknown[] };
   const rows = Array.isArray(json.data) ? json.data : [];
   const ids: number[] = [];
@@ -325,7 +326,7 @@ export async function glpiListTicketTasks(ctx: GlpiSessionContext, ticketId: num
   }
   const out: GlpiTaskPayload[] = [];
   for (const id of [...new Set(ids)]) {
-    const tr = await fetch(`${ctx.baseUrl}/ITILTask/${id}?expand_dropdowns=true`, { headers: headers(ctx) });
+    const tr = await glpiFetch(`${ctx.baseUrl}/ITILTask/${id}?expand_dropdowns=true`, { headers: headers(ctx) });
     const tj = (await fetchJsonOrThrow(tr, `GLPI GET ITILTask ${id}`)) as GlpiTaskPayload;
     out.push(tj);
   }
@@ -345,7 +346,7 @@ export async function glpiCreateTicketTask(
       is_private: input.privado ? 1 : 0,
     },
   };
-  const r = await fetch(`${ctx.baseUrl}/ITILTask`, {
+  const r = await glpiFetch(`${ctx.baseUrl}/ITILTask`, {
     method: "POST",
     headers: headers(ctx),
     body: JSON.stringify(body),
@@ -377,7 +378,7 @@ export async function glpiListTicketSolutions(
   params.set("criteria[1][searchtype]", "equals");
   params.set("criteria[1][value]", "Ticket");
   const url = `${ctx.baseUrl}/search/ITILSolution?${params.toString()}`;
-  const r = await fetch(url, { headers: headers(ctx) });
+  const r = await glpiFetch(url, { headers: headers(ctx) });
   const json = (await fetchJsonOrThrow(r, "GLPI search ITILSolution")) as { data?: unknown[] };
   const rows = Array.isArray(json.data) ? json.data : [];
   const ids: number[] = [];
@@ -389,7 +390,7 @@ export async function glpiListTicketSolutions(
   }
   const out: GlpiSolutionPayload[] = [];
   for (const id of [...new Set(ids)]) {
-    const sr = await fetch(`${ctx.baseUrl}/ITILSolution/${id}?expand_dropdowns=true`, { headers: headers(ctx) });
+    const sr = await glpiFetch(`${ctx.baseUrl}/ITILSolution/${id}?expand_dropdowns=true`, { headers: headers(ctx) });
     const sj = (await fetchJsonOrThrow(sr, `GLPI GET ITILSolution ${id}`)) as GlpiSolutionPayload;
     out.push(sj);
   }
@@ -408,7 +409,7 @@ export async function glpiCreateTicketSolution(
       content: input.content,
     },
   };
-  const r = await fetch(`${ctx.baseUrl}/ITILSolution`, {
+  const r = await glpiFetch(`${ctx.baseUrl}/ITILSolution`, {
     method: "POST",
     headers: headers(ctx),
     body: JSON.stringify(body),
@@ -453,7 +454,7 @@ export async function glpiListTicketDocuments(
   params.set("criteria[1][value]", "Ticket");
 
   const url = `${ctx.baseUrl}/search/Document_Item?${params.toString()}`;
-  const r = await fetch(url, { headers: headers(ctx) });
+  const r = await glpiFetch(url, { headers: headers(ctx) });
   const json = (await fetchJsonOrThrow(r, "GLPI search Document_Item")) as { data?: unknown[] };
   const rows = Array.isArray(json.data) ? json.data : [];
   const links: Array<{ linkId?: number; documentId: number }> = [];
@@ -468,7 +469,7 @@ export async function glpiListTicketDocuments(
   const uniqDocs = [...new Map(links.map((l) => [l.documentId, l])).values()];
   const out: Array<{ linkId?: number; documentId: number; name: string; link?: string }> = [];
   for (const l of uniqDocs) {
-    const dr = await fetch(`${ctx.baseUrl}/Document/${l.documentId}`, { headers: headers(ctx) });
+    const dr = await glpiFetch(`${ctx.baseUrl}/Document/${l.documentId}`, { headers: headers(ctx) });
     const dj = (await fetchJsonOrThrow(dr, `GLPI GET Document ${l.documentId}`)) as GlpiDocumentPayload;
     out.push({
       linkId: l.linkId,
@@ -495,7 +496,7 @@ export async function glpiUpdateTicket(
   }
 ): Promise<void> {
   const body: Record<string, unknown> = { input };
-  const r = await fetch(`${ctx.baseUrl}/Ticket/${ticketId}`, {
+  const r = await glpiFetch(`${ctx.baseUrl}/Ticket/${ticketId}`, {
     method: "PUT",
     headers: headers(ctx),
     body: JSON.stringify(body),
@@ -527,7 +528,7 @@ export async function glpiSearchTicketIds(
   });
 
   const url = `${ctx.baseUrl}/search/Ticket?${params.toString()}`;
-  const r = await fetch(url, { headers: headers(ctx) });
+  const r = await glpiFetch(url, { headers: headers(ctx) });
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`GLPI search Ticket: ${r.status} ${t.slice(0, 400)}`);
@@ -599,7 +600,7 @@ export async function glpiListAssignableGroups(ctx: GlpiSessionContext): Promise
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   };
 
-  const r = await fetch(`${ctx.baseUrl}/Group?range=0-999&sort=id`, { headers: headers(ctx) });
+  const r = await glpiFetch(`${ctx.baseUrl}/Group?range=0-999&sort=id`, { headers: headers(ctx) });
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`GLPI GET Group: ${r.status} ${t.slice(0, 300)}`);
@@ -628,7 +629,7 @@ export async function glpiListAssignableGroups(ctx: GlpiSessionContext): Promise
   if (noAssignFilter.length > 0) return dedupeSort(noAssignFilter);
 
   // Fallback 2: search/Group para instâncias onde /Group retorna vazio
-  const s = await fetch(`${ctx.baseUrl}/search/Group?range=0-999&forcedisplay[0]=2&forcedisplay[1]=1`, {
+  const s = await glpiFetch(`${ctx.baseUrl}/search/Group?range=0-999&forcedisplay[0]=2&forcedisplay[1]=1`, {
     headers: headers(ctx),
   });
   if (!s.ok) {
@@ -661,7 +662,7 @@ export type GlpiCategoriaLista = { id: number; name: string };
 
 /** Lista categorias ITIL do GLPI (para edição/visualização). */
 export async function glpiListItilCategories(ctx: GlpiSessionContext): Promise<GlpiCategoriaLista[]> {
-  const r = await fetch(`${ctx.baseUrl}/ITILCategory?range=0-999&sort=id`, { headers: headers(ctx) });
+  const r = await glpiFetch(`${ctx.baseUrl}/ITILCategory?range=0-999&sort=id`, { headers: headers(ctx) });
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`GLPI GET ITILCategory: ${r.status} ${t.slice(0, 300)}`);
@@ -698,7 +699,7 @@ export type GlpiUsuarioLista = { id: number; name: string };
 
 /** Lista usuários do GLPI (para atribuição). */
 export async function glpiListUsers(ctx: GlpiSessionContext): Promise<GlpiUsuarioLista[]> {
-  const r = await fetch(`${ctx.baseUrl}/User?range=0-999&sort=id`, { headers: headers(ctx) });
+  const r = await glpiFetch(`${ctx.baseUrl}/User?range=0-999&sort=id`, { headers: headers(ctx) });
   if (!r.ok) {
     const t = await r.text();
     throw new Error(`GLPI GET User: ${r.status} ${t.slice(0, 300)}`);

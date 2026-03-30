@@ -268,10 +268,11 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       <CardHeader className="pb-4">
         <CardTitle>GLPI</CardTitle>
         <CardDescription>
-          URL até <code className="text-[11px]">apirest.php</code>, User Token e App Token (API REST clássica). Ao sair dos
-          campos de token, a conexão é testada. Tokens em branco preservam o que já está salvo; no deploy também vale{" "}
+          URL até <code className="text-[11px]">apirest.php</code>, User Token e App Token. Teste ao sair dos campos de token.
+          Tokens vazios mantêm o salvo. Variáveis no servidor:{" "}
           <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
-          <code className="text-[11px]">GLPI_USER_TOKEN</code>.
+          <code className="text-[11px]">GLPI_USER_TOKEN</code>. HTTPS com certificado interno:{" "}
+          <code className="text-[11px]">GLPI_TLS_INSECURE=1</code> (como <code className="text-[11px]">curl -k</code>).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 max-w-xl">

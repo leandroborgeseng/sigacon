@@ -3,6 +3,8 @@
  * Retries apenas no mesmo endpoint: variantes de barra final e tokens na query.
  */
 
+import { glpiFetch, glpiTlsInsecureHintParaErroDeRede } from "@/lib/glpi-fetch";
+
 /** Remove espaços e caracteres invisíveis comuns de copiar/colar. */
 export function sanitizarTokenGlpi(valor: string): string {
   return valor.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
@@ -145,7 +147,7 @@ export async function glpiLegacyInitSession(
         for (const { label, url, init } of buildInitAttempts(b, appFase, user)) {
           if (signal.aborted) break faseLoop;
           try {
-            const res = await fetch(url, { ...init, signal });
+            const res = await glpiFetch(url, { ...init, signal });
             const text = await res.text();
             if (!res.ok) {
               const detail = parseGlpiApiErrorBody(text);
@@ -195,10 +197,13 @@ export async function glpiLegacyInitSession(
             };
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
+            const aborted = signal.aborted || msg.includes("abort");
+            const core = aborted ? "Tempo esgotado ou requisição cancelada." : msg.slice(0, 200);
+            const detail = aborted ? core : `${core}${glpiTlsInsecureHintParaErroDeRede(msg)}`;
             lastFail = {
               status: 0,
               body: "",
-              detail: signal.aborted || msg.includes("abort") ? "Tempo esgotado ou requisição cancelada." : msg.slice(0, 200),
+              detail,
               via: `${label} · base ${b} (${rotulo})`,
             };
             falhasFase.push(`${lastFail.detail.slice(0, 80)} [${label}]`);
