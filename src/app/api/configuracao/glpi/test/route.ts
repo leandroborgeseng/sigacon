@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   if (!merged.baseUrl) {
     return NextResponse.json(
-      { message: "Informe a URL da API (apirest.php) ou configure GLPI_URL no ambiente.", ok: false, steps: [] },
+      { message: "Informe a URL da API GLPI ou configure GLPI_URL no ambiente.", ok: false, steps: [] },
       { status: 400 }
     );
   }

@@ -23,7 +23,7 @@ export function validarFormatoUrlApiGlpi(
   raw: string
 ): { ok: true; normalized: string } | { ok: false; message: string } {
   const base = normalizeBaseUrl(raw);
-  if (!base) return { ok: false, message: "Digite a URL completa até apirest.php." };
+  if (!base) return { ok: false, message: "Informe a URL base do GLPI ou o endpoint da API." };
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(base);
@@ -32,10 +32,6 @@ export function validarFormatoUrlApiGlpi(
   }
   if (!["http:", "https:"].includes(parsedUrl.protocol)) {
     return { ok: false, message: "Use http:// ou https://." };
-  }
-  const pathOk = /apirest\.php$/i.test(parsedUrl.pathname.replace(/\/$/, ""));
-  if (!pathOk) {
-    return { ok: false, message: "O caminho deve terminar em …/apirest.php." };
   }
   return { ok: true, normalized: base };
 }
@@ -115,14 +111,14 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
   if (!urlV.ok) {
     steps.push({
       id: "url",
-      label: "URL da API (apirest.php)",
+      label: "URL da API GLPI",
       ok: false,
       detail: urlV.message,
     });
     return { ok: false, steps };
   }
   const base = urlV.normalized;
-  steps.push({ id: "url", label: "URL da API (apirest.php)", ok: true, detail: base });
+  steps.push({ id: "url", label: "URL da API GLPI", ok: true, detail: base });
 
   if (urlApontaParaApiAltaNivelGlpi(base)) {
     const legado = sugerirUrlApiLegadaGlpi(base);

@@ -207,11 +207,11 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
     setMsg(null);
     setSteps(null);
     if (!baseUrl.trim()) {
-      setMsg("Preencha a URL da API (…/apirest.php) ou defina GLPI_URL no servidor.");
+      setMsg("Preencha a URL da API do GLPI ou defina GLPI_URL no servidor.");
       return;
     }
     if (!validarFormatoUrlApiGlpi(baseUrl).ok) {
-      setMsg("A URL ainda não está no formato esperado (deve terminar em apirest.php).");
+      setMsg("A URL não é válida (use http(s)://… com caminho correto para o seu ambiente).");
       return;
     }
     if (!userToken.trim() && !userJaSalvo) {
@@ -337,7 +337,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           </div>
         )}
         <div className="space-y-2">
-          <Label>URL base (apirest.php)</Label>
+          <Label>URL base da API GLPI</Label>
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}

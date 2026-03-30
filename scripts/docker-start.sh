@@ -53,5 +53,14 @@ echo "[sigacon] Seeds opcionais (ignoram falha)..."
 node prisma/seed.js 2>/dev/null || true
 node scripts/seed-eddydata.js 2>/dev/null || true
 
+echo "[sigacon] Contrato datacenter base (8 linhas; SEED_CONTRATO_ID no ambiente opcional)..."
+set +e
+node scripts/seed-contrato-datacenter-base.js
+SEED_DC_EC=$?
+set -e
+if [ "$SEED_DC_EC" -ne 0 ]; then
+  echo "[sigacon] Aviso: seed-contrato-datacenter-base saiu com código $SEED_DC_EC (deploy segue)."
+fi
+
 echo "[sigacon] Iniciando Next.js..."
 exec node server.js

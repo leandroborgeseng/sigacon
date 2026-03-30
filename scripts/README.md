@@ -49,3 +49,5 @@ Após aplicar as migrations de datacenter, você pode **ajustar o contrato atual
    ```
 
 Opcionais: `SEED_DC_NUMERO`, `SEED_DC_NOME`, `SEED_DC_FORNECEDOR`. O contrato de **software** Eddydata não é alterado por este script, exceto se você passar explicitamente o `SEED_CONTRATO_ID` dele (não recomendado).
+
+**Deploy (Docker/Railway):** após `prisma migrate deploy`, o `docker-start.sh` executa este seed. Defina `SEED_CONTRATO_ID` nas variáveis do ambiente para ajustar um contrato já existente; sem isso, é criado ou atualizado o número `DC-BASE-MEDICAO-001`.
