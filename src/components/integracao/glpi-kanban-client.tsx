@@ -705,7 +705,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                       className="h-8"
                       onClick={() => void abrirDetalhes(c.glpiTicketId)}
                     >
-                      Detalhes &amp; comentários
+                      Editar chamado
                     </Button>
                   </div>
                 </div>
