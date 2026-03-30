@@ -1,6 +1,10 @@
 /**
- * Testes de conectividade contra a REST v1 (GET initSession em …/api.php/v1 ou …/apirest.php).
- * Ver https://github.com/glpi-project/glpi/blob/main/apirest.md
+ * Conforme documentação GLPI REST API (ficheiro apirest.md no projeto GLPI):
+ * - Base do endpoint = URL onde os recursos são expostos (ex.: …/apirest.php, …/api.php/v1 ou …/api com rewrite no Apache/Nginx).
+ * - initSession / killSession: GET, cabeçalho Content-Type: application/json, corpo vazio em GET.
+ * - Autenticação: Authorization: user_token …, opcional App-Token; demais chamadas exigem Session-Token.
+ * - Erros textuais: ERROR_SESSION_TOKEN_MISSING, ERROR_WRONG_APP_TOKEN_PARAMETER, etc.
+ * Código-fonte de referência: https://github.com/glpi-project/glpi/blob/main/apirest.md
  */
 
 import { glpiLegacyInitSession, parseGlpiApiErrorBody } from "@/lib/glpi-apirest-session";
@@ -18,12 +22,16 @@ function normalizeBaseUrl(raw: string): string {
 }
 
 /**
- * Base REST aceita (doc GLPI): …/apirest.php ou …/api.php/v1 — em ambos os casos o app chama …/initSession na mesma base.
+ * Bases válidas (manual GLPI + instalações comuns):
+ * - …/apirest.php (entrada direta do script)
+ * - …/api.php/v1 (URL “v1” exibida na doc / painel)
+ * - …/api (Apache/Nginx: rewrite api/(.*) → apirest.php/$1)
  */
 function caminhoBaseApiGlpiValido(pathnameRaw: string): boolean {
   const path = pathnameRaw.replace(/\/+$/, "") || "/";
   if (/\/apirest\.php$/i.test(path)) return true;
   if (/\/api\.php\/v1$/i.test(path)) return true;
+  if (/\/api$/i.test(path)) return true;
   return false;
 }
 
@@ -35,7 +43,8 @@ export function validarFormatoUrlApiGlpi(
   if (!base) {
     return {
       ok: false,
-      message: "Informe a URL base da API REST (ex.: https://servidor/api.php/v1 ou https://servidor/apirest.php).",
+      message:
+        "Informe a URL base da API REST GLPI (ex.: https://servidor/glpi/api.php/v1, https://servidor/glpi/apirest.php ou https://servidor/glpi/api se o servidor usar rewrite).",
     };
   }
   let parsedUrl: URL;
@@ -51,14 +60,14 @@ export function validarFormatoUrlApiGlpi(
     return {
       ok: false,
       message:
-        "Use a base REST v1 do GLPI: URL terminando em /api.php/v1 (ex.: https://suporte.prefeitura.gov.br/api.php/v1) ou em /apirest.php, conforme a instalação.",
+        "Use a base publicada pelo seu GLPI: …/api.php/v1, …/apirest.php ou …/api (com rewrite), como na documentação oficial da REST API.",
     };
   }
   if (/\/api\.php\/v(?!1\b)/i.test(parsedUrl.pathname)) {
     return {
       ok: false,
       message:
-        "Caminhos /api.php/v2 ou superiores usam outra API (OAuth2). Esta integração usa só a REST v1 (…/api.php/v1 ou …/apirest.php) com User Token e App Token.",
+        "Caminhos /api.php/v2 ou superiores não são esta REST legada (user_token + Session-Token). Use …/api.php/v1, …/apirest.php ou …/api conforme o manual GLPI.",
     };
   }
   return { ok: true, normalized: base };

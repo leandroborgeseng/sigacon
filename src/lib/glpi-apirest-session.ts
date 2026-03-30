@@ -1,5 +1,6 @@
 /**
- * initSession da API REST v1 GLPI (base …/api.php/v1 ou …/apirest.php + user_token + App-Token).
+ * initSession (GET, Content-Type application/json) — doc GLPI REST API: Authorization user_token, App-Token opcional.
+ * Base pode ser …/api.php/v1, …/apirest.php ou …/api (rewrite).
  * Retries apenas no mesmo endpoint: variantes de barra final e tokens na query.
  */
 

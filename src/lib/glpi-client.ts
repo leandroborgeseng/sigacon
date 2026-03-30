@@ -1,5 +1,5 @@
 /**
- * Cliente HTTP para a API REST v1 do GLPI (URL base …/api.php/v1 ou …/apirest.php, User Token + App Token).
+ * Cliente HTTP REST GLPI (rotas relativas à base: /Ticket, /search/Ticket, listSearchOptions, etc. — ver apirest.md).
  */
 
 import { getGlpiCredentialsResolved } from "@/lib/glpi-config";

@@ -266,7 +266,9 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       <CardHeader className="pb-4">
         <CardTitle>GLPI</CardTitle>
         <CardDescription>
-          URL base da API REST v1 (<code className="text-[11px]">…/api.php/v1</code> ou <code className="text-[11px]">…/apirest.php</code>), User Token e App Token. Teste ao sair dos campos.
+          URL base conforme o GLPI (doc REST): <code className="text-[11px]">…/api.php/v1</code>,{" "}
+          <code className="text-[11px]">…/apirest.php</code> ou <code className="text-[11px]">…/api</code> com rewrite no servidor.
+          User Token e App Token; teste ao sair dos campos.
           Tokens vazios mantêm o salvo. Variáveis no servidor:{" "}
           <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
           <code className="text-[11px]">GLPI_USER_TOKEN</code>. HTTPS com certificado interno:{" "}
@@ -328,7 +330,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           </div>
         )}
         <div className="space-y-2">
-          <Label>URL base (REST v1)</Label>
+          <Label>URL base da API GLPI</Label>
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
