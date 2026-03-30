@@ -1,5 +1,5 @@
 /**
- * Testes de conectividade contra apirest.php (GET initSession, User Token + App Token).
+ * Testes de conectividade contra a REST v1 (GET initSession em …/api.php/v1 ou …/apirest.php).
  * Ver https://github.com/glpi-project/glpi/blob/main/apirest.md
  */
 
@@ -17,12 +17,27 @@ function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
 
-/** Único modo suportado: apirest.php com User Token + App Token (GET initSession). Não há API OAuth v2+ nesta integração. */
+/**
+ * Base REST aceita (doc GLPI): …/apirest.php ou …/api.php/v1 — em ambos os casos o app chama …/initSession na mesma base.
+ */
+function caminhoBaseApiGlpiValido(pathnameRaw: string): boolean {
+  const path = pathnameRaw.replace(/\/+$/, "") || "/";
+  if (/\/apirest\.php$/i.test(path)) return true;
+  if (/\/api\.php\/v1$/i.test(path)) return true;
+  return false;
+}
+
+/** User Token + App Token (GET initSession). Não há API OAuth /api.php/v2+ nesta integração. */
 export function validarFormatoUrlApiGlpi(
   raw: string
 ): { ok: true; normalized: string } | { ok: false; message: string } {
   const base = normalizeBaseUrl(raw);
-  if (!base) return { ok: false, message: "Informe a URL até o arquivo apirest.php (ex.: https://servidor/apirest.php)." };
+  if (!base) {
+    return {
+      ok: false,
+      message: "Informe a URL base da API REST (ex.: https://servidor/api.php/v1 ou https://servidor/apirest.php).",
+    };
+  }
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(base);
@@ -32,19 +47,18 @@ export function validarFormatoUrlApiGlpi(
   if (!["http:", "https:"].includes(parsedUrl.protocol)) {
     return { ok: false, message: "Use http:// ou https://." };
   }
-  const path = parsedUrl.pathname.replace(/\/+$/, "");
-  if (!/\/apirest\.php$/i.test(path)) {
+  if (!caminhoBaseApiGlpiValido(parsedUrl.pathname)) {
     return {
       ok: false,
       message:
-        "A URL deve terminar em apirest.php (ex.: https://suporte.empresa.gov.br/apirest.php ou …/api.php/v1/apirest.php).",
+        "Use a base REST v1 do GLPI: URL terminando em /api.php/v1 (ex.: https://suporte.prefeitura.gov.br/api.php/v1) ou em /apirest.php, conforme a instalação.",
     };
   }
   if (/\/api\.php\/v(?!1\b)/i.test(parsedUrl.pathname)) {
     return {
       ok: false,
       message:
-        "Caminhos /api.php/v2 ou superiores usam outra API (OAuth2). Esta aplicação integra só apirest.php com User Token e App Token — use v1 ou apirest.php na raiz.",
+        "Caminhos /api.php/v2 ou superiores usam outra API (OAuth2). Esta integração usa só a REST v1 (…/api.php/v1 ou …/apirest.php) com User Token e App Token.",
     };
   }
   return { ok: true, normalized: base };
@@ -108,7 +122,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     return { ok: false, steps };
   }
   const base = urlV.normalized;
-  steps.push({ id: "url", label: "URL da API GLPI (apirest.php)", ok: true, detail: base });
+  steps.push({ id: "url", label: "URL base da API GLPI (REST v1)", ok: true, detail: base });
 
   const userToken = input.userToken.trim();
   const appToken = input.appToken.trim();

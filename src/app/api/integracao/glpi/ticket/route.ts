@@ -5,7 +5,7 @@ import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
 /**
  * Consulta básica ao GLPI (opcional).
- * Variáveis: GLPI_URL (ex. https://glpi.prefeitura.gov.br/apirest.php), GLPI_USER_TOKEN, GLPI_APP_TOKEN
+ * Variáveis: GLPI_URL (ex. …/api.php/v1 ou …/apirest.php), GLPI_USER_TOKEN, GLPI_APP_TOKEN
  */
 export async function GET(request: Request) {
   const session = await getSession();

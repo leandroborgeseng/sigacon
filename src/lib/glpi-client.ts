@@ -1,5 +1,5 @@
 /**
- * Cliente HTTP para a API REST clássica do GLPI (URL base …/apirest.php, User Token + App Token).
+ * Cliente HTTP para a API REST v1 do GLPI (URL base …/api.php/v1 ou …/apirest.php, User Token + App Token).
  */
 
 import { getGlpiCredentialsResolved } from "@/lib/glpi-config";

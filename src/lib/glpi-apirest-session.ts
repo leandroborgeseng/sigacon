@@ -1,5 +1,5 @@
 /**
- * initSession da API REST clássica GLPI (apirest.php + user_token + App-Token).
+ * initSession da API REST v1 GLPI (base …/api.php/v1 ou …/apirest.php + user_token + App-Token).
  * Retries apenas no mesmo endpoint: variantes de barra final e tokens na query.
  */
 
@@ -235,7 +235,7 @@ export async function glpiLegacyInitSession(
     const stMissing =
       failuresShort.join(" ").includes("SESSION_TOKEN_MISSING") || lastFail.detail.includes("SESSION_TOKEN_MISSING");
     const dica = stMissing
-      ? " Esse código em initSession costuma indicar que o PHP não repassou Authorization/App-Token ao GLPI (proxy: HTTP_AUTHORIZATION no Apache/Nginx) ou URL incorreta — use exatamente a base apirest.php que o GLPI expõe."
+      ? " Esse código em initSession costuma indicar que o PHP não repassou Authorization/App-Token ao GLPI (proxy: HTTP_AUTHORIZATION no Apache/Nginx) ou URL base incorreta — use exatamente …/api.php/v1 ou …/apirest.php conforme o GLPI."
       : "";
     lastFail = {
       ...lastFail,

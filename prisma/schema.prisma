@@ -326,7 +326,7 @@ model ContratoDatacenterItemPrevisto {
 /** Configuração da API GLPI (persistida; fallback opcional via variáveis de ambiente). */
 model GlpiConfig {
   id   String @id @default("default")
-  /** URL base até apirest.php, ex.: https://glpi.empresa.com/apirest.php */
+  /** URL base REST v1, ex.: https://glpi.empresa.com/api.php/v1 ou …/apirest.php */
   baseUrl String? @map("base_url") @db.VarChar(2000)
   appToken  String? @map("app_token") @db.Text
   userToken String? @map("user_token") @db.Text

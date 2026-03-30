@@ -266,7 +266,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
       <CardHeader className="pb-4">
         <CardTitle>GLPI</CardTitle>
         <CardDescription>
-          URL até <code className="text-[11px]">apirest.php</code>, User Token e App Token. Teste ao sair dos campos de token.
+          URL base da API REST v1 (<code className="text-[11px]">…/api.php/v1</code> ou <code className="text-[11px]">…/apirest.php</code>), User Token e App Token. Teste ao sair dos campos.
           Tokens vazios mantêm o salvo. Variáveis no servidor:{" "}
           <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
           <code className="text-[11px]">GLPI_USER_TOKEN</code>. HTTPS com certificado interno:{" "}
@@ -328,11 +328,11 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           </div>
         )}
         <div className="space-y-2">
-          <Label>URL (apirest.php)</Label>
+          <Label>URL base (REST v1)</Label>
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://suporte.empresa.gov.br/apirest.php"
+            placeholder="https://suporte.empresa.gov.br/api.php/v1"
             disabled={!podeEditar}
             className={urlInputClass}
             aria-invalid={urlFmt.kind === "error"}
