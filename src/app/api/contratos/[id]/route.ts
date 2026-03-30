@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { contratoSchema, glpiGruposTecnicosSchema } from "@/lib/validators";
+import {
+  contratoSchema,
+  contratoDatacenterBodySchema,
+  type ContratoDatacenterBodyInput,
+  glpiGruposTecnicosSchema,
+} from "@/lib/validators";
 import { registerAudit } from "@/server/services/audit";
 import { calcularValorMensalReferencia } from "@/lib/finance";
+import { applyContratoDatacenter } from "@/server/services/contrato-datacenter";
 import { canRecurso } from "@/lib/permissions";
 import { RecursoPermissao, PerfilUsuario } from "@prisma/client";
 
@@ -23,6 +29,8 @@ export async function GET(
       medicoes: { orderBy: [{ ano: "desc" }, { mes: "desc" }], take: 12 },
       atas: { orderBy: { dataReuniao: "desc" }, take: 10 },
       reajustes: { orderBy: { dataReajuste: "desc" } },
+      datacenter: true,
+      linksMetropolitanos: { orderBy: { ordem: "asc" } },
     },
   });
   if (!contrato) return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
@@ -50,7 +58,7 @@ export async function PATCH(
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { glpiGruposTecnicos: glpiRaw, ...rest } = body;
+    const { glpiGruposTecnicos: glpiRaw, datacenter: datacenterRaw, ...rest } = body;
     const parsed = contratoSchema.partial().safeParse(rest);
     if (!parsed.success) {
       return NextResponse.json(
@@ -70,10 +78,25 @@ export async function PATCH(
       glpiData = g.data;
     }
 
+    let datacenterParsed: ContratoDatacenterBodyInput | undefined;
+    if (datacenterRaw !== undefined) {
+      const d = contratoDatacenterBodySchema.safeParse(datacenterRaw);
+      if (!d.success) {
+        return NextResponse.json(
+          { message: "Dados de datacenter inválidos", errors: d.error.flatten() },
+          { status: 400 }
+        );
+      }
+      datacenterParsed = d.data;
+    }
+
     const valorAnual = parsed.data.valorAnual ?? Number(existing.valorAnual);
     const valorMensal =
       parsed.data.valorMensalReferencia ??
       (Number(existing.valorMensalReferencia) || calcularValorMensalReferencia(valorAnual));
+
+    const tipoNovo =
+      parsed.data.tipoContrato !== undefined ? parsed.data.tipoContrato : existing.tipoContrato;
 
     const contrato = await prisma.$transaction(async (tx) => {
       if (glpiData !== undefined) {
@@ -88,7 +111,7 @@ export async function PATCH(
           });
         }
       }
-      return tx.contrato.update({
+      const updated = await tx.contrato.update({
         where: { id },
         data: {
           ...(parsed.data.nome != null && { nome: parsed.data.nome }),
@@ -114,8 +137,18 @@ export async function PATCH(
           ...(parsed.data.limiteValorUstAno !== undefined && {
             limiteValorUstAno: parsed.data.limiteValorUstAno,
           }),
+          ...(parsed.data.tipoContrato !== undefined && { tipoContrato: parsed.data.tipoContrato }),
         },
       });
+
+      await applyContratoDatacenter(tx, {
+        contratoId: id,
+        tipoAnterior: existing.tipoContrato,
+        tipoNovo: updated.tipoContrato,
+        datacenterBody: datacenterParsed,
+      });
+
+      return updated;
     });
 
     await registerAudit({
@@ -129,7 +162,11 @@ export async function PATCH(
 
     const comGlpi = await prisma.contrato.findUnique({
       where: { id },
-      include: { glpiGruposTecnicos: true },
+      include: {
+        glpiGruposTecnicos: true,
+        datacenter: true,
+        linksMetropolitanos: { orderBy: { ordem: "asc" } },
+      },
     });
     return NextResponse.json(comGlpi ?? contrato);
   } catch (e) {

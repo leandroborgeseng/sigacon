@@ -24,15 +24,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { contratoSchema, type ContratoInput } from "@/lib/validators";
-import { StatusContrato, LeiLicitacao } from "@prisma/client";
+import { StatusContrato, LeiLicitacao, TipoContrato } from "@prisma/client";
 import { Plus } from "lucide-react";
 import { ContratoGlpiGruposField } from "@/components/contratos/contrato-glpi-grupos-field";
+import {
+  ContratoDatacenterFields,
+  defaultDatacenterFormState,
+  payloadFromDatacenterForm,
+  type DatacenterFormState,
+} from "@/components/contratos/contrato-datacenter-fields";
 
 export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean }) {
   if (!podeCriar) return null;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [glpiGrupos, setGlpiGrupos] = useState<{ glpiGroupId: number; nome: string }[]>([]);
+  const [tipoContrato, setTipoContrato] = useState<TipoContrato>(TipoContrato.SOFTWARE);
+  const [dcForm, setDcForm] = useState<DatacenterFormState>(() => defaultDatacenterFormState());
 
   const form = useForm<ContratoInput>({
     resolver: zodResolver(contratoSchema),
@@ -57,6 +65,10 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...data,
+        tipoContrato,
+        ...(tipoContrato === TipoContrato.DATACENTER
+          ? { datacenter: payloadFromDatacenterForm(dcForm) }
+          : {}),
         glpiGruposTecnicos: glpiGrupos.map((g) => ({
           glpiGroupId: g.glpiGroupId,
           nome: g.nome,
@@ -71,6 +83,8 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
     setOpen(false);
     form.reset();
     setGlpiGrupos([]);
+    setTipoContrato(TipoContrato.SOFTWARE);
+    setDcForm(defaultDatacenterFormState());
     router.refresh();
   }
 
@@ -82,7 +96,7 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
           Novo contrato
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo contrato</DialogTitle>
         </DialogHeader>
@@ -141,6 +155,27 @@ export function ContratoCreateDialog({ podeCriar = true }: { podeCriar?: boolean
               />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label>Tipo de contrato</Label>
+            <Select
+              value={tipoContrato}
+              onValueChange={(v) => setTipoContrato(v as TipoContrato)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TipoContrato.SOFTWARE}>Software (medição / itens / UST)</SelectItem>
+                <SelectItem value={TipoContrato.DATACENTER}>Datacenter (infraestrutura)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Contratos de datacenter registram vCPU, RAM, discos, rack (U) e links metropolitanos.
+            </p>
+          </div>
+          {tipoContrato === TipoContrato.DATACENTER && (
+            <ContratoDatacenterFields value={dcForm} onChange={setDcForm} />
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Valor anual (R$)</Label>

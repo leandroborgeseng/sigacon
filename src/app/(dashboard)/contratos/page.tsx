@@ -17,7 +17,7 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ContratoCreateDialog } from "@/components/contratos/contrato-create-dialog";
 import { canRecurso } from "@/lib/permissions";
-import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
+import { PerfilUsuario, RecursoPermissao, TipoContrato } from "@prisma/client";
 
 export default async function ContratosPage() {
   const session = await getSession();
@@ -58,6 +58,7 @@ export default async function ContratosPage() {
                   <TableHead>Fornecedor</TableHead>
                   <TableHead>Vigência</TableHead>
                   <TableHead>Valor anual</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -65,7 +66,7 @@ export default async function ContratosPage() {
               <TableBody>
                 {contratos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       Nenhum contrato cadastrado.
                     </TableCell>
                   </TableRow>
@@ -86,6 +87,11 @@ export default async function ContratosPage() {
                         {formatDate(c.vigenciaInicio)} - {formatDate(c.vigenciaFim)}
                       </TableCell>
                       <TableCell>{formatCurrency(c.valorAnual)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-normal">
+                          {c.tipoContrato === TipoContrato.DATACENTER ? "Datacenter" : "Software"}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="secondary">{c.status}</Badge>
                       </TableCell>

@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { contratoSchema, glpiGruposTecnicosSchema } from "@/lib/validators";
+import {
+  contratoSchema,
+  contratoDatacenterBodySchema,
+  type ContratoDatacenterBodyInput,
+  glpiGruposTecnicosSchema,
+} from "@/lib/validators";
 import { registerAudit } from "@/server/services/audit";
 import { calcularValorMensalReferencia } from "@/lib/finance";
+import { applyContratoDatacenter } from "@/server/services/contrato-datacenter";
+import { TipoContrato } from "@prisma/client";
 
 export async function GET() {
   const session = await getSession();
@@ -22,7 +29,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const { glpiGruposTecnicos: glpiRaw, ...rest } = body;
+    const { glpiGruposTecnicos: glpiRaw, datacenter: datacenterRaw, ...rest } = body;
     const parsed = contratoSchema.safeParse(rest);
     if (!parsed.success) {
       return NextResponse.json(
@@ -42,47 +49,77 @@ export async function POST(request: Request) {
       glpiGrupos = g.data;
     }
 
+    let datacenterParsed: ContratoDatacenterBodyInput | undefined;
+    if (datacenterRaw !== undefined) {
+      const d = contratoDatacenterBodySchema.safeParse(datacenterRaw);
+      if (!d.success) {
+        return NextResponse.json(
+          { message: "Dados de datacenter inválidos", errors: d.error.flatten() },
+          { status: 400 }
+        );
+      }
+      datacenterParsed = d.data;
+    }
+
     const valorMensal =
       parsed.data.valorMensalReferencia ??
       calcularValorMensalReferencia(parsed.data.valorAnual);
 
-    const contrato = await prisma.contrato.create({
-      data: {
-        nome: parsed.data.nome,
-        numeroContrato: parsed.data.numeroContrato,
-        fornecedor: parsed.data.fornecedor,
-        ativo: true,
-        objeto: parsed.data.objeto ?? null,
-        vigenciaInicio: parsed.data.vigenciaInicio,
-        vigenciaFim: parsed.data.vigenciaFim,
-        valorAnual: parsed.data.valorAnual,
-        valorMensalReferencia: valorMensal,
-        status: parsed.data.status,
-        gestorContrato: parsed.data.gestorContrato ?? null,
-        observacoesGerais: parsed.data.observacoesGerais ?? null,
-        formaCalculoMedicao: parsed.data.formaCalculoMedicao,
-        leiLicitacao: parsed.data.leiLicitacao,
-        dataAssinatura: parsed.data.dataAssinatura ?? null,
-        numeroRenovacoes: parsed.data.numeroRenovacoes ?? 0,
-        valorUnitarioUst: parsed.data.valorUnitarioUst ?? null,
-        limiteUstAno: parsed.data.limiteUstAno ?? null,
-        limiteValorUstAno: parsed.data.limiteValorUstAno ?? null,
-      },
-    });
+    const tipoNovo = parsed.data.tipoContrato ?? TipoContrato.SOFTWARE;
 
-    if (glpiGrupos?.length) {
-      await prisma.contratoGlpiGrupoTecnico.createMany({
-        data: glpiGrupos.map((g) => ({
-          contratoId: contrato.id,
-          glpiGroupId: g.glpiGroupId,
-          nome: g.nome ?? null,
-        })),
+    const contrato = await prisma.$transaction(async (tx) => {
+      const c = await tx.contrato.create({
+        data: {
+          nome: parsed.data.nome,
+          numeroContrato: parsed.data.numeroContrato,
+          fornecedor: parsed.data.fornecedor,
+          ativo: true,
+          objeto: parsed.data.objeto ?? null,
+          vigenciaInicio: parsed.data.vigenciaInicio,
+          vigenciaFim: parsed.data.vigenciaFim,
+          valorAnual: parsed.data.valorAnual,
+          valorMensalReferencia: valorMensal,
+          status: parsed.data.status,
+          gestorContrato: parsed.data.gestorContrato ?? null,
+          observacoesGerais: parsed.data.observacoesGerais ?? null,
+          formaCalculoMedicao: parsed.data.formaCalculoMedicao,
+          leiLicitacao: parsed.data.leiLicitacao,
+          dataAssinatura: parsed.data.dataAssinatura ?? null,
+          numeroRenovacoes: parsed.data.numeroRenovacoes ?? 0,
+          valorUnitarioUst: parsed.data.valorUnitarioUst ?? null,
+          limiteUstAno: parsed.data.limiteUstAno ?? null,
+          limiteValorUstAno: parsed.data.limiteValorUstAno ?? null,
+          tipoContrato: tipoNovo,
+        },
       });
-    }
+
+      if (glpiGrupos?.length) {
+        await tx.contratoGlpiGrupoTecnico.createMany({
+          data: glpiGrupos.map((g) => ({
+            contratoId: c.id,
+            glpiGroupId: g.glpiGroupId,
+            nome: g.nome ?? null,
+          })),
+        });
+      }
+
+      await applyContratoDatacenter(tx, {
+        contratoId: c.id,
+        tipoAnterior: TipoContrato.SOFTWARE,
+        tipoNovo: c.tipoContrato,
+        datacenterBody: datacenterParsed,
+      });
+
+      return c;
+    });
 
     const full = await prisma.contrato.findUnique({
       where: { id: contrato.id },
-      include: { glpiGruposTecnicos: true },
+      include: {
+        glpiGruposTecnicos: true,
+        datacenter: true,
+        linksMetropolitanos: { orderBy: { ordem: "asc" } },
+      },
     });
 
     await registerAudit({

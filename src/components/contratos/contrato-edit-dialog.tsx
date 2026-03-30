@@ -25,7 +25,13 @@ import {
 } from "@/components/ui/select";
 import { contratoSchema, type ContratoInput } from "@/lib/validators";
 import { ContratoGlpiGruposField } from "@/components/contratos/contrato-glpi-grupos-field";
-import { StatusContrato, LeiLicitacao } from "@prisma/client";
+import {
+  ContratoDatacenterFields,
+  hydrateDatacenterForm,
+  payloadFromDatacenterForm,
+  type DatacenterFormState,
+} from "@/components/contratos/contrato-datacenter-fields";
+import { StatusContrato, LeiLicitacao, TipoContrato } from "@prisma/client";
 import { Pencil } from "lucide-react";
 
 type ContratoParaEdicao = {
@@ -48,7 +54,21 @@ type ContratoParaEdicao = {
   valorUnitarioUst?: { toString(): string } | number | null;
   limiteUstAno?: { toString(): string } | number | null;
   limiteValorUstAno?: { toString(): string } | number | null;
+  tipoContrato?: TipoContrato;
   glpiGruposTecnicos?: Array<{ glpiGroupId: number; nome: string | null }>;
+  datacenter?: {
+    vcpusContratados: unknown;
+    ramGb: unknown;
+    discoSsdGb: unknown;
+    discoBackupGb: unknown;
+    rackU: unknown;
+    observacoes: string | null;
+  } | null;
+  linksMetropolitanos?: Array<{
+    descricaoVelocidade: string;
+    velocidadeMbps: number | null;
+    quantidade: number;
+  }>;
 };
 
 export function ContratoEditDialog({
@@ -66,6 +86,12 @@ export function ContratoEditDialog({
       nome: g.nome ?? `Grupo ${g.glpiGroupId}`,
     }))
   );
+  const [tipoContrato, setTipoContrato] = useState<TipoContrato>(
+    contrato.tipoContrato ?? TipoContrato.SOFTWARE
+  );
+  const [dcForm, setDcForm] = useState<DatacenterFormState>(() =>
+    hydrateDatacenterForm(contrato.datacenter ?? null, contrato.linksMetropolitanos ?? [])
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +101,9 @@ export function ContratoEditDialog({
         nome: g.nome ?? `Grupo ${g.glpiGroupId}`,
       }))
     );
-  }, [open, contrato.id, contrato.glpiGruposTecnicos]);
+    setTipoContrato(contrato.tipoContrato ?? TipoContrato.SOFTWARE);
+    setDcForm(hydrateDatacenterForm(contrato.datacenter ?? null, contrato.linksMetropolitanos ?? []));
+  }, [open, contrato.id, contrato.glpiGruposTecnicos, contrato.tipoContrato, contrato.datacenter, contrato.linksMetropolitanos]);
 
   const form = useForm<Partial<ContratoInput>>({
     resolver: zodResolver(contratoSchema.partial()),
@@ -125,6 +153,10 @@ export function ContratoEditDialog({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...payload,
+        tipoContrato,
+        ...(tipoContrato === TipoContrato.DATACENTER
+          ? { datacenter: payloadFromDatacenterForm(dcForm) }
+          : {}),
         glpiGruposTecnicos: glpiGrupos.map((g) => ({
           glpiGroupId: g.glpiGroupId,
           nome: g.nome,
@@ -150,7 +182,7 @@ export function ContratoEditDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar contrato</DialogTitle>
         </DialogHeader>
@@ -194,6 +226,21 @@ export function ContratoEditDialog({
               />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label>Tipo de contrato</Label>
+            <Select value={tipoContrato} onValueChange={(v) => setTipoContrato(v as TipoContrato)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TipoContrato.SOFTWARE}>Software (medição / itens / UST)</SelectItem>
+                <SelectItem value={TipoContrato.DATACENTER}>Datacenter (infraestrutura)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {tipoContrato === TipoContrato.DATACENTER && (
+            <ContratoDatacenterFields value={dcForm} onChange={setDcForm} />
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Valor anual (R$)</Label>

@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { StatusContrato, FormaCalculoMedicao, LeiLicitacao } from "@prisma/client";
+import {
+  StatusContrato,
+  FormaCalculoMedicao,
+  LeiLicitacao,
+  TipoContrato,
+} from "@prisma/client";
 
 /** Grupos técnicos GLPI vinculados ao contrato (filtro de chamados). */
 export const glpiGruposTecnicosSchema = z.array(
@@ -30,7 +35,28 @@ export const contratoSchema = z.object({
   valorUnitarioUst: z.coerce.number().min(0).optional().nullable(),
   limiteUstAno: z.coerce.number().min(0).optional().nullable(),
   limiteValorUstAno: z.coerce.number().min(0).optional().nullable(),
+  tipoContrato: z.nativeEnum(TipoContrato).default(TipoContrato.SOFTWARE),
 });
+
+/** Links metropolitanos no corpo `datacenter` (contrato tipo DATACENTER). */
+export const contratoLinkMetropolitanoSchema = z.object({
+  descricaoVelocidade: z.string().min(1, "Descrição da velocidade obrigatória").max(200),
+  velocidadeMbps: z.coerce.number().int().positive().optional().nullable(),
+  quantidade: z.coerce.number().int().min(1).default(1),
+});
+
+/** Capacidades de infraestrutura + links (opcional no JSON). */
+export const contratoDatacenterBodySchema = z.object({
+  vcpusContratados: z.coerce.number().min(0).optional().nullable(),
+  ramGb: z.coerce.number().min(0).optional().nullable(),
+  discoSsdGb: z.coerce.number().min(0).optional().nullable(),
+  discoBackupGb: z.coerce.number().min(0).optional().nullable(),
+  rackU: z.coerce.number().min(0).optional().nullable(),
+  observacoes: z.string().max(8000).optional().nullable(),
+  links: z.array(contratoLinkMetropolitanoSchema).optional().default([]),
+});
+
+export type ContratoDatacenterBodyInput = z.infer<typeof contratoDatacenterBodySchema>;
 
 export const reajusteContratoSchema = z.object({
   dataReajuste: z.coerce.date(),

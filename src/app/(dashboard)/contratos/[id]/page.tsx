@@ -17,7 +17,7 @@ import {
   reajusteAcumuladoUltimos12Meses,
 } from "@/lib/licitacao";
 import { canRecurso } from "@/lib/permissions";
-import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
+import { PerfilUsuario, RecursoPermissao, TipoContrato } from "@prisma/client";
 import { ContratoGestaoExtendida } from "@/components/contratos/contrato-gestao-extendida";
 
 export default async function ContratoDetailPage({
@@ -43,6 +43,8 @@ export default async function ContratoDetailPage({
         orderBy: [{ competenciaAno: "desc" }, { competenciaMes: "desc" }],
         take: 48,
       },
+      datacenter: true,
+      linksMetropolitanos: { orderBy: { ordem: "asc" } },
       _count: { select: { itens: true } },
     },
   });
@@ -134,6 +136,14 @@ export default async function ContratoDetailPage({
             <span className="font-medium">Status:</span>{" "}
             <Badge variant="secondary">{contrato.status}</Badge>
           </p>
+          <p>
+            <span className="font-medium">Tipo:</span>{" "}
+            <Badge variant="outline">
+              {contrato.tipoContrato === TipoContrato.DATACENTER
+                ? "Datacenter"
+                : "Software"}
+            </Badge>
+          </p>
           {contrato.gestorContrato && (
             <p>
               <span className="font-medium">Gestor:</span>{" "}
@@ -160,6 +170,94 @@ export default async function ContratoDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {contrato.tipoContrato === TipoContrato.DATACENTER && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Infraestrutura contratada (datacenter)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            {!contrato.datacenter ? (
+              <p className="text-muted-foreground">
+                Nenhuma capacidade registrada ainda. Use <strong>Editar contrato</strong> para informar vCPU,
+                RAM, discos, rack (U) e links.
+              </p>
+            ) : (
+              <>
+                <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2">
+                  <div>
+                    <dt className="text-muted-foreground text-xs">vCPUs</dt>
+                    <dd className="font-medium">
+                      {contrato.datacenter.vcpusContratados != null
+                        ? Number(contrato.datacenter.vcpusContratados).toLocaleString("pt-BR")
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">RAM (GB)</dt>
+                    <dd className="font-medium">
+                      {contrato.datacenter.ramGb != null
+                        ? Number(contrato.datacenter.ramGb).toLocaleString("pt-BR")
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">SSD (GB)</dt>
+                    <dd className="font-medium">
+                      {contrato.datacenter.discoSsdGb != null
+                        ? Number(contrato.datacenter.discoSsdGb).toLocaleString("pt-BR")
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Disco backup (GB)</dt>
+                    <dd className="font-medium">
+                      {contrato.datacenter.discoBackupGb != null
+                        ? Number(contrato.datacenter.discoBackupGb).toLocaleString("pt-BR")
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Colocation (U)</dt>
+                    <dd className="font-medium">
+                      {contrato.datacenter.rackU != null
+                        ? Number(contrato.datacenter.rackU).toLocaleString("pt-BR")
+                        : "—"}
+                    </dd>
+                  </div>
+                </dl>
+                {contrato.datacenter.observacoes && (
+                  <p>
+                    <span className="font-medium">Observações:</span> {contrato.datacenter.observacoes}
+                  </p>
+                )}
+              </>
+            )}
+            <div>
+              <p className="font-medium mb-2">Links metropolitanos</p>
+              {contrato.linksMetropolitanos.length === 0 ? (
+                <p className="text-muted-foreground">Nenhum link cadastrado.</p>
+              ) : (
+                <ul className="list-disc pl-5 space-y-1">
+                  {contrato.linksMetropolitanos.map((l) => (
+                    <li key={l.id}>
+                      <span className="font-medium">{l.descricaoVelocidade}</span>
+                      {l.velocidadeMbps != null && (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          ({l.velocidadeMbps.toLocaleString("pt-BR")} Mbps)
+                        </span>
+                      )}
+                      {" — "}
+                      quantidade: {l.quantidade}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

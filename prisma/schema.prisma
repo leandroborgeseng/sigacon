@@ -44,6 +44,12 @@ enum StatusContrato {
   EM_AVALIACAO
 }
 
+/** Natureza do contrato: software (medição UST/itens) ou infraestrutura de datacenter. */
+enum TipoContrato {
+  SOFTWARE
+  DATACENTER
+}
+
 enum FormaCalculoMedicao {
   PESO_IGUAL_POR_ITEM
 }
@@ -212,6 +218,7 @@ model Contrato {
   limiteUstAno          Decimal?            @map("limite_ust_ano") @db.Decimal(14, 4)
   /** Teto em R$ de medição UST no ano (opcional) */
   limiteValorUstAno     Decimal?            @map("limite_valor_ust_ano") @db.Decimal(18, 2)
+  tipoContrato          TipoContrato        @default(SOFTWARE) @map("tipo_contrato")
   criadoEm              DateTime            @default(now()) @map("criado_em")
   atualizadoEm          DateTime            @updatedAt @map("atualizado_em")
 
@@ -228,8 +235,50 @@ model Contrato {
   parcelasPagamento   ParcelaPagamento[]
   glpiChamados        GlpiChamado[]
   glpiGruposTecnicos  ContratoGlpiGrupoTecnico[]
+  datacenter          ContratoDatacenter?
+  linksMetropolitanos ContratoLinkMetropolitano[]
 
   @@map("contratos")
+}
+
+/** Capacidades contratadas de infraestrutura (1:1 com contrato tipo DATACENTER). */
+model ContratoDatacenter {
+  id                 String   @id @default(cuid())
+  contratoId         String   @unique @map("contrato_id")
+  /** vCPUs contratadas (unidades). */
+  vcpusContratados   Decimal? @map("vcpus_contratados") @db.Decimal(14, 4)
+  /** Memória RAM contratada (GB). */
+  ramGb              Decimal? @map("ram_gb") @db.Decimal(18, 4)
+  /** Armazenamento rápido SSD (GB). */
+  discoSsdGb         Decimal? @map("disco_ssd_gb") @db.Decimal(18, 4)
+  /** Armazenamento para backup / mais lento (GB). */
+  discoBackupGb      Decimal? @map("disco_backup_gb") @db.Decimal(18, 4)
+  /** Colocation em unidades de rack (U). */
+  rackU              Decimal? @map("rack_u") @db.Decimal(10, 4)
+  observacoes        String?  @db.Text
+  criadoEm           DateTime @default(now()) @map("criado_em")
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@map("contratos_datacenter")
+}
+
+/** Links metropolitanos: velocidade (texto + Mbps opcional) e quantidade de circuitos. */
+model ContratoLinkMetropolitano {
+  id                  String   @id @default(cuid())
+  contratoId          String   @map("contrato_id")
+  descricaoVelocidade String   @map("descricao_velocidade") @db.VarChar(200)
+  /** Velocidade em Mbps, quando numérico (ex.: 1000 = 1 Gbps). */
+  velocidadeMbps      Int?     @map("velocidade_mbps")
+  quantidade          Int      @default(1)
+  ordem               Int      @default(0)
+  criadoEm            DateTime @default(now()) @map("criado_em")
+
+  contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@index([contratoId])
+  @@map("contratos_links_metropolitanos")
 }
 
 /** Configuração da API GLPI (persistida; fallback opcional via variáveis de ambiente). */
