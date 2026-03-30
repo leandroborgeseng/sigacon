@@ -1,6 +1,5 @@
 /**
- * Cliente HTTP para API REST legada do GLPI (apirest.php em /api.php/v1/… ou raiz).
- * User Token + App Token: não use /api.php/v2.x/… (API alta — apenas OAuth Bearer). Ver apirest.md no GLPI.
+ * Cliente HTTP para a API REST clássica do GLPI (URL base …/apirest.php, User Token + App Token).
  */
 
 import { getGlpiCredentialsResolved } from "@/lib/glpi-config";
@@ -46,10 +45,9 @@ export async function glpiWithSession<T>(fn: (ctx: GlpiSessionContext) => Promis
   try {
     return await fn(ctx);
   } finally {
-    await fetch(`${apirestBase}/killSession`, {
-      method: "GET",
-      headers: { "App-Token": appToken, "Session-Token": sessionToken },
-    }).catch(() => {});
+    const killH: Record<string, string> = { "Session-Token": sessionToken };
+    if (appParaSessao) killH["App-Token"] = appParaSessao;
+    await fetch(`${apirestBase}/killSession`, { method: "GET", headers: killH }).catch(() => {});
   }
 }
 

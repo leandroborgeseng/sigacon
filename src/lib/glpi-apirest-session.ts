@@ -1,6 +1,6 @@
 /**
- * initSession da API REST legada GLPI (apirest.php + user_token + App-Token).
- * Vários retries: barra final, query com tokens, base alternativa /apirest.php na raiz.
+ * initSession da API REST clássica GLPI (apirest.php + user_token + App-Token).
+ * Retries apenas no mesmo endpoint: variantes de barra final e tokens na query.
  */
 
 /** Remove espaços e caracteres invisíveis comuns de copiar/colar. */
@@ -30,22 +30,6 @@ export function parseGlpiApiErrorBody(text: string): string {
     /* não é JSON */
   }
   return trimmed.slice(0, 500);
-}
-
-/** Se a base for …/api.php/v1/apirest.php, também tenta https://mesmo-host/apirest.php (doc GLPI / instalações Railway). */
-export function alternativasBaseApirestUrl(normalizedBase: string): string[] {
-  const base = normalizedBase.replace(/\/+$/, "");
-  const list = [base];
-  try {
-    const u = new URL(base);
-    if (/\/api\.php\/v\d+/i.test(u.pathname)) {
-      const raiz = new URL("/apirest.php", u.origin).toString().replace(/\/+$/, "");
-      if (raiz !== base && !list.includes(raiz)) list.push(raiz);
-    }
-  } catch {
-    /* ignore */
-  }
-  return list;
 }
 
 /** apirestBase: URL base exata em que initSession respondeu (sempre use a mesma para get/search/kill). */
@@ -143,7 +127,7 @@ export async function glpiLegacyInitSession(
   const app = sanitizarTokenGlpi(appToken);
   const user = sanitizarTokenGlpi(userToken);
 
-  const bases = alternativasBaseApirestUrl(base.replace(/\/+$/, ""));
+  const bases = [base.replace(/\/+$/, "")];
   const fasesApp: { token: string; rotulo: string }[] =
     app !== ""
       ? [
@@ -246,7 +230,7 @@ export async function glpiLegacyInitSession(
     const stMissing =
       failuresShort.join(" ").includes("SESSION_TOKEN_MISSING") || lastFail.detail.includes("SESSION_TOKEN_MISSING");
     const dica = stMissing
-      ? " Esse código em initSession costuma indicar que o PHP não recebeu Authorization/App-Token (proxy web: confira HTTP_AUTHORIZATION no Apache/Nginx) ou rota errada: cadastre também a base https://SEU-DOMÍNIO/apirest.php se o GLPI publicar essa URL."
+      ? " Esse código em initSession costuma indicar que o PHP não repassou Authorization/App-Token ao GLPI (proxy: HTTP_AUTHORIZATION no Apache/Nginx) ou URL incorreta — use exatamente a base apirest.php que o GLPI expõe."
       : "";
     lastFail = {
       ...lastFail,

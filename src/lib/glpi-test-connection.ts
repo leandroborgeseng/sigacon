@@ -1,8 +1,6 @@
 /**
- * Testes de conectividade contra a API REST do GLPI (apirest.php).
- * Autenticação: App-Token (cabeçalho) + User Token (Authorization: user_token …),
- * conforme https://github.com/glpi-project/glpi/blob/main/apirest.md
- * Compatível com GLPI 10/11; o número de versão “2.2” costuma referir-se a módulos/plugins — o fluxo REST padrão é o acima.
+ * Testes de conectividade contra apirest.php (GET initSession, User Token + App Token).
+ * Ver https://github.com/glpi-project/glpi/blob/main/apirest.md
  */
 
 import { glpiLegacyInitSession, parseGlpiApiErrorBody } from "@/lib/glpi-apirest-session";
@@ -18,12 +16,12 @@ function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, "");
 }
 
-/** Validação só de formato (cliente ou servidor), sem rede. */
+/** Único modo suportado: apirest.php com User Token + App Token (GET initSession). Não há API OAuth v2+ nesta integração. */
 export function validarFormatoUrlApiGlpi(
   raw: string
 ): { ok: true; normalized: string } | { ok: false; message: string } {
   const base = normalizeBaseUrl(raw);
-  if (!base) return { ok: false, message: "Informe a URL base do GLPI ou o endpoint da API." };
+  if (!base) return { ok: false, message: "Informe a URL até o arquivo apirest.php (ex.: https://servidor/apirest.php)." };
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(base);
@@ -33,29 +31,22 @@ export function validarFormatoUrlApiGlpi(
   if (!["http:", "https:"].includes(parsedUrl.protocol)) {
     return { ok: false, message: "Use http:// ou https://." };
   }
+  const path = parsedUrl.pathname.replace(/\/+$/, "");
+  if (!/\/apirest\.php$/i.test(path)) {
+    return {
+      ok: false,
+      message:
+        "A URL deve terminar em apirest.php (ex.: https://suporte.empresa.gov.br/apirest.php ou …/api.php/v1/apirest.php).",
+    };
+  }
+  if (/\/api\.php\/v(?!1\b)/i.test(parsedUrl.pathname)) {
+    return {
+      ok: false,
+      message:
+        "Caminhos /api.php/v2 ou superiores usam outra API (OAuth2). Esta aplicação integra só apirest.php com User Token e App Token — use v1 ou apirest.php na raiz.",
+    };
+  }
   return { ok: true, normalized: base };
-}
-
-/** API “high-level” (v2+): OAuth Bearer. Esta integração usa User/App Token só na rota legada (v1). */
-export function urlApontaParaApiAltaNivelGlpi(normalizedUrl: string): boolean {
-  try {
-    const p = new URL(normalizedUrl).pathname;
-    return /\/api\.php\/v(?!1\b)/i.test(p) && /apirest\.php$/i.test(p);
-  } catch {
-    return false;
-  }
-}
-
-/** Troca …/api.php/v2.x/… por …/api.php/v1/… para usar initSession com user_token. */
-export function sugerirUrlApiLegadaGlpi(normalizedUrl: string): string | null {
-  if (!urlApontaParaApiAltaNivelGlpi(normalizedUrl)) return null;
-  try {
-    const u = new URL(normalizedUrl);
-    u.pathname = u.pathname.replace(/\/api\.php\/v[^/]+/i, "/api.php/v1");
-    return u.toString().replace(/\/+$/, "");
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -118,18 +109,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     return { ok: false, steps };
   }
   const base = urlV.normalized;
-  steps.push({ id: "url", label: "URL da API GLPI", ok: true, detail: base });
-
-  if (urlApontaParaApiAltaNivelGlpi(base)) {
-    const legado = sugerirUrlApiLegadaGlpi(base);
-    steps.push({
-      id: "urlApiVersao",
-      label: "URL: API legada (v1) para User Token",
-      ok: false,
-      detail: `Este caminho é da API de alto nível (v2+), que usa OAuth2 (Bearer JWT), não User/App Token. Troque para a API legada em v1 — ex.: ${legado ?? "…/api.php/v1/apirest.php"}. Documentação: help.glpi-project.org (RESTful API V2 / version pinning).`,
-    });
-    return { ok: false, steps };
-  }
+  steps.push({ id: "url", label: "URL da API GLPI (apirest.php)", ok: true, detail: base });
 
   const userToken = input.userToken.trim();
   const appToken = input.appToken.trim();

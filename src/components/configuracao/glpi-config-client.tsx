@@ -7,12 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { alternativasBaseApirestUrl } from "@/lib/glpi-apirest-session";
-import {
-  sugerirUrlApiLegadaGlpi,
-  urlApontaParaApiAltaNivelGlpi,
-  validarFormatoUrlApiGlpi,
-} from "@/lib/glpi-test-connection";
+import { validarFormatoUrlApiGlpi } from "@/lib/glpi-test-connection";
 import { cn } from "@/lib/utils";
 
 type GlpiTestStep = { id: string; label: string; ok: boolean; detail?: string };
@@ -262,17 +257,10 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
     return <p className="text-muted-foreground">Carregando…</p>;
   }
 
-  const urlLegadoSugerida = urlFmt.kind === "ok" ? sugerirUrlApiLegadaGlpi(urlFmt.normalized) : null;
-  const urlEhApiV2 = urlFmt.kind === "ok" && urlApontaParaApiAltaNivelGlpi(urlFmt.normalized);
-  const basesApirestAlt =
-    urlFmt.kind === "ok" ? alternativasBaseApirestUrl(urlFmt.normalized) : [""];
-  const urlBaseRaizApirest = basesApirestAlt.length > 1 ? basesApirestAlt[1] : null;
-
   const urlInputClass = cn(
     urlFmt.kind === "error" && "border-destructive focus-visible:ring-destructive/40",
-    urlFmt.kind === "ok" && urlEhApiV2 && "border-amber-600/70 focus-visible:ring-amber-600/30",
-    urlFmt.kind === "ok" && !urlEhApiV2 && urlPing.kind === "ok" && "border-emerald-600/70 focus-visible:ring-emerald-600/30",
-    urlFmt.kind === "ok" && !urlEhApiV2 && urlPing.kind === "error" && "border-amber-600/60"
+    urlFmt.kind === "ok" && urlPing.kind === "ok" && "border-emerald-600/70 focus-visible:ring-emerald-600/30",
+    urlFmt.kind === "ok" && urlPing.kind === "error" && "border-amber-600/60"
   );
 
   return (
@@ -286,20 +274,12 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             autenticação e o restante da integração são testados automaticamente.
           </p>
           <p>
-            Use a <strong>API legada (v1)</strong> com User Token + App Token — ex.{" "}
-            <code className="text-xs">…/api.php/v1/apirest.php</code> ou <code className="text-xs">…/apirest.php</code>{" "}
-            na raiz. Caminhos como <code className="text-xs">/api.php/v2.x/apirest.php</code> são a API de alto nível
-            (OAuth2 Bearer); ela não aceita <code className="text-xs">user_token</code> no{" "}
-            <code className="text-xs">Authorization</code>. Ver versões em{" "}
-            <a
-              href="https://help.glpi-project.org/documentation/en/modules/configuration/general/api/restful-api-v2"
-              className="underline underline-offset-2"
-              target="_blank"
-              rel="noreferrer"
-            >
-              documentação GLPI (RESTful API V2)
-            </a>
-            .
+            Integração única: <strong>apirest.php</strong> com <code className="text-xs">GET …/initSession</code>, cabeçalhos{" "}
+            <code className="text-xs">Authorization: user_token …</code> e <code className="text-xs">App-Token</code>, como no
+            GLPI documentado em <span className="font-medium">apirest.md</span>. Ex.:{" "}
+            <code className="text-xs break-all">https://suporte.seudominio.gov.br/apirest.php</code> ou{" "}
+            <code className="text-xs">…/api.php/v1/apirest.php</code>. Não há suporte à API OAuth de{" "}
+            <code className="text-xs">/api.php/v2</code>+ neste módulo.
           </p>
           <p>
             Deixe tokens em branco para manter os salvos no banco; o servidor pode usar{" "}
@@ -337,11 +317,11 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           </div>
         )}
         <div className="space-y-2">
-          <Label>URL base da API GLPI</Label>
+          <Label>URL até apirest.php</Label>
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://glpi.empresa.com/api.php/v1/apirest.php"
+            placeholder="https://suporte.empresa.gov.br/apirest.php"
             disabled={!podeEditar}
             className={urlInputClass}
             aria-invalid={urlFmt.kind === "error"}
@@ -352,13 +332,6 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
               Formato ok: <code className="text-[11px]">{urlFmt.normalized}</code>
             </p>
           )}
-          {urlFmt.kind === "ok" && urlBaseRaizApirest && (
-            <p className="text-xs text-amber-800/90 dark:text-amber-200/90">
-              Se <code className="text-[11px]">initSession</code> falhar com{" "}
-              <code className="text-[11px]">SESSION_TOKEN_MISSING</code>, teste a base na raiz:{" "}
-              <code className="text-[11px] break-all">{urlBaseRaizApirest}</code>
-            </p>
-          )}
           {urlFmt.kind === "ok" && urlPing.kind === "loading" && (
             <p className="text-xs text-muted-foreground">Verificando se o servidor responde…</p>
           )}
@@ -367,26 +340,6 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
           )}
           {urlFmt.kind === "ok" && urlPing.kind === "error" && (
             <p className="text-xs text-amber-700 dark:text-amber-400">{urlPing.detail}</p>
-          )}
-          {urlFmt.kind === "ok" && urlEhApiV2 && urlLegadoSugerida && (
-            <div className="rounded-md border border-amber-600/40 bg-amber-50/80 p-3 text-xs dark:bg-amber-950/30">
-              <p className="font-medium text-amber-900 dark:text-amber-100">URL aponta para API v2+ (OAuth), incompatível com User Token.</p>
-              <p className="mt-1 text-amber-800/90 dark:text-amber-200/90">
-                Ajuste para a base da API legada (v1), por exemplo:
-              </p>
-              <code className="mt-1 block break-all text-[11px] text-foreground">{urlLegadoSugerida}</code>
-              {podeEditar && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => setBaseUrl(urlLegadoSugerida)}
-                >
-                  Usar URL sugerida (v1)
-                </Button>
-              )}
-            </div>
           )}
         </div>
         <div className="space-y-2">
