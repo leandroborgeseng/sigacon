@@ -4,7 +4,20 @@
  * Retries apenas no mesmo endpoint: variantes de barra final e tokens na query.
  */
 
-import { glpiFetch, glpiTlsInsecureHintParaErroDeRede } from "@/lib/glpi-fetch";
+import {
+  glpiFetch,
+  glpiRedeTlsOuFirewallHint,
+  glpiTlsInsecureHintParaErroDeRede,
+} from "@/lib/glpi-fetch";
+
+function timeoutMsPorTentativaInitSession(): number {
+  const raw = process.env.GLPI_INIT_ATTEMPT_TIMEOUT_MS?.trim();
+  if (raw && Number.isFinite(Number(raw))) {
+    const n = parseInt(raw, 10);
+    return Math.min(Math.max(n, 8000), 120000);
+  }
+  return 22000;
+}
 
 /** Remove espaços e caracteres invisíveis comuns de copiar/colar. */
 export function sanitizarTokenGlpi(valor: string): string {
@@ -116,14 +129,7 @@ export async function glpiLegacyInitSession(
   userToken: string,
   opts?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<{ ok: true; result: GlpiInitSessionOk } | { ok: false; result: GlpiInitSessionFail }> {
-  const timeoutMs = opts?.timeoutMs ?? 25000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  if (opts?.signal) {
-    if (opts.signal.aborted) controller.abort();
-    else opts.signal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
-  const signal = controller.signal;
+  const perAttemptMs = opts?.timeoutMs ?? timeoutMsPorTentativaInitSession();
 
   let lastFail: GlpiInitSessionFail | null = null;
   const failuresShort: string[] = [];
@@ -139,88 +145,98 @@ export async function glpiLegacyInitSession(
         ]
       : [{ token: "", rotulo: "sem App-Token" }];
 
-  try {
-    faseLoop: for (let fi = 0; fi < fasesApp.length; fi++) {
-      const { token: appFase, rotulo } = fasesApp[fi];
-      const falhasFase: string[] = [];
+  faseLoop: for (let fi = 0; fi < fasesApp.length; fi++) {
+    const { token: appFase, rotulo } = fasesApp[fi];
+    const falhasFase: string[] = [];
 
-      for (const b of bases) {
-        for (const { label, url, init } of buildInitAttempts(b, appFase, user)) {
-          if (signal.aborted) break faseLoop;
-          try {
-            const res = await glpiFetch(url, { ...init, signal });
-            const text = await res.text();
-            if (!res.ok) {
-              const detail = parseGlpiApiErrorBody(text);
-              falhasFase.push(`${res.status} ${detail.slice(0, 100)} [${label}]`);
-              lastFail = {
-                status: res.status,
-                body: text,
-                detail,
-                via: `${label} · base ${b} (${rotulo})`,
-              };
-              continue;
-            }
-            let j: { session_token?: string };
-            try {
-              j = JSON.parse(text) as { session_token?: string };
-            } catch {
-              lastFail = {
-                status: res.status,
-                body: text,
-                detail: "Resposta não é JSON.",
-                via: `${label} · base ${b} (${rotulo})`,
-              };
-              falhasFase.push(`200 JSON inválido [${label}]`);
-              continue;
-            }
-            const sessionToken = j.session_token;
-            if (!sessionToken) {
-              lastFail = {
-                status: res.status,
-                body: text,
-                detail: "JSON sem session_token.",
-                via: `${label} · base ${b} (${rotulo})`,
-              };
-              falhasFase.push(`200 sem session_token [${label}]`);
-              continue;
-            }
-            clearTimeout(timer);
-            const loginSemAppToken = appFase === "" && app !== "";
-            return {
-              ok: true,
-              result: {
-                sessionToken,
-                via: `${label} · base ${b} (${rotulo})`,
-                apirestBase: b.replace(/\/+$/, ""),
-                loginSemAppToken,
-              },
-            };
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            const aborted = signal.aborted || msg.includes("abort");
-            const core = aborted ? "Tempo esgotado ou requisição cancelada." : msg.slice(0, 200);
-            const detail = aborted ? core : `${core}${glpiTlsInsecureHintParaErroDeRede(msg)}`;
+    for (const b of bases) {
+      for (const { label, url, init } of buildInitAttempts(b, appFase, user)) {
+        if (opts?.signal?.aborted) break faseLoop;
+        const attemptAc = new AbortController();
+        const attemptTimer = setTimeout(() => attemptAc.abort(), perAttemptMs);
+        const outerAbort = () => attemptAc.abort();
+        if (opts?.signal) {
+          if (opts.signal.aborted) {
+            clearTimeout(attemptTimer);
+            break faseLoop;
+          }
+          opts.signal.addEventListener("abort", outerAbort, { once: true });
+        }
+        try {
+          const res = await glpiFetch(url, { ...init, signal: attemptAc.signal });
+          const text = await res.text();
+          if (!res.ok) {
+            const detail = parseGlpiApiErrorBody(text);
+            falhasFase.push(`${res.status} ${detail.slice(0, 100)} [${label}]`);
             lastFail = {
-              status: 0,
-              body: "",
+              status: res.status,
+              body: text,
               detail,
               via: `${label} · base ${b} (${rotulo})`,
             };
-            falhasFase.push(`${lastFail.detail.slice(0, 80)} [${label}]`);
+            continue;
           }
+          let j: { session_token?: string };
+          try {
+            j = JSON.parse(text) as { session_token?: string };
+          } catch {
+            lastFail = {
+              status: res.status,
+              body: text,
+              detail: "Resposta não é JSON.",
+              via: `${label} · base ${b} (${rotulo})`,
+            };
+            falhasFase.push(`200 JSON inválido [${label}]`);
+            continue;
+          }
+          const sessionToken = j.session_token;
+          if (!sessionToken) {
+            lastFail = {
+              status: res.status,
+              body: text,
+              detail: "JSON sem session_token.",
+              via: `${label} · base ${b} (${rotulo})`,
+            };
+            falhasFase.push(`200 sem session_token [${label}]`);
+            continue;
+          }
+          const loginSemAppToken = appFase === "" && app !== "";
+          return {
+            ok: true,
+            result: {
+              sessionToken,
+              via: `${label} · base ${b} (${rotulo})`,
+              apirestBase: b.replace(/\/+$/, ""),
+              loginSemAppToken,
+            },
+          };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const aborted = attemptAc.signal.aborted || msg.includes("abort");
+          const core = aborted ? "Tempo esgotado ou requisição cancelada." : msg.slice(0, 200);
+          const detail = aborted
+            ? `${core} (limite ${perAttemptMs / 1000}s por tentativa).${glpiRedeTlsOuFirewallHint()}`
+            : `${core}${glpiTlsInsecureHintParaErroDeRede(msg)}`;
+          lastFail = {
+            status: 0,
+            body: "",
+            detail,
+            via: `${label} · base ${b} (${rotulo})`,
+          };
+          falhasFase.push(`${lastFail.detail.slice(0, 80)} [${label}]`);
+        } finally {
+          clearTimeout(attemptTimer);
+          opts?.signal?.removeEventListener("abort", outerAbort);
         }
       }
-
-      failuresShort.push(...falhasFase.map((f) => `[${rotulo}] ${f}`));
-
-      if (fi === 0 && app !== "" && falhasSoWrongAppToken(falhasFase)) {
-        continue;
-      }
-      break;
     }
-  } finally {
-    clearTimeout(timer);
+
+    failuresShort.push(...falhasFase.map((f) => `[${rotulo}] ${f}`));
+
+    if (fi === 0 && app !== "" && falhasSoWrongAppToken(falhasFase)) {
+      continue;
+    }
+    break;
   }
 
   if (lastFail) {

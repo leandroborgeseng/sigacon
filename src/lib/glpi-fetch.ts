@@ -56,3 +56,11 @@ export function glpiTlsInsecureHintParaErroDeRede(message: string): string {
   }
   return " Se este GLPI usa HTTPS com certificado privado ou não reconhecido, defina GLPI_TLS_INSECURE=1 no ambiente do app (equivalente a curl -k; avalie o risco em produção).";
 }
+
+/** Dica quando initSession esgota tempo ou ping retorna fetch failed (TLS ou firewall). */
+export function glpiRedeTlsOuFirewallHint(): string {
+  if (glpiTlsInsecureEnabled()) {
+    return " Se o problema continua, o firewall do GLPI pode estar bloqueando o IP de saída do seu hospedeiro (ex.: Railway): libere esse IP ou use um proxy.";
+  }
+  return " Com ping mostrando \"fetch failed\" ou tempo esgotado no initSession, defina GLPI_TLS_INSECURE=1 no ambiente do app (como curl -k). Se já estiver ativo, verifique firewall do GLPI para o IP do servidor da aplicação.";
+}
