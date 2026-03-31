@@ -6,7 +6,7 @@
  */
 export const APP_BRAND = {
   name: "LeX",
-  tagline: "Estratégia e eXecução na gestão de contratos",
+  tagline: "Estratégia e eXecução na gestão de contratos e de tecnologia da informação",
   acronym: "L de Leandro · E de Estratégia · X de eXecução",
   description:
     "Plataforma integrada de gestão contratual, metas, projetos e integração com GLPI.",
