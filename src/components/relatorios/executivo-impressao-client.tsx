@@ -109,7 +109,7 @@ export function ExecutivoImpressaoClient() {
 
       <div className="rounded-lg border bg-white p-6 text-black print:shadow-none print:border-0">
         <div className="mb-4 border-b pb-2">
-          <h2 className="text-xl font-bold">SIGACON — Relatório executivo</h2>
+          <h2 className="text-xl font-bold">LeX — Relatório executivo</h2>
           <p className="text-sm">
             Competência: <strong>{competencia || "—"}</strong>
             {loading && " (carregando...)"}

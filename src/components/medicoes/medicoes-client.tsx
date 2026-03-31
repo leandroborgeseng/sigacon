@@ -27,6 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import { ListLoadingSkeleton } from "@/components/ui/list-loading-skeleton";
 
 type Contrato = { id: string; nome: string; tipoContrato: TipoContrato };
 
@@ -201,11 +203,14 @@ export function MedicoesClient({
       });
       const errBody = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErroApi((errBody as { message?: string }).message ?? "Erro ao salvar consumo");
+        const msg = (errBody as { message?: string }).message ?? "Erro ao salvar consumo";
+        setErroApi(msg);
+        toast({ variant: "destructive", title: "Erro ao salvar consumo", description: msg });
         return;
       }
       await refreshMedicaoDetalhe(medicao.id);
       router.refresh();
+      toast({ variant: "success", title: "Consumo salvo", description: "Valores de datacenter atualizados." });
     } finally {
       setSalvandoDc(false);
     }
@@ -223,12 +228,15 @@ export function MedicoesClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setErroApi(data.message ?? "Erro ao gerar medição");
+        const msg = data.message ?? "Erro ao gerar medição";
+        setErroApi(msg);
+        toast({ variant: "destructive", title: "Erro ao gerar medição", description: msg });
         return;
       }
       if (res.ok && data.id) {
         await refreshMedicaoDetalhe(data.id as string);
         router.refresh();
+        toast({ variant: "success", title: "Medição gerada ou atualizada" });
       }
     } finally {
       setGerando(false);
@@ -247,11 +255,14 @@ export function MedicoesClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setErroApi(data.message ?? "Erro ao recalcular");
+        const msg = data.message ?? "Erro ao recalcular";
+        setErroApi(msg);
+        toast({ variant: "destructive", title: "Erro ao recalcular", description: msg });
         return;
       }
       if (medicao?.id) await refreshMedicaoDetalhe(medicao.id);
       router.refresh();
+      toast({ variant: "success", title: "Medição recalculada" });
     } finally {
       setGerando(false);
     }
@@ -273,7 +284,9 @@ export function MedicoesClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setErroApi(data.message ?? "Erro ao fechar");
+        const msg = data.message ?? "Erro ao fechar";
+        setErroApi(msg);
+        toast({ variant: "destructive", title: "Erro ao fechar medição", description: msg });
         return;
       }
       setMedicao((prev) => (prev ? { ...prev, statusFechamento: data.statusFechamento } : null));
@@ -282,6 +295,7 @@ export function MedicoesClient({
       setChkUst(false);
       setChkBloqueio(false);
       router.refresh();
+      toast({ variant: "success", title: "Medição fechada" });
     } finally {
       setGerando(false);
     }
@@ -299,12 +313,15 @@ export function MedicoesClient({
       });
       const data = await res.json();
       if (!res.ok) {
-        setErroApi(data.message ?? "Erro ao reabrir");
+        const msg = data.message ?? "Erro ao reabrir";
+        setErroApi(msg);
+        toast({ variant: "destructive", title: "Erro ao reabrir", description: msg });
         return;
       }
       setMedicao((prev) => (prev ? { ...prev, statusFechamento: data.statusFechamento } : null));
       setDialogReabrir(false);
       router.refresh();
+      toast({ variant: "success", title: "Medição reaberta" });
     } finally {
       setGerando(false);
     }
@@ -423,7 +440,11 @@ export function MedicoesClient({
         </CardContent>
       </Card>
 
-      {loading && <p className="text-muted-foreground">Carregando...</p>}
+      {loading && !medicao ? (
+        <ListLoadingSkeleton linhas={6} className="max-w-lg" />
+      ) : loading ? (
+        <p className="text-xs text-muted-foreground">Atualizando dados da medição…</p>
+      ) : null}
 
       {medicao && !loading && (
         <Card>

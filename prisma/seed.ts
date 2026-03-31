@@ -3,7 +3,7 @@ import * as bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL = "admin@sigacon.local";
+const ADMIN_EMAIL = "admin@lex.local";
 const ADMIN_SENHA = "admin123";
 
 async function main() {

@@ -16,12 +16,12 @@ export default function AppleIcon() {
           background: "linear-gradient(145deg, #2563eb 0%, #1d4ed8 100%)",
           borderRadius: 36,
           color: "#fff",
-          fontSize: 88,
+          fontSize: 64,
           fontWeight: 700,
           fontFamily: "system-ui, sans-serif",
         }}
       >
-        S
+        LX
       </div>
     ),
     { ...size }

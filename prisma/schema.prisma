@@ -1,4 +1,4 @@
-// SIGACON - Sistema de Gestão e Acompanhamento Contratual
+// LeX — L de Leandro, E de Estratégia, X de eXecução (gestão contratual e operacional)
 // Schema Prisma - PostgreSQL
 // Modelo de medição: UST + Catálogo de serviços + Checklist (itens contratuais)
 
@@ -220,8 +220,24 @@ model Usuario {
   anexosEnviados       Anexo[]
   historicoAuditoria   HistoricoAuditoria[]
   lancamentosUst       LancamentoUst[]
+  tokensResetSenha     SenhaResetToken[]
 
   @@map("usuarios")
+}
+
+/** Token opaco (hash armazenado) para fluxo “esqueci minha senha” enviado por e-mail. */
+model SenhaResetToken {
+  id        String    @id @default(cuid())
+  usuarioId String    @map("usuario_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usadoEm   DateTime? @map("usado_em")
+  criadoEm  DateTime  @default(now()) @map("criado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@map("senha_reset_tokens")
 }
 
 model PermissaoPerfil {

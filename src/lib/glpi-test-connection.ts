@@ -123,7 +123,7 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     let dica = "";
     if (f.detail.includes("ERROR_WRONG_APP_TOKEN_PARAMETER")) {
       dica =
-        " Ação: no GLPI abra Configuração → Geral → aba API, copie o ‘Token da aplicação’ (ou gere outro e salve no GLPI). Se nesse painel o App-Token estiver vazio, deixe App Token em branco no SIGACON também. Valor antigo, espaço invisível ou token de outro ambiente geram este erro.";
+        " Ação: no GLPI abra Configuração → Geral → aba API, copie o ‘Token da aplicação’ (ou gere outro e salve no GLPI). Se nesse painel o App-Token estiver vazio, deixe App Token em branco no LeX também. Valor antigo, espaço invisível ou token de outro ambiente geram este erro.";
     } else if (f.detail.includes("ERROR_WRONG_USER_TOKEN_PARAMETER") || f.detail.includes("user token")) {
       dica =
         " Ação: no usuário do GLPI (Preferências / chave de acesso remoto) gere ou copie o User Token e atualize aqui.";

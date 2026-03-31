@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Target } from "lucide-react";
 import { StatusMeta } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { GestaoSwitcher } from "@/components/gestao/gestao-switcher";
+import { toast } from "@/hooks/use-toast";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListLoadingSkeleton } from "@/components/ui/list-loading-skeleton";
 
 const STATUS_LABEL: Record<StatusMeta, string> = {
   [StatusMeta.NAO_INICIADA]: "Não iniciada",
@@ -168,7 +172,9 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     const r = await fetch(`/api/metas/export?ano=${ano}&formato=${formato}`);
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
-      setErro((data as { message?: string }).message ?? "Erro ao exportar metas");
+      const msg = (data as { message?: string }).message ?? "Erro ao exportar metas";
+      setErro(msg);
+      toast({ variant: "destructive", title: "Erro na exportação", description: msg });
       return;
     }
     const blob = await r.blob();
@@ -178,6 +184,7 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     a.download = `metas-${ano}.${formato}`;
     a.click();
     URL.revokeObjectURL(url);
+    toast({ variant: "success", title: "Exportação concluída", description: `metas-${ano}.${formato}` });
   }
 
   async function bootstrap2026() {
@@ -186,9 +193,15 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     const data = await r.json();
     if (!r.ok) {
       setErro(data.message ?? "Falha ao carregar metas-base");
+      toast({
+        variant: "destructive",
+        title: "Falha ao carregar metas-base",
+        description: data.message,
+      });
       return;
     }
     await carregar();
+    toast({ variant: "success", title: "Metas-base carregadas" });
   }
 
   async function criarMeta() {
@@ -207,10 +220,16 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     const data = await r.json();
     if (!r.ok) {
       setErro(data.message ?? "Erro ao criar meta");
+      toast({
+        variant: "destructive",
+        title: "Erro ao criar meta",
+        description: data.message,
+      });
       return;
     }
     setNovaMeta((v) => ({ ...v, titulo: "", descricao: "", prazo: "" }));
     await carregar();
+    toast({ variant: "success", title: "Meta criada" });
   }
 
   async function salvarMeta(meta: Meta) {
@@ -228,10 +247,13 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
-      setErro((data as { message?: string }).message ?? "Erro ao salvar meta");
+      const msg = (data as { message?: string }).message ?? "Erro ao salvar meta";
+      setErro(msg);
+      toast({ variant: "destructive", title: "Erro ao salvar meta", description: msg });
       return;
     }
     await carregar();
+    toast({ variant: "success", title: "Meta salva" });
   }
 
   async function excluirMeta(metaId: string) {
@@ -240,11 +262,14 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     const r = await fetch(`/api/metas/${metaId}`, { method: "DELETE" });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
-      setErro((data as { message?: string }).message ?? "Erro ao excluir meta");
+      const msg = (data as { message?: string }).message ?? "Erro ao excluir meta";
+      setErro(msg);
+      toast({ variant: "destructive", title: "Erro ao excluir", description: msg });
       return;
     }
     if (expandedMetaId === metaId) setExpandedMetaId(null);
     await carregar();
+    toast({ variant: "success", title: "Meta excluída" });
   }
 
   function defaultsDesdobramento(metaId: string): DesdobramentoDraft {
@@ -276,10 +301,16 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     const data = await r.json();
     if (!r.ok) {
       setErro(data.message ?? "Erro ao criar desdobramento");
+      toast({
+        variant: "destructive",
+        title: "Erro ao criar desdobramento",
+        description: data.message,
+      });
       return;
     }
     setNovoDesdobramento((p) => ({ ...p, [metaId]: { ...EMPTY_DRAFT } }));
     await carregar();
+    toast({ variant: "success", title: "Desdobramento adicionado" });
   }
 
   async function salvarDesdobramento(des: Desdobramento) {
@@ -298,10 +329,13 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
-      setErro((data as { message?: string }).message ?? "Erro ao salvar desdobramento");
+      const msg = (data as { message?: string }).message ?? "Erro ao salvar desdobramento";
+      setErro(msg);
+      toast({ variant: "destructive", title: "Erro ao salvar", description: msg });
       return;
     }
     await carregar();
+    toast({ variant: "success", title: "Desdobramento salvo" });
   }
 
   async function excluirDesdobramento(id: string) {
@@ -310,10 +344,13 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
     const r = await fetch(`/api/metas/desdobramentos/${id}`, { method: "DELETE" });
     if (!r.ok) {
       const data = await r.json().catch(() => ({}));
-      setErro((data as { message?: string }).message ?? "Erro ao excluir desdobramento");
+      const msg = (data as { message?: string }).message ?? "Erro ao excluir desdobramento";
+      setErro(msg);
+      toast({ variant: "destructive", title: "Erro ao excluir", description: msg });
       return;
     }
     await carregar();
+    toast({ variant: "success", title: "Desdobramento excluído" });
   }
 
   return (
@@ -393,14 +430,23 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
           {Object.values(StatusMeta).map((status) => (
             <Card key={status}>
               <CardHeader><CardTitle className="text-sm">{STATUS_LABEL[status]} ({kanban[status].length})</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {kanban[status].length === 0 ? <p className="text-xs text-muted-foreground">Sem desdobramentos.</p> : kanban[status].map(({ metaTitulo, d }) => (
-                  <div key={d.id} className="rounded border p-2 space-y-1">
-                    <p className="text-[11px] text-muted-foreground">{metaTitulo}</p>
-                    <p className="text-sm font-medium leading-tight">{d.titulo}</p>
-                    <p className="text-xs">{d.percentualConcluido}%</p>
+              <CardContent className="max-h-[min(60vh,480px)] space-y-2 overflow-y-auto">
+                {kanban[status].length === 0 ? (
+                  <div className="rounded-lg border border-dashed bg-muted/15 py-8 text-center text-xs text-muted-foreground">
+                    Nenhum desdobramento neste status com os filtros atuais.
                   </div>
-                ))}
+                ) : (
+                  kanban[status].map(({ metaTitulo, d }) => (
+                    <div
+                      key={d.id}
+                      className="space-y-1 rounded-md border border-l-4 border-l-primary/40 bg-card p-2.5 shadow-sm"
+                    >
+                      <p className="text-[11px] font-medium text-muted-foreground">{metaTitulo}</p>
+                      <p className="text-sm font-medium leading-tight">{d.titulo}</p>
+                      <p className="text-xs text-muted-foreground">{d.percentualConcluido}% concluído</p>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           ))}
@@ -426,7 +472,20 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
         <Card>
           <CardHeader><CardTitle className="text-base">Metas (clique para expandir)</CardTitle></CardHeader>
           <CardContent className="p-0">
-            <Table>
+            {loading && metas.length === 0 ? (
+              <ListLoadingSkeleton linhas={8} />
+            ) : null}
+            {!loading && metas.length === 0 ? (
+              <div className="p-6">
+                <EmptyState
+                  icon={Target}
+                  title="Nenhuma meta para exibir"
+                  description="Ajuste o ano ou crie uma nova meta. Se estiver começando o exercício, use “Carregar metas-base 2026”."
+                />
+              </div>
+            ) : null}
+            {metas.length > 0 ? (
+            <Table stickyHeader scrollMaxHeight="min(65vh, 36rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead>Meta</TableHead>
@@ -441,8 +500,8 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
                   const media = m.desdobramentos.length ? m.desdobramentos.reduce((a, d) => a + d.percentualConcluido, 0) / m.desdobramentos.length : 0;
                   const open = expandedMetaId === m.id;
                   return (
-                    <>
-                      <TableRow key={m.id} className="cursor-pointer" onClick={() => setExpandedMetaId(open ? null : m.id)}>
+                    <Fragment key={m.id}>
+                      <TableRow className="cursor-pointer" onClick={() => setExpandedMetaId(open ? null : m.id)}>
                         <TableCell className="font-medium">{m.titulo}</TableCell>
                         <TableCell><Badge variant={m.status === StatusMeta.CONCLUIDA ? "success" : m.status === StatusMeta.BLOQUEADA ? "warning" : "secondary"}>{STATUS_LABEL[m.status]}</Badge></TableCell>
                         <TableCell>{toDateInput(m.prazo) || "-"}</TableCell>
@@ -522,11 +581,12 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>
             </Table>
+            ) : null}
           </CardContent>
         </Card>
       )}

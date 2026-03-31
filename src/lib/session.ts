@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
+import { LEX_SESSION_COOKIE } from "@/lib/branding";
 
-const SESSION_COOKIE = "sigacon_session";
+const SESSION_COOKIE = LEX_SESSION_COOKIE;
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
 
 export interface SessionUser {

@@ -24,12 +24,18 @@ export function DashboardShell({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-background">
+    <div className="relative flex h-[100dvh] overflow-hidden bg-background">
+      <a
+        href="#conteudo-principal"
+        className="fixed left-4 top-2 z-[100] -translate-y-20 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground opacity-0 shadow-lg transition focus:translate-y-0 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+      >
+        Ir para o conteúdo principal
+      </a>
       {menuOpen && (
         <button
           type="button"
           aria-label="Fechar menu"
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] md:hidden"
           onClick={() => setMenuOpen(false)}
         />
       )}
@@ -49,7 +55,11 @@ export function DashboardShell({
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <Header user={user} onOpenMobileMenu={() => setMenuOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-6">
+        <main
+          id="conteudo-principal"
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth p-4 pb-[max(1rem,env(safe-area-inset-bottom))] outline-none md:p-6"
+        >
           {children}
         </main>
       </div>

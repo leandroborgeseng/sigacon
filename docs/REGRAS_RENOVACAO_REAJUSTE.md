@@ -1,4 +1,4 @@
-# Regras de renovação e reajuste (SIGACON)
+# Regras de renovação e reajuste (LeX)
 
 Referência para o uso do sistema em contratos de prefeitura: regime da licitação e limite de reajuste anual.
 
@@ -26,7 +26,7 @@ Isso define quantas renovações/prorrogações são permitidas.
 ## Limite de reajuste anual (25%)
 
 - A soma dos percentuais de reajuste aplicados ao contrato **nos últimos 12 meses** não deve ultrapassar **25%** ao ano, conforme orientação usual na administração pública.
-- No SIGACON, o “Reajuste acumulado nos últimos 12 meses” é calculado somando o campo **percentual aplicado** de todos os reajustes cuja **data do reajuste** esteja dentro do último ano.
+- No LeX, o “Reajuste acumulado nos últimos 12 meses” é calculado somando o campo **percentual aplicado** de todos os reajustes cuja **data do reajuste** esteja dentro do último ano.
 - Se o acumulado superar 25%, o sistema exibe o alerta: **“Atenção: acima do limite de 25% ao ano”**.
 
 ## Onde isso aparece no sistema

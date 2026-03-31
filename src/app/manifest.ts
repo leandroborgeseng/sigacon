@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { APP_BRAND } from "@/lib/branding";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "SIGACON — Gestão contratual",
-    short_name: "SIGACON",
-    description: "Acompanhamento de contratos, medição e integrações",
+    name: `${APP_BRAND.name} — Gestão contratual`,
+    short_name: APP_BRAND.name,
+    description: APP_BRAND.description,
     start_url: "/",
     display: "standalone",
     orientation: "portrait-primary",

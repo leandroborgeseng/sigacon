@@ -16,12 +16,12 @@ export default function Icon() {
           background: "linear-gradient(145deg, #2563eb 0%, #1d4ed8 100%)",
           borderRadius: 40,
           color: "#fff",
-          fontSize: 96,
+          fontSize: 72,
           fontWeight: 700,
           fontFamily: "system-ui, sans-serif",
         }}
       >
-        S
+        LX
       </div>
     ),
     { ...size }

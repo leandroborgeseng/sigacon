@@ -35,7 +35,7 @@ function Code({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Manual do SIGACON — referência detalhada alinhada ao código e às telas.
+ * Manual do LeX — referência detalhada alinhada ao código e às telas.
  */
 export function ManualSistemaContent() {
   return (
@@ -73,10 +73,13 @@ export function ManualSistemaContent() {
       <section id="intro" className="scroll-mt-24 space-y-2 border-b pb-10">
         <h2 className="text-2xl font-bold tracking-tight">1. Introdução e conceitos</h2>
         <P>
-          O <strong className="text-foreground">SIGACON</strong> (Sistema de Gestão e Acompanhamento
-          Contratual) centraliza o acompanhamento de <strong>contratos administrativos</strong>,
-          especialmente de tecnologia e serviços, alinhado a editais e medições. Dois eixos se
-          complementam:
+          O <strong className="text-foreground">LeX</strong> é a plataforma de gestão contratual e
+          operacional do ambiente: o nome é um acrônimo —{" "}
+          <strong className="text-foreground">L de Leandro</strong>,{" "}
+          <strong className="text-foreground">E de Estratégia</strong>,{" "}
+          <strong className="text-foreground">X de eXecução</strong>. O sistema centraliza o
+          acompanhamento de <strong>contratos administrativos</strong>, especialmente de tecnologia e
+          serviços, alinhado a editais e medições. Dois eixos se complementam:
         </P>
         <Ul>
           <Li>
@@ -618,7 +621,7 @@ export function ManualSistemaContent() {
         <P>
           Para gestão integrada de TI, a leitura ideal cruza quatro dimensões:{" "}
           <strong>contratos</strong>, <strong>chamados GLPI</strong>, <strong>metas</strong> e{" "}
-          <strong>projetos</strong>. O SIGACON já concentra essas dimensões no Kanban e nos módulos
+          <strong>projetos</strong>. O LeX já concentra essas dimensões no Kanban e nos módulos
           de gestão.
         </P>
         <Sub>Dados essenciais para decisão executiva</Sub>
@@ -712,7 +715,7 @@ export function ManualSistemaContent() {
       <section className="rounded-xl border bg-muted/40 p-6">
         <h2 className="text-lg font-semibold text-foreground">Suporte ao manual</h2>
         <P>
-          Este texto descreve o comportamento pretendido do SIGACON na versão em que foi escrito.
+          Este texto descreve o comportamento pretendido do LeX na versão em que foi escrito.
           Telas e regras podem evoluir; em dúvida, combine com TI ou gestão contratual. Sugestões de
           melhoria do manual podem ser registradas junto ao administrador do sistema.
         </P>

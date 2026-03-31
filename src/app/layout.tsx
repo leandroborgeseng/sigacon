@@ -1,25 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { APP_BRAND } from "@/lib/branding";
 import { PwaRegister } from "@/components/pwa-register";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
-const inter = Inter({
+const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "SIGACON – Sistema de Gestão e Acompanhamento Contratual",
-  description: "Acompanhamento de contratos administrativos e medição mensal",
-  applicationName: "SIGACON",
+  title: `${APP_BRAND.name} — ${APP_BRAND.tagline}`,
+  description: APP_BRAND.description,
+  applicationName: APP_BRAND.name,
   appleWebApp: {
     capable: true,
-    title: "SIGACON",
+    title: APP_BRAND.name,
     statusBarStyle: "default",
   },
   formatDetection: {
@@ -46,10 +50,11 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased font-sans min-h-screen bg-background text-foreground`}
+        className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} antialiased font-sans min-h-screen bg-background text-foreground`}
       >
         <PwaRegister />
         {children}
+        <Toaster />
       </body>
     </html>
   );

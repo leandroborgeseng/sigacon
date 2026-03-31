@@ -5,8 +5,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 export const metadata = {
-  title: "Manual do sistema | SIGACON",
-  description: "Funcionalidades do SIGACON e como utilizá-las",
+  title: "Manual do sistema | LeX",
+  description: "Funcionalidades do LeX e como utilizá-las",
 };
 
 export default function ManualPage() {
@@ -22,7 +22,7 @@ export default function ManualPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Manual do sistema</h1>
           <p className="mt-1 text-muted-foreground max-w-2xl">
-            Referência das funcionalidades implementadas no SIGACON e fluxos principais de uso.
+            Referência das funcionalidades implementadas no LeX e fluxos principais de uso.
           </p>
         </div>
         <Button variant="outline" size="sm" asChild>

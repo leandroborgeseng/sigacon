@@ -19,14 +19,14 @@ async function main() {
   const now = new Date().toISOString();
 
   const sql = `
--- Usuário admin: admin@sigacon.local / admin123
+-- Usuário admin: admin@lex.local / admin123
 -- Execute no PostgreSQL (Railway, Prisma Studio, psql, etc.)
 
 INSERT INTO usuarios (id, nome, email, senha_hash, perfil, ativo, criado_em, atualizado_em)
 VALUES (
   '${id}',
   'Administrador',
-  'admin@sigacon.local',
+  'admin@lex.local',
   '${senhaHash}',
   'ADMIN',
   true,

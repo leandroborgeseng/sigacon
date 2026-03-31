@@ -15,10 +15,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import Link from "next/link";
 import { FileText } from "lucide-react";
+import { APP_BRAND, LS_REMEMBER_EMAIL, LS_SAVED_EMAIL } from "@/lib/branding";
 
-const LS_REMEMBER = "sigacon_remember_email";
-const LS_EMAIL = "sigacon_saved_email";
+const LS_REMEMBER = LS_REMEMBER_EMAIL;
+const LS_EMAIL = LS_SAVED_EMAIL;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -77,14 +79,17 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full border-border/80 shadow-lg shadow-primary/5 ring-1 ring-black/[0.03] dark:ring-white/[0.06]">
       <CardHeader className="space-y-1 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-          <FileText className="h-6 w-6 text-primary" />
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/15">
+          <FileText className="h-6 w-6 text-primary" aria-hidden />
         </div>
-        <CardTitle className="text-2xl">SIGACON</CardTitle>
-        <CardDescription>
-          Sistema de Gestão e Acompanhamento Contratual
+        <CardTitle className="text-2xl tracking-tight">{APP_BRAND.name}</CardTitle>
+        <CardDescription className="space-y-1">
+          <span className="block">{APP_BRAND.tagline}</span>
+          <span className="block text-xs font-normal normal-case text-muted-foreground">
+            {APP_BRAND.acronym}
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -121,6 +126,14 @@ export default function LoginPage() {
             {errors.senha && (
               <p className="text-sm text-destructive">{errors.senha.message}</p>
             )}
+            <p className="text-right">
+              <Link
+                href="/esqueci-senha"
+                className="text-sm text-primary underline-offset-4 hover:underline touch-manipulation"
+              >
+                Esqueci minha senha
+              </Link>
+            </p>
           </div>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground touch-manipulation">
             <input

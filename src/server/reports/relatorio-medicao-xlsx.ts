@@ -34,7 +34,7 @@ export async function gerarRelatorioMedicaoXlsx(contratoId: string, ano: number,
   const wb = XLSX.utils.book_new();
 
   const resumo = [
-    ["Relatório de medição mensal — SIGACON"],
+    ["Relatório de medição mensal — LeX"],
     [],
     ["Contrato", contrato.nome],
     ["Nº contrato", contrato.numeroContrato],

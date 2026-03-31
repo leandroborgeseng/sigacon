@@ -1,4 +1,4 @@
-/* SIGACON — service worker mínimo; não intercepta /api/* (evita falhas em chamadas à API). */
+/* LeX — service worker mínimo; não intercepta /api/* (evita falhas em chamadas à API). */
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 });

@@ -1,26 +1,63 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+const TableStickyContext = React.createContext<{ stickyHeader: boolean }>({
+  stickyHeader: false,
+});
+
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
-      {...props}
-    />
-  </div>
+  React.HTMLAttributes<HTMLTableElement> & {
+    wrapperClassName?: string;
+    /** Cabeçalho fixo ao rolar verticalmente (listagens longas). */
+    stickyHeader?: boolean;
+    /** Altura máxima da área rolável quando `stickyHeader` está ativo. */
+    scrollMaxHeight?: string;
+  }
+>(({ className, wrapperClassName, stickyHeader = false, scrollMaxHeight, ...props }, ref) => (
+  <TableStickyContext.Provider value={{ stickyHeader }}>
+    <div
+      className={cn(
+        "relative w-full",
+        stickyHeader
+          ? "max-h-[min(70vh,42rem)] overflow-auto rounded-md border"
+          : "overflow-x-auto",
+        wrapperClassName
+      )}
+      style={
+        stickyHeader
+          ? { maxHeight: scrollMaxHeight ?? "min(70vh, 42rem)" }
+          : undefined
+      }
+    >
+      <table
+        ref={ref}
+        className={cn("w-full caption-bottom text-sm", className)}
+        {...props}
+      />
+    </div>
+  </TableStickyContext.Provider>
 ));
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
-));
+>(({ className, ...props }, ref) => {
+  const { stickyHeader } = React.useContext(TableStickyContext);
+  return (
+    <thead
+      ref={ref}
+      className={cn(
+        "[&_tr]:border-b",
+        stickyHeader &&
+          "sticky top-0 z-20 bg-card/95 shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm [&_th]:bg-card/95",
+        className
+      )}
+      {...props}
+    />
+  );
+});
 TableHeader.displayName = "TableHeader";
 
 const TableBody = React.forwardRef<

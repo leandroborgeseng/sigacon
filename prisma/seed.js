@@ -5,7 +5,7 @@
 const { PrismaClient, PerfilUsuario, RecursoPermissao } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 
-const ADMIN_EMAIL = "admin@sigacon.local";
+const ADMIN_EMAIL = "admin@lex.local";
 const ADMIN_SENHA = "admin123";
 const MAX_RETRIES = 10;
 const RETRY_DELAY_MS = 3000;

@@ -1,4 +1,4 @@
-# SIGACON – Análise e melhorias para um sistema realmente útil e funcional
+# LeX – Análise e melhorias para um sistema realmente útil e funcional
 
 Documento gerado a partir da análise do código e do modelo de dados. As sugestões estão organizadas por impacto e esforço.
 

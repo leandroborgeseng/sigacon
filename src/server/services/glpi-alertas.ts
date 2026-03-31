@@ -1,4 +1,5 @@
 import { StatusAlerta, TipoAlertaGlpi } from "@prisma/client";
+import { APP_BRAND } from "@/lib/branding";
 import { prisma } from "@/lib/prisma";
 import { enviarEmailAlerta } from "@/server/services/email-alerts";
 
@@ -99,7 +100,7 @@ async function notificarAlertasAbertosNovos(): Promise<{ enviados: number; erros
       if (tecnico?.email?.trim()) emailsDinamicos.add(tecnico.email.trim().toLowerCase());
     }
 
-    const subject = `[SIGACON][ALERTA] Ticket #${alerta.chamado.glpiTicketId} - ${alerta.titulo}`;
+    const subject = `[${APP_BRAND.name}][ALERTA] Ticket #${alerta.chamado.glpiTicketId} - ${alerta.titulo}`;
     const text = [
       `Alerta: ${alerta.titulo}`,
       `Ticket GLPI: #${alerta.chamado.glpiTicketId}`,

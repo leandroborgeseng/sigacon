@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
 
 type Chamado = {
   id: string;
@@ -302,10 +303,14 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       });
       const j = await r.json();
       if (!r.ok) {
-        setMsg(j.message ?? "Erro ao sincronizar");
+        const err = j.message ?? "Erro ao sincronizar";
+        setMsg(err);
+        toast({ variant: "destructive", title: "Sincronização falhou", description: err });
         return;
       }
-      setMsg(`Sincronização concluída: ${j.processados} ticket(s).`);
+      const okMsg = `Sincronização concluída: ${j.processados} ticket(s).`;
+      setMsg(okMsg);
+      toast({ variant: "success", title: "Sincronização concluída", description: `${j.processados} ticket(s) processado(s).` });
       await carregar();
     } finally {
       setLoading(false);
@@ -326,8 +331,16 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
       setCards(antes);
-      setMsg(j.message ?? "Falha ao mover chamado");
+      const err = (j as { message?: string }).message ?? "Falha ao mover chamado";
+      setMsg(err);
+      toast({ variant: "destructive", title: "Não foi possível mover o chamado", description: err });
+      return;
     }
+    toast({
+      variant: "success",
+      title: "Chamado atualizado",
+      description: `#${glpiTicketId} → ${GLPI_KANBAN_LABELS[colunaKanban]}`,
+    });
   }
 
   useEffect(() => {
@@ -467,10 +480,13 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!r.ok || j.ok === false) {
-        setMsg(j.message ?? "Falha ao enviar comentário.");
+        const err = j.message ?? "Falha ao enviar comentário.";
+        setMsg(err);
+        toast({ variant: "destructive", title: "Comentário não enviado", description: err });
         return;
       }
       await abrirDetalhes(detalhesId);
+      toast({ variant: "success", title: "Comentário enviado" });
     } finally {
       setComentarioSaving(false);
     }
@@ -490,10 +506,13 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!r.ok || j.ok === false) {
-        setMsg(j.message ?? "Falha ao criar tarefa.");
+        const err = j.message ?? "Falha ao criar tarefa.";
+        setMsg(err);
+        toast({ variant: "destructive", title: "Tarefa não criada", description: err });
         return;
       }
       await abrirDetalhes(detalhesId);
+      toast({ variant: "success", title: "Tarefa criada no chamado" });
     } finally {
       setTarefaSaving(false);
     }
@@ -513,10 +532,13 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!r.ok || j.ok === false) {
-        setMsg(j.message ?? "Falha ao criar solução.");
+        const err = j.message ?? "Falha ao criar solução.";
+        setMsg(err);
+        toast({ variant: "destructive", title: "Solução não registrada", description: err });
         return;
       }
       await abrirDetalhes(detalhesId);
+      toast({ variant: "success", title: "Solução registrada" });
     } finally {
       setSolucaoSaving(false);
     }
@@ -548,10 +570,13 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       });
       const j = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!r.ok || j.ok === false) {
-        setMsg(j.message ?? "Falha ao atualizar ticket.");
+        const err = j.message ?? "Falha ao atualizar ticket.";
+        setMsg(err);
+        toast({ variant: "destructive", title: "Ticket não atualizado", description: err });
         return;
       }
       await abrirDetalhes(detalhesId);
+      toast({ variant: "success", title: "Ticket atualizado" });
     } finally {
       setEditTicketSaving(false);
     }
@@ -733,17 +758,36 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-5 md:grid-cols-2">
-        {ORDEM_COLUNAS.map((col) => (
-          <Card key={col} className="min-h-[300px]">
-            <CardHeader className={cn("pb-2", colunaClasses(col).header)}>
-              <CardTitle className={cn("text-sm", colunaClasses(col).title)}>
-                {GLPI_KANBAN_LABELS[col]} ({(porColuna.get(col)?.length ?? 0) + (tarefasProjetoPorColuna.get(col)?.length ?? 0)})
+      <div className="relative">
+        {loading ? (
+          <div
+            className="absolute inset-0 z-10 flex cursor-wait justify-center rounded-xl bg-background/55 pt-16 backdrop-blur-[1px]"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <p className="h-fit rounded-md border bg-card px-4 py-2 text-sm font-medium text-muted-foreground shadow-sm">
+              Carregando quadro…
+            </p>
+          </div>
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {ORDEM_COLUNAS.map((col) => {
+          const nCh = porColuna.get(col)?.length ?? 0;
+          const nTp = tarefasProjetoPorColuna.get(col)?.length ?? 0;
+          const nTotal = nCh + nTp;
+          return (
+          <Card key={col} className="flex min-h-[260px] flex-col overflow-hidden border shadow-sm">
+            <CardHeader className={cn("shrink-0 space-y-0.5 border-b pb-3 pt-3", colunaClasses(col).header)}>
+              <CardTitle className={cn("text-sm font-semibold leading-tight", colunaClasses(col).title)}>
+                {GLPI_KANBAN_LABELS[col]}
               </CardTitle>
+              <p className="text-[11px] font-normal text-muted-foreground">
+                {nCh} chamado(s) · {nTp} tarefa(s) projeto
+              </p>
             </CardHeader>
             <CardContent
               className={cn(
-                "space-y-2 transition-colors",
+                "flex max-h-[min(68vh,520px)] min-h-[88px] flex-1 flex-col gap-2 overflow-y-auto py-3 transition-colors",
                 dropCol === col && "ring-2 ring-primary rounded-md bg-primary/5"
               )}
               onDragOver={(e) => {
@@ -765,11 +809,18 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   Solte aqui para mover
                 </div>
               )}
+              {!loading && nTotal === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/10 px-2 py-8 text-center">
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    Nenhum chamado nem tarefa de projeto nesta coluna com os filtros atuais.
+                  </p>
+                </div>
+              ) : null}
               {(porColuna.get(col) ?? []).map((c) => (
                 <div
                   key={c.id}
                   className={cn(
-                    "rounded border p-2 space-y-2 cursor-grab active:cursor-grabbing transition-opacity",
+                    "space-y-2 rounded-md border p-2.5 shadow-sm cursor-grab active:cursor-grabbing transition-opacity",
                     draggingTicketId === c.glpiTicketId && "opacity-50",
                     cardClasses(c.colunaKanban)
                   )}
@@ -784,14 +835,15 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                     setDropCol(null);
                   }}
                 >
-                  <p className="text-sm font-medium">#{c.glpiTicketId} - {c.titulo}</p>
+                  <p className="text-[13px] font-semibold leading-snug">#{c.glpiTicketId} · {c.titulo}</p>
                   <div className="flex flex-wrap gap-1">
-                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium">
-                      Vinculado à meta: {(c.desdobramentosMeta?.length ?? 0) > 0 ? "Sim" : "Não"}
+                    <span className="inline-flex items-center rounded-full border bg-background px-2 py-0.5 text-[10px] font-medium">
+                      Meta: {(c.desdobramentosMeta?.length ?? 0) > 0 ? "Sim" : "Não"}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {c.statusLabel ?? `Status ${c.statusGlpi}`} | prio {c.prioridade ?? "-"} | urg {c.urgencia ?? "-"}
+                  <p className="text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground/80">{c.statusLabel ?? `St. ${c.statusGlpi}`}</span>
+                    {" · "}Prio {c.prioridade ?? "-"} · Urg {c.urgencia ?? "-"}
                   </p>
                   {(c.grupoTecnicoNome || c.tecnicoResponsavelNome) && (
                     <p className="text-xs text-muted-foreground">
@@ -832,10 +884,12 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               {(tarefasProjetoPorColuna.get(col) ?? []).map((t) => (
                 <div
                   key={`proj-${t.id}`}
-                  className={cn("rounded border p-2 space-y-2", cardClasses(t.colunaKanban))}
+                  className={cn("space-y-2 rounded-md border p-2.5 shadow-sm", cardClasses(t.colunaKanban))}
                 >
-                  <p className="text-sm font-medium">[PROJETO] {t.titulo}</p>
-                  <p className="text-xs text-muted-foreground">Projeto: {t.projeto.nome}</p>
+                  <p className="text-[13px] font-semibold leading-snug">
+                    <span className="text-primary">[PROJETO]</span> {t.titulo}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">Projeto: {t.projeto.nome}</p>
                   <div className="flex flex-wrap gap-1">
                     <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium">
                       Responsável: {t.responsavelGlpiNome?.trim() || t.responsavel?.trim() || "-"}
@@ -866,10 +920,13 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                         });
                         if (!r.ok) {
                           const j = await r.json().catch(() => ({}));
-                          setMsg((j as { message?: string }).message ?? "Falha ao atualizar tarefa de projeto");
+                          const err = (j as { message?: string }).message ?? "Falha ao atualizar tarefa de projeto";
+                          setMsg(err);
+                          toast({ variant: "destructive", title: "Tarefa de projeto", description: err });
                           return;
                         }
                         await carregar();
+                        toast({ variant: "success", title: "Status da tarefa atualizado" });
                       }}
                     >
                       <SelectTrigger className="h-8">
@@ -887,7 +944,9 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               ))}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
+        </div>
       </div>
 
       <Dialog open={detalhesId != null} onOpenChange={(open) => (!open ? setDetalhesId(null) : null)}>

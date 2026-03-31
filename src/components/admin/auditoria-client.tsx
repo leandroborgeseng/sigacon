@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Download, Search } from "lucide-react";
+import { ListLoadingSkeleton } from "@/components/ui/list-loading-skeleton";
 import { formatDateTime } from "@/lib/utils";
 
 type Row = {
@@ -94,8 +95,11 @@ export function AuditoriaClient() {
         <CardHeader>
           <CardTitle className="text-base">Resultados ({rows.length})</CardTitle>
         </CardHeader>
-        <CardContent className="p-0 max-h-[560px] overflow-auto">
-          <Table>
+        <CardContent className="p-0">
+          {loading ? (
+            <ListLoadingSkeleton linhas={5} />
+          ) : (
+          <Table stickyHeader scrollMaxHeight="min(70vh, 560px)">
             <TableHeader>
               <TableRow>
                 <TableHead>Data</TableHead>
@@ -131,6 +135,7 @@ export function AuditoriaClient() {
               )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

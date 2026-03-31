@@ -17,6 +17,8 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ContratoCreateDialog } from "@/components/contratos/contrato-create-dialog";
 import { GestaoSwitcher } from "@/components/gestao/gestao-switcher";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FileText } from "lucide-react";
 import { canRecurso } from "@/lib/permissions";
 import { PerfilUsuario, RecursoPermissao, TipoContrato } from "@prisma/client";
 
@@ -52,7 +54,16 @@ export default async function ContratosPage() {
           <CardTitle>Listagem</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
+          {contratos.length === 0 ? (
+            <div className="p-6">
+              <EmptyState
+                icon={FileText}
+                title="Nenhum contrato cadastrado"
+                description="Crie o primeiro contrato para começar módulos, itens, medições e integrações."
+              />
+            </div>
+          ) : (
+            <Table stickyHeader scrollMaxHeight="min(70vh, 40rem)">
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
@@ -66,50 +77,42 @@ export default async function ContratosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {contratos.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                      Nenhum contrato cadastrado.
+                {contratos.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/contratos/${c.id}`} className="text-primary hover:underline">
+                        {c.nome}
+                      </Link>
                     </TableCell>
-                  </TableRow>
-                ) : (
-                  contratos.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell className="font-medium">
-                        <Link
-                          href={`/contratos/${c.id}`}
-                          className="hover:underline text-primary"
-                        >
-                          {c.nome}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{c.numeroContrato}</TableCell>
-                      <TableCell>{c.fornecedor}</TableCell>
-                      <TableCell>
-                        {formatDate(c.vigenciaInicio)} - {formatDate(c.vigenciaFim)}
-                      </TableCell>
-                      <TableCell>{formatCurrency(c.valorAnual)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-normal">
-                          {c.tipoContrato === TipoContrato.DATACENTER ? "Datacenter" : "Software"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{c.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right flex items-center justify-end gap-1">
+                    <TableCell>{c.numeroContrato}</TableCell>
+                    <TableCell>{c.fornecedor}</TableCell>
+                    <TableCell>
+                      {formatDate(c.vigenciaInicio)} - {formatDate(c.vigenciaFim)}
+                    </TableCell>
+                    <TableCell>{formatCurrency(c.valorAnual)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-normal">
+                        {c.tipoContrato === TipoContrato.DATACENTER ? "Datacenter" : "Software"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{c.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" asChild>
                           <Link href={`/contratos/${c.id}`}>Ver</Link>
                         </Button>
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/contratos/${c.id}`}>Editar</Link>
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
-          </Table>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

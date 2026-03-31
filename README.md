@@ -1,4 +1,6 @@
-# SIGACON – Sistema de Gestão e Acompanhamento Contratual
+# LeX – gestão contratual e operacional
+
+**LeX** é a marca da plataforma: **L** de Leandro, **E** de **Estratégia**, **X** de **eXecução** — do planejamento à operação de contratos, metas e projetos.
 
 Sistema para acompanhamento de contratos administrativos, com foco em contratos públicos de software, tecnologia e serviços. Permite medição mensal, acompanhamento de requisitos do edital, avaliação por módulo, cálculo proporcional do valor a pagar e trilha de auditoria.
 
@@ -37,7 +39,7 @@ cp .env.example .env
 
 | Variável         | Descrição |
 |------------------|-----------|
-| `DATABASE_URL`   | URL de conexão PostgreSQL (ex.: `postgresql://user:pass@localhost:5432/sigacon`) |
+| `DATABASE_URL`   | URL de conexão PostgreSQL (ex.: `postgresql://user:pass@localhost:5432/lex`) |
 | `SESSION_SECRET` | Chave para sessão (gere com `openssl rand -base64 32`) |
 | `PORT`           | Porta do servidor (opcional; padrão 3000) |
 | `NEXT_PUBLIC_APP_URL` | URL base da aplicação (opcional) |
@@ -55,7 +57,7 @@ npm run db:seed
 
 **Usuário inicial (trocar em produção):**
 
-- **E-mail:** `admin@sigacon.local`
+- **E-mail:** `admin@lex.local`
 - **Senha:** `admin123`
 
 Em produção, altere a senha do admin imediatamente após o primeiro acesso.

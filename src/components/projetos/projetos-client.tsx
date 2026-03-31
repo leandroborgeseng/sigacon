@@ -25,6 +25,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { GestaoSwitcher } from "@/components/gestao/gestao-switcher";
+import { FolderKanban } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const statusOptions = [
   { value: StatusProjeto.NAO_INICIADO, label: "Não iniciado" },
@@ -219,7 +222,15 @@ export function ProjetosClient({
 
   const carregar = useCallback(async () => {
     const resp = await fetch("/api/projetos", { cache: "no-store" });
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { message?: string };
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar projetos",
+        description: err.message,
+      });
+      return;
+    }
     setProjetos(await resp.json());
   }, []);
 
@@ -236,9 +247,18 @@ export function ProjetosClient({
           fimPrevisto: novoProjeto.fimPrevisto || null,
         }),
       });
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        const err = (await resp.json().catch(() => ({}))) as { message?: string };
+        toast({
+          variant: "destructive",
+          title: "Não foi possível criar o projeto",
+          description: err.message,
+        });
+        return;
+      }
       setNovoProjeto({ nome: "", descricao: "", status: StatusProjeto.NAO_INICIADO, inicioPrevisto: "", fimPrevisto: "" });
       await carregar();
+      toast({ variant: "success", title: "Projeto criado" });
     } finally {
       setSalvando(false);
     }
@@ -251,14 +271,26 @@ export function ProjetosClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    if (resp.ok) await carregar();
+    if (resp.ok) {
+      await carregar();
+      toast({ variant: "success", title: "Projeto atualizado" });
+    } else {
+      const err = (await resp.json().catch(() => ({}))) as { message?: string };
+      toast({ variant: "destructive", title: "Erro ao atualizar projeto", description: err.message });
+    }
   }
 
   async function excluirProjeto(id: string) {
     if (!podeEditar) return;
     if (!confirm("Excluir este projeto e todas as tarefas?")) return;
     const resp = await fetch(`/api/projetos/${id}`, { method: "DELETE" });
-    if (resp.ok) await carregar();
+    if (resp.ok) {
+      await carregar();
+      toast({ variant: "success", title: "Projeto excluído" });
+    } else {
+      const err = (await resp.json().catch(() => ({}))) as { message?: string };
+      toast({ variant: "destructive", title: "Erro ao excluir", description: err.message });
+    }
   }
 
   async function criarTarefa(projetoId: string) {
@@ -280,7 +312,11 @@ export function ProjetosClient({
         glpiChamadoId: draft.glpiChamadoId || null,
       }),
     });
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      const err = (await resp.json().catch(() => ({}))) as { message?: string };
+      toast({ variant: "destructive", title: "Erro ao criar tarefa", description: err.message });
+      return;
+    }
 
     setNovaTarefa((prev) => ({
       ...prev,
@@ -296,6 +332,7 @@ export function ProjetosClient({
     setBuscaUsuario((prev) => ({ ...prev, [projetoId]: "" }));
     setBuscaChamado((prev) => ({ ...prev, [projetoId]: "" }));
     await carregar();
+    toast({ variant: "success", title: "Tarefa adicionada" });
   }
 
   async function atualizarTarefa(id: string, patch: Partial<Tarefa>) {
@@ -305,13 +342,22 @@ export function ProjetosClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    if (resp.ok) await carregar();
+    if (resp.ok) {
+      await carregar();
+      toast({ variant: "success", title: "Tarefa atualizada" });
+    } else {
+      const err = (await resp.json().catch(() => ({}))) as { message?: string };
+      toast({ variant: "destructive", title: "Erro ao atualizar tarefa", description: err.message });
+    }
   }
 
   async function excluirTarefa(id: string) {
     if (!podeEditar) return;
     const resp = await fetch(`/api/projetos/tarefas/${id}`, { method: "DELETE" });
-    if (resp.ok) await carregar();
+    if (resp.ok) {
+      await carregar();
+      toast({ variant: "success", title: "Tarefa removida" });
+    }
   }
 
   async function carregarMaisChamados(projetoId: string) {
@@ -389,6 +435,21 @@ export function ProjetosClient({
         </CardContent>
       </Card>
 
+      {projetos.length === 0 ? (
+        <EmptyState
+          icon={FolderKanban}
+          title="Nenhum projeto cadastrado"
+          description="Use o formulário abaixo para criar o primeiro projeto. As tarefas podem ter responsáveis do GLPI e, opcionalmente, vínculo com chamados."
+        />
+      ) : null}
+
+      {modoVisao === "TABELA" && projetos.length > 0 && projetosFiltrados.length === 0 ? (
+        <EmptyState
+          title="Nenhum resultado com estes filtros"
+          description="Altere o status, o responsável ou o filtro de vínculo GLPI para ver tarefas novamente."
+        />
+      ) : null}
+
       <Card>
         <CardHeader><CardTitle>Novo projeto</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
@@ -404,11 +465,21 @@ export function ProjetosClient({
       {modoVisao === "KANBAN" ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {statusOptions.map((coluna) => (
-            <Card key={coluna.value}>
-              <CardHeader><CardTitle className="text-base">{coluna.label} ({kanban[coluna.value].length})</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {kanban[coluna.value].length === 0 ? <p className="text-sm text-muted-foreground">Sem tarefas.</p> : kanban[coluna.value].map(({ projetoNome, tarefa }) => (
-                  <div key={tarefa.id} className="rounded-md border p-3 space-y-2">
+            <Card key={coluna.value} className="flex max-h-[min(72vh,560px)] flex-col overflow-hidden border shadow-sm">
+              <CardHeader className="shrink-0 border-b bg-muted/20 py-3">
+                <CardTitle className="text-base font-semibold">
+                  {coluna.label}{" "}
+                  <span className="text-muted-foreground">({kanban[coluna.value].length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-2 overflow-y-auto py-3">
+                {kanban[coluna.value].length === 0 ? (
+                  <div className="rounded-lg border border-dashed py-10 text-center text-xs text-muted-foreground">
+                    Sem tarefas neste status.
+                  </div>
+                ) : (
+                  kanban[coluna.value].map(({ projetoNome, tarefa }) => (
+                  <div key={tarefa.id} className="space-y-2 rounded-md border border-l-4 border-l-primary/35 bg-card p-3 shadow-sm">
                     <p className="text-xs text-muted-foreground">Projeto: {projetoNome}</p>
                     <p className="font-medium leading-tight">{tarefa.titulo}</p>
                     <div className="flex flex-wrap gap-1">
@@ -418,7 +489,8 @@ export function ProjetosClient({
                     {tarefa.glpiChamado ? <p className="text-xs text-muted-foreground">#{tarefa.glpiChamado.glpiTicketId} - {tarefa.glpiChamado.titulo}</p> : null}
                     {podeEditar ? <div className="flex gap-2"><Select value={tarefa.status} onValueChange={(v) => atualizarTarefa(tarefa.id, { status: v as StatusProjeto })}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent>{statusOptions.map((s) => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}</SelectContent></Select><Button size="sm" variant="ghost" onClick={() => excluirTarefa(tarefa.id)}>Remover</Button></div> : null}
                   </div>
-                ))}
+                ))
+                )}
               </CardContent>
             </Card>
           ))}
@@ -450,7 +522,7 @@ export function ProjetosClient({
               {podeEditar ? <div className="flex gap-2"><Select value={projeto.status} onValueChange={(v) => atualizarProjeto(projeto.id, { status: v as StatusProjeto })}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{statusOptions.map((s) => (<SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>))}</SelectContent></Select><Button variant="destructive" onClick={() => excluirProjeto(projeto.id)}>Excluir</Button></div> : null}
             </CardHeader>
             <CardContent className="space-y-4">
-              <Table>
+              <Table stickyHeader scrollMaxHeight="min(55vh, 28rem)">
                 <TableHeader><TableRow><TableHead>Tarefa</TableHead><TableHead>Responsável</TableHead><TableHead>Prazo</TableHead><TableHead>Status</TableHead><TableHead>Chamado GLPI</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {projeto.tarefas.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Nenhuma tarefa cadastrada.</TableCell></TableRow> : projeto.tarefas.map((t) => (

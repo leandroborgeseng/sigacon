@@ -24,6 +24,7 @@ import {
   FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { APP_BRAND } from "@/lib/branding";
 import {
   Accordion,
   AccordionContent,
@@ -145,18 +146,20 @@ export function Sidebar({
 
   return (
     <div className="flex h-full flex-col bg-card">
-      <div className="flex h-14 shrink-0 items-center border-b px-4">
+      <div className="flex h-14 shrink-0 items-center border-b bg-gradient-to-r from-primary/5 to-transparent px-4">
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 font-semibold touch-manipulation"
+          className="flex items-center gap-2 rounded-md font-semibold tracking-tight touch-manipulation outline-none ring-offset-background transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           onClick={onNavigate}
         >
-          <FileText className="h-6 w-6 text-primary" />
-          <span>SIGACON</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <FileText className="h-5 w-5" aria-hidden />
+          </span>
+          <span>{APP_BRAND.name}</span>
         </Link>
       </div>
       <p className="shrink-0 px-4 py-2 text-xs text-muted-foreground leading-snug">
-        Gestão e acompanhamento contratual
+        {APP_BRAND.tagline}
       </p>
       <nav className="min-h-0 flex-1 overflow-y-auto p-2">
         <Accordion type="multiple" defaultValue={defaultOpen} className="w-full space-y-0">
@@ -177,14 +180,16 @@ export function Sidebar({
                         key={item.href}
                         href={item.href}
                         onClick={onNavigate}
+                        aria-current={isActive ? "page" : undefined}
                         className={cn(
-                          "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors touch-manipulation",
+                          "relative flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors touch-manipulation outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                          "before:absolute before:left-0 before:top-1/2 before:h-[58%] before:w-[3px] before:-translate-y-1/2 before:rounded-full before:bg-primary before:transition-opacity",
                           isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            ? "bg-primary/12 text-primary before:opacity-100"
+                            : "text-muted-foreground before:opacity-0 hover:bg-accent hover:text-accent-foreground"
                         )}
                       >
-                        <item.icon className="h-4 w-4 shrink-0" />
+                        <item.icon className="h-4 w-4 shrink-0" aria-hidden />
                         {item.label}
                       </Link>
                     );
