@@ -40,33 +40,14 @@ export async function GET(request: Request) {
   const contratoId = searchParams.get("contratoId")?.trim() || undefined;
   const metaId = searchParams.get("metaId")?.trim() || undefined;
   const projetoId = searchParams.get("projetoId")?.trim() || undefined;
-  let filtroGruposContrato: number[] | null = null;
-
-  if (contratoId) {
-    const contrato = await prisma.contrato.findUnique({
-      where: { id: contratoId },
-      select: { glpiGruposTecnicos: { select: { glpiGroupId: true } } },
-    });
-    if (!contrato) {
-      return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
-    }
-    const ids = contrato.glpiGruposTecnicos.map((g) => g.glpiGroupId);
-    if (ids.length === 0) {
-      return NextResponse.json([]);
-    }
-    filtroGruposContrato = ids;
-  }
 
   const whereChamados: Record<string, unknown> = {};
   const whereTarefas: Record<string, unknown> = {};
 
   if (contexto === "contratos") {
-    if (filtroGruposContrato) {
-      whereChamados.grupoTecnicoIdGlpi = { in: filtroGruposContrato };
-      whereTarefas.OR = [
-        { glpiChamado: { is: { grupoTecnicoIdGlpi: { in: filtroGruposContrato } } } },
-        { glpiChamadoId: null },
-      ];
+    if (contratoId) {
+      whereChamados.contratoId = contratoId;
+      whereTarefas.glpiChamado = { is: { contratoId } };
     }
     if (vinculo === "com") {
       whereChamados.contratoId = { not: null };

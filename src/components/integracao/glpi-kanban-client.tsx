@@ -720,7 +720,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 className="shrink-0"
                 onClick={() => {
                   const w = window.open(
-                    "/integracao/glpi?standalone=1",
+                    "/kanban?standalone=1",
                     "kanban_janela",
                     `popup=yes,width=${window.screen.availWidth},height=${window.screen.availHeight},left=0,top=0`
                   );
