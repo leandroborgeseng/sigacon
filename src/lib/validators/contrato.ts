@@ -46,6 +46,21 @@ export const contratoLinkMetropolitanoSchema = z.object({
   quantidade: z.coerce.number().int().min(1).default(1),
 });
 
+/** Detalhe por linha do edital (quantidade máxima referência + valor unitário mensal). */
+export const contratoDatacenterItemPrevistoDetalheSchema = z.object({
+  tipo: z.nativeEnum(TipoRecursoDatacenter),
+  quantidadeMaxima: z.coerce.number().min(0).optional().nullable(),
+  valorUnitarioMensal: z.coerce.number().min(0).optional().nullable(),
+});
+
+export const contratoDatacenterLicencaSchema = z.object({
+  /** ID existente ao editar (omitir em licença nova). */
+  id: z.string().min(1).optional(),
+  nome: z.string().min(1, "Nome da licença obrigatório").max(200),
+  quantidadeMaxima: z.coerce.number().min(0).optional().nullable(),
+  valorUnitarioMensal: z.coerce.number().min(0).optional().nullable(),
+});
+
 /** Capacidades de infraestrutura + links (opcional no JSON). */
 export const contratoDatacenterBodySchema = z.object({
   vcpusContratados: z.coerce.number().min(0).optional().nullable(),
@@ -54,12 +69,13 @@ export const contratoDatacenterBodySchema = z.object({
   discoBackupGb: z.coerce.number().min(0).optional().nullable(),
   rackU: z.coerce.number().min(0).optional().nullable(),
   observacoes: z.string().max(8000).optional().nullable(),
-  /** Tipos de linha de medição / faturamento previstos para este contrato. */
-  tiposRecursoPrevistos: z
-    .array(z.nativeEnum(TipoRecursoDatacenter))
-    .optional()
-    .default([]),
-  links: z.array(contratoLinkMetropolitanoSchema).optional().default([]),
+  /** Tipos de linha de medição / faturamento previstos para este contrato. Omitir no PATCH para não alterar itens. */
+  tiposRecursoPrevistos: z.array(z.nativeEnum(TipoRecursoDatacenter)).optional(),
+  /** Preferencial: uma entrada por tipo marcado, com quantidade máx. e valor unitário mensal. */
+  itensPrevistosDetalhe: z.array(contratoDatacenterItemPrevistoDetalheSchema).optional(),
+  /** Omitir no PATCH para não alterar licenças já cadastradas. */
+  licencasSoftware: z.array(contratoDatacenterLicencaSchema).optional(),
+  links: z.array(contratoLinkMetropolitanoSchema).optional(),
 });
 
 export type ContratoDatacenterBodyInput = z.infer<typeof contratoDatacenterBodySchema>;

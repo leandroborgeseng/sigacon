@@ -32,6 +32,7 @@ export async function GET(
       datacenter: true,
       linksMetropolitanos: { orderBy: { ordem: "asc" } },
       datacenterItensPrevistos: { orderBy: { tipo: "asc" } },
+      datacenterLicencasSoftware: { orderBy: { ordem: "asc" } },
     },
   });
   if (!contrato) return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
@@ -168,6 +169,7 @@ export async function PATCH(
         datacenter: true,
         linksMetropolitanos: { orderBy: { ordem: "asc" } },
         datacenterItensPrevistos: { orderBy: { tipo: "asc" } },
+        datacenterLicencasSoftware: { orderBy: { ordem: "asc" } },
       },
     });
     return NextResponse.json(comGlpi ?? contrato);

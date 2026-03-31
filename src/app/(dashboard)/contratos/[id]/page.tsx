@@ -23,6 +23,7 @@ import {
   LABEL_TIPO_RECURSO_DATACENTER,
   indiceOrdenacaoTipoDatacenter,
   somaValorMensalPrevistoDatacenter,
+  somaValorMensalPrevistoLicencas,
 } from "@/lib/datacenter-recursos";
 
 export default async function ContratoDetailPage({
@@ -51,6 +52,7 @@ export default async function ContratoDetailPage({
       datacenter: true,
       linksMetropolitanos: { orderBy: { ordem: "asc" } },
       datacenterItensPrevistos: { orderBy: { tipo: "asc" } },
+      datacenterLicencasSoftware: { orderBy: { ordem: "asc" } },
       _count: { select: { itens: true } },
     },
   });
@@ -66,6 +68,10 @@ export default async function ContratoDetailPage({
   const valorMensalSomaPrevista =
     contrato.tipoContrato === TipoContrato.DATACENTER
       ? somaValorMensalPrevistoDatacenter(contrato.datacenterItensPrevistos)
+      : null;
+  const valorMensalSomaLicencas =
+    contrato.tipoContrato === TipoContrato.DATACENTER
+      ? somaValorMensalPrevistoLicencas(contrato.datacenterLicencasSoftware)
       : null;
 
   const podeEditarGestao = await canRecurso(
@@ -203,24 +209,57 @@ export default async function ContratoDetailPage({
                 </p>
               ) : (
                 <>
-                  <div className="flex flex-wrap gap-1">
-                    {itensDatacenterOrdenados.map((item) => (
-                      <Badge key={item.tipo} variant="secondary" className="font-normal">
-                        {LABEL_TIPO_RECURSO_DATACENTER[item.tipo]}
-                      </Badge>
-                    ))}
+                  <div className="rounded-md border overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/50 text-left">
+                          <th className="p-2 font-medium">Linha</th>
+                          <th className="p-2 font-medium">Qtd. máx.</th>
+                          <th className="p-2 font-medium">R$ unit. / mês</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itensDatacenterOrdenados.map((item) => (
+                          <tr key={item.id} className="border-b border-border/60">
+                            <td className="p-2 align-top">{LABEL_TIPO_RECURSO_DATACENTER[item.tipo]}</td>
+                            <td className="p-2 align-top">
+                              {item.quantidadeContratada != null
+                                ? Number(item.quantidadeContratada).toLocaleString("pt-BR")
+                                : "—"}
+                            </td>
+                            <td className="p-2 align-top">
+                              {item.valorUnitarioMensal != null
+                                ? formatCurrency(item.valorUnitarioMensal)
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  {valorMensalSomaPrevista != null && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Soma mensal estimada (onde há quantidade e valor unitário):{" "}
-                      <span className="font-medium text-foreground">
-                        {formatCurrency(valorMensalSomaPrevista)}
-                      </span>
+                  {(valorMensalSomaPrevista != null || valorMensalSomaLicencas != null) && (
+                    <p className="text-xs text-muted-foreground mt-2 space-y-1">
+                      {valorMensalSomaPrevista != null && (
+                        <span className="block">
+                          Teto mensal estimado (itens do edital, qtd × valor):{" "}
+                          <span className="font-medium text-foreground">
+                            {formatCurrency(valorMensalSomaPrevista)}
+                          </span>
+                        </span>
+                      )}
+                      {valorMensalSomaLicencas != null && (
+                        <span className="block">
+                          Teto mensal estimado (licenças adicionais):{" "}
+                          <span className="font-medium text-foreground">
+                            {formatCurrency(valorMensalSomaLicencas)}
+                          </span>
+                        </span>
+                      )}
                     </p>
                   )}
                   <p className="text-[11px] text-muted-foreground mt-2">
-                    Quantidades e preços unitários mensais poderão ser preenchidos depois para fechar o
-                    cálculo linha a linha.
+                    O consumo real de cada mês é lançado em <strong>Medição mensal</strong> (quantidade
+                    usada × valor unitário).
                   </p>
                 </>
               )}
@@ -284,6 +323,41 @@ export default async function ContratoDetailPage({
                 )}
               </>
             )}
+            <div className="border-t pt-4">
+              <p className="font-medium mb-2">Licenças de software adicionais</p>
+              {contrato.datacenterLicencasSoftware.length === 0 ? (
+                <p className="text-muted-foreground">Nenhuma licença cadastrada.</p>
+              ) : (
+                <div className="rounded-md border overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/50 text-left">
+                        <th className="p-2 font-medium">Nome</th>
+                        <th className="p-2 font-medium">Qtd. máx.</th>
+                        <th className="p-2 font-medium">R$ unit. / mês</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contrato.datacenterLicencasSoftware.map((lic) => (
+                        <tr key={lic.id} className="border-b border-border/60">
+                          <td className="p-2">{lic.nome}</td>
+                          <td className="p-2">
+                            {lic.quantidadeMaxima != null
+                              ? Number(lic.quantidadeMaxima).toLocaleString("pt-BR")
+                              : "—"}
+                          </td>
+                          <td className="p-2">
+                            {lic.valorUnitarioMensal != null
+                              ? formatCurrency(lic.valorUnitarioMensal)
+                              : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
             <div>
               <p className="font-medium mb-2">Links metropolitanos</p>
               {contrato.linksMetropolitanos.length === 0 ? (

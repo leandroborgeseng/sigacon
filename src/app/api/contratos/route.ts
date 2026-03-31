@@ -120,6 +120,7 @@ export async function POST(request: Request) {
         datacenter: true,
         linksMetropolitanos: { orderBy: { ordem: "asc" } },
         datacenterItensPrevistos: { orderBy: { tipo: "asc" } },
+        datacenterLicencasSoftware: { orderBy: { ordem: "asc" } },
       },
     });
 

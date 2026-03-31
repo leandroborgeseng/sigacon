@@ -1,22 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { TipoContrato, TipoRecursoDatacenter } from "@prisma/client";
 import { normalizarTiposRecursoDatacenterParaPersistir } from "@/lib/datacenter-recursos";
+import type { ContratoDatacenterBodyInput } from "@/lib/validators/contrato";
 
-export type DatacenterPayload = {
-  vcpusContratados?: number | null;
-  ramGb?: number | null;
-  discoSsdGb?: number | null;
-  discoBackupGb?: number | null;
-  rackU?: number | null;
-  observacoes?: string | null;
-  /** Tipos de recurso marcados para medição / cálculo mensal (sem obrigar quantidade/valor). */
-  tiposRecursoPrevistos?: TipoRecursoDatacenter[];
-  links?: Array<{
-    descricaoVelocidade: string;
-    velocidadeMbps?: number | null;
-    quantidade: number;
-  }>;
-};
+export type DatacenterPayload = ContratoDatacenterBodyInput;
 
 function dcCreateUpdate(payload: DatacenterPayload) {
   return {
@@ -45,6 +32,7 @@ export async function applyContratoDatacenter(
   const { contratoId, tipoAnterior, tipoNovo, datacenterBody } = opts;
 
   if (tipoNovo === TipoContrato.SOFTWARE) {
+    await tx.contratoDatacenterLicencaSoftware.deleteMany({ where: { contratoId } });
     await tx.contratoDatacenterItemPrevisto.deleteMany({ where: { contratoId } });
     await tx.contratoLinkMetropolitano.deleteMany({ where: { contratoId } });
     await tx.contratoDatacenter.deleteMany({ where: { contratoId } });
@@ -69,26 +57,54 @@ export async function applyContratoDatacenter(
     update: fields,
   });
 
-  await tx.contratoLinkMetropolitano.deleteMany({ where: { contratoId } });
-  const links = (datacenterBody.links ?? []).filter((l) => l.descricaoVelocidade?.trim());
-  if (links.length > 0) {
-    await tx.contratoLinkMetropolitano.createMany({
-      data: links.map((l, i) => ({
-        contratoId,
-        descricaoVelocidade: l.descricaoVelocidade.trim(),
-        velocidadeMbps: l.velocidadeMbps ?? null,
-        quantidade: Math.max(1, l.quantidade ?? 1),
-        ordem: i,
-      })),
-    });
+  if (datacenterBody.links !== undefined) {
+    await tx.contratoLinkMetropolitano.deleteMany({ where: { contratoId } });
+    const links = datacenterBody.links.filter((l) => l.descricaoVelocidade?.trim());
+    if (links.length > 0) {
+      await tx.contratoLinkMetropolitano.createMany({
+        data: links.map((l, i) => ({
+          contratoId,
+          descricaoVelocidade: l.descricaoVelocidade.trim(),
+          velocidadeMbps: l.velocidadeMbps ?? null,
+          quantidade: Math.max(1, l.quantidade ?? 1),
+          ordem: i,
+        })),
+      });
+    }
   }
 
-  if (datacenterBody.tiposRecursoPrevistos !== undefined) {
+  const detalhe = datacenterBody.itensPrevistosDetalhe;
+  /** Detalhe enviado pelo formulário: uma entrada por tipo marcado; vazio limpa linhas se não houver fallback por tipos. */
+  if (detalhe !== undefined && detalhe.length > 0) {
+    const tipos = normalizarTiposRecursoDatacenterParaPersistir([
+      ...new Set(detalhe.map((d) => d.tipo)),
+    ]);
+    const porTipo = new Map(
+      detalhe.map((d) => [
+        d.tipo,
+        { quantidadeMaxima: d.quantidadeMaxima, valorUnitarioMensal: d.valorUnitarioMensal },
+      ])
+    );
+    await tx.contratoDatacenterItemPrevisto.deleteMany({ where: { contratoId } });
+    if (tipos.length > 0) {
+      await tx.contratoDatacenterItemPrevisto.createMany({
+        data: tipos.map((tipo) => {
+          const det = porTipo.get(tipo);
+          return {
+            contratoId,
+            tipo,
+            quantidadeContratada: det?.quantidadeMaxima ?? null,
+            valorUnitarioMensal: det?.valorUnitarioMensal ?? null,
+          };
+        }),
+      });
+    }
+  } else if (datacenterBody.tiposRecursoPrevistos !== undefined) {
     const existentes = await tx.contratoDatacenterItemPrevisto.findMany({
       where: { contratoId },
       select: { tipo: true, quantidadeContratada: true, valorUnitarioMensal: true },
     });
-    const porTipo = new Map(
+    const porTipoDb = new Map(
       existentes.map((e) => [
         e.tipo,
         { quantidadeContratada: e.quantidadeContratada, valorUnitarioMensal: e.valorUnitarioMensal },
@@ -101,10 +117,10 @@ export async function applyContratoDatacenter(
     if (tipos.length > 0) {
       await tx.contratoDatacenterItemPrevisto.createMany({
         data: tipos.map((tipo) => {
-          const prevDireto = porTipo.get(tipo);
+          const prevDireto = porTipoDb.get(tipo);
           const prevFibraLegado =
             tipo === TipoRecursoDatacenter.CONECTIVIDADE_FIBRA_OPTICA
-              ? porTipo.get(TipoRecursoDatacenter.LINK_METROPOLITANO)
+              ? porTipoDb.get(TipoRecursoDatacenter.LINK_METROPOLITANO)
               : undefined;
           const prev = prevDireto ?? prevFibraLegado;
           return {
@@ -114,6 +130,64 @@ export async function applyContratoDatacenter(
             valorUnitarioMensal: prev?.valorUnitarioMensal ?? null,
           };
         }),
+      });
+    }
+  }
+
+  if (datacenterBody.licencasSoftware !== undefined) {
+    const incoming = datacenterBody.licencasSoftware;
+    const finalIds: string[] = [];
+    for (let i = 0; i < incoming.length; i++) {
+      const row = incoming[i];
+      const nome = row.nome.trim();
+      if (!nome) continue;
+      const q = row.quantidadeMaxima;
+      const v = row.valorUnitarioMensal;
+      if (row.id) {
+        const exists = await tx.contratoDatacenterLicencaSoftware.findFirst({
+          where: { id: row.id, contratoId },
+        });
+        if (exists) {
+          await tx.contratoDatacenterLicencaSoftware.update({
+            where: { id: row.id },
+            data: {
+              nome,
+              quantidadeMaxima: q ?? null,
+              valorUnitarioMensal: v ?? null,
+              ordem: i,
+            },
+          });
+          finalIds.push(row.id);
+        } else {
+          const created = await tx.contratoDatacenterLicencaSoftware.create({
+            data: {
+              contratoId,
+              nome,
+              quantidadeMaxima: q ?? null,
+              valorUnitarioMensal: v ?? null,
+              ordem: i,
+            },
+          });
+          finalIds.push(created.id);
+        }
+      } else {
+        const created = await tx.contratoDatacenterLicencaSoftware.create({
+          data: {
+            contratoId,
+            nome,
+            quantidadeMaxima: q ?? null,
+            valorUnitarioMensal: v ?? null,
+            ordem: i,
+          },
+        });
+        finalIds.push(created.id);
+      }
+    }
+    if (finalIds.length === 0) {
+      await tx.contratoDatacenterLicencaSoftware.deleteMany({ where: { contratoId } });
+    } else {
+      await tx.contratoDatacenterLicencaSoftware.deleteMany({
+        where: { contratoId, id: { notIn: finalIds } },
       });
     }
   }

@@ -8,6 +8,7 @@ import { TipoRecursoDatacenter } from "@prisma/client";
 import {
   LABEL_TIPO_RECURSO_DATACENTER,
   ORDEM_TIPO_RECURSO_DATACENTER,
+  indiceOrdenacaoTipoDatacenter,
   normalizarTiposRecursoDatacenterFromDb,
   normalizarTiposRecursoDatacenterParaPersistir,
 } from "@/lib/datacenter-recursos";
@@ -20,9 +21,24 @@ export type LinkMetroRow = {
   quantidade: string;
 };
 
+export type ItemPrevistoLinhaForm = {
+  quantidadeMaxima: string;
+  valorUnitarioMensal: string;
+};
+
+export type LicencaSoftwareRow = {
+  clientId: string;
+  /** ID persistido (edição). */
+  id?: string;
+  nome: string;
+  quantidadeMaxima: string;
+  valorUnitarioMensal: string;
+};
+
 export type DatacenterFormState = {
-  /** Tipos de linha que entrarão em medição / soma mensal (marcados no contrato). */
   tiposRecursoPrevistos: TipoRecursoDatacenter[];
+  /** Por tipo selecionado: quantidade máxima contratada e R$ unitário no mês. */
+  detalhesPorTipo: Partial<Record<TipoRecursoDatacenter, ItemPrevistoLinhaForm>>;
   vcpus: string;
   ramGb: string;
   discoSsdGb: string;
@@ -30,16 +46,26 @@ export type DatacenterFormState = {
   rackU: string;
   observacoes: string;
   links: LinkMetroRow[];
+  licencasSoftware: LicencaSoftwareRow[];
 };
 
-function newLinkId(): string {
+function newClientId(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return String(Date.now() + Math.random());
 }
 
+export function emptyLicencaRow(): LicencaSoftwareRow {
+  return {
+    clientId: newClientId(),
+    nome: "",
+    quantidadeMaxima: "",
+    valorUnitarioMensal: "",
+  };
+}
+
 export function emptyLinkRow(): LinkMetroRow {
   return {
-    id: newLinkId(),
+    id: newClientId(),
     descricaoVelocidade: "",
     velocidadeMbps: "",
     quantidade: "1",
@@ -49,6 +75,7 @@ export function emptyLinkRow(): LinkMetroRow {
 export function defaultDatacenterFormState(): DatacenterFormState {
   return {
     tiposRecursoPrevistos: [...ORDEM_TIPO_RECURSO_DATACENTER],
+    detalhesPorTipo: {},
     vcpus: "",
     ramGb: "",
     discoSsdGb: "",
@@ -56,6 +83,7 @@ export function defaultDatacenterFormState(): DatacenterFormState {
     rackU: "",
     observacoes: "",
     links: [],
+    licencasSoftware: [],
   };
 }
 
@@ -67,6 +95,10 @@ function decToInput(v: unknown): string {
     return s === "[object Object]" ? "" : s;
   }
   return "";
+}
+
+function linhaVazia(): ItemPrevistoLinhaForm {
+  return { quantidadeMaxima: "", valorUnitarioMensal: "" };
 }
 
 export function hydrateDatacenterForm(
@@ -83,13 +115,33 @@ export function hydrateDatacenterForm(
     velocidadeMbps: number | null;
     quantidade: number;
   }>,
-  itensPrevistos?: Array<{ tipo: TipoRecursoDatacenter }> | null
+  itensPrevistos?: Array<{
+    tipo: TipoRecursoDatacenter;
+    quantidadeContratada?: unknown;
+    valorUnitarioMensal?: unknown;
+  }> | null,
+  licencasSoftware?: Array<{
+    id: string;
+    nome: string;
+    quantidadeMaxima: unknown;
+    valorUnitarioMensal: unknown;
+  }> | null
 ): DatacenterFormState {
   const fromDb = itensPrevistos?.length
     ? normalizarTiposRecursoDatacenterFromDb(itensPrevistos.map((i) => i.tipo))
     : [];
+  const detalhesPorTipo: Partial<Record<TipoRecursoDatacenter, ItemPrevistoLinhaForm>> = {};
+  if (itensPrevistos?.length) {
+    for (const it of itensPrevistos) {
+      detalhesPorTipo[it.tipo] = {
+        quantidadeMaxima: decToInput(it.quantidadeContratada),
+        valorUnitarioMensal: decToInput(it.valorUnitarioMensal),
+      };
+    }
+  }
   return {
     tiposRecursoPrevistos: fromDb.length ? [...new Set(fromDb)] : [...ORDEM_TIPO_RECURSO_DATACENTER],
+    detalhesPorTipo,
     vcpus: decToInput(datacenter?.vcpusContratados),
     ramGb: decToInput(datacenter?.ramGb),
     discoSsdGb: decToInput(datacenter?.discoSsdGb),
@@ -99,13 +151,27 @@ export function hydrateDatacenterForm(
     links:
       links.length > 0
         ? links.map((l) => ({
-            id: newLinkId(),
+            id: newClientId(),
             descricaoVelocidade: l.descricaoVelocidade,
             velocidadeMbps: l.velocidadeMbps != null ? String(l.velocidadeMbps) : "",
             quantidade: String(Math.max(1, l.quantidade)),
           }))
         : [],
+    licencasSoftware: (licencasSoftware ?? []).map((lic) => ({
+      clientId: newClientId(),
+      id: lic.id,
+      nome: lic.nome,
+      quantidadeMaxima: decToInput(lic.quantidadeMaxima),
+      valorUnitarioMensal: decToInput(lic.valorUnitarioMensal),
+    })),
   };
+}
+
+function parseOptDecimal(s: string): number | null {
+  const t = s.trim().replace(",", ".");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 export function payloadFromDatacenterForm(dc: DatacenterFormState) {
@@ -124,6 +190,26 @@ export function payloadFromDatacenterForm(dc: DatacenterFormState) {
         : null,
       quantidade: Math.max(1, Number.parseInt(l.quantidade, 10) || 1),
     }));
+
+  const tipos = normalizarTiposRecursoDatacenterParaPersistir([...new Set(dc.tiposRecursoPrevistos)]);
+  const itensPrevistosDetalhe = tipos.map((tipo) => {
+    const d = dc.detalhesPorTipo[tipo] ?? linhaVazia();
+    return {
+      tipo,
+      quantidadeMaxima: parseOptDecimal(d.quantidadeMaxima),
+      valorUnitarioMensal: parseOptDecimal(d.valorUnitarioMensal),
+    };
+  });
+
+  const licencasSoftware = dc.licencasSoftware
+    .filter((l) => l.nome.trim())
+    .map((l) => ({
+      ...(l.id ? { id: l.id } : {}),
+      nome: l.nome.trim(),
+      quantidadeMaxima: parseOptDecimal(l.quantidadeMaxima),
+      valorUnitarioMensal: parseOptDecimal(l.valorUnitarioMensal),
+    }));
+
   return {
     vcpusContratados: num(dc.vcpus),
     ramGb: num(dc.ramGb),
@@ -131,9 +217,9 @@ export function payloadFromDatacenterForm(dc: DatacenterFormState) {
     discoBackupGb: num(dc.discoBackupGb),
     rackU: num(dc.rackU),
     observacoes: dc.observacoes.trim() || null,
-    tiposRecursoPrevistos: normalizarTiposRecursoDatacenterParaPersistir([
-      ...new Set(dc.tiposRecursoPrevistos),
-    ]),
+    tiposRecursoPrevistos: tipos,
+    itensPrevistosDetalhe,
+    licencasSoftware,
     links,
   };
 }
@@ -151,24 +237,41 @@ export function ContratoDatacenterFields({
 
   function toggleTipo(tipo: TipoRecursoDatacenter) {
     const s = new Set(value.tiposRecursoPrevistos);
-    if (s.has(tipo)) s.delete(tipo);
-    else s.add(tipo);
-    patch({ tiposRecursoPrevistos: [...s] });
+    const detalhesPorTipo = { ...value.detalhesPorTipo };
+    if (s.has(tipo)) {
+      s.delete(tipo);
+      delete detalhesPorTipo[tipo];
+    } else {
+      s.add(tipo);
+      detalhesPorTipo[tipo] = detalhesPorTipo[tipo] ?? linhaVazia();
+    }
+    onChange({
+      ...value,
+      tiposRecursoPrevistos: [...s],
+      detalhesPorTipo,
+    });
   }
+
+  function setDetalhe(tipo: TipoRecursoDatacenter, field: keyof ItemPrevistoLinhaForm, v: string) {
+    const detalhesPorTipo = { ...value.detalhesPorTipo };
+    const cur = detalhesPorTipo[tipo] ?? linhaVazia();
+    detalhesPorTipo[tipo] = { ...cur, [field]: v };
+    patch({ detalhesPorTipo });
+  }
+
+  const tiposOrdenados = [...value.tiposRecursoPrevistos].sort(
+    (a, b) => indiceOrdenacaoTipoDatacenter(a) - indiceOrdenacaoTipoDatacenter(b)
+  );
 
   return (
     <div className="space-y-4 rounded-md border border-dashed p-3">
       <p className="text-sm font-medium">Infraestrutura contratada (datacenter)</p>
       <p className="text-xs text-muted-foreground">
-        Defina quais categorias entram no contrato para medição e para o cálculo do valor mensal; as
-        quantidades e valores unitários poderão ser preenchidos depois.
+        Marque as linhas do contrato e informe, quando souber, a quantidade máxima contratada e o valor
+        unitário mensal (R$) para medição e faturamento.
       </p>
       <div className="rounded-md bg-muted/40 p-3 space-y-2">
         <p className="text-xs font-medium">Itens previstos (medição / faturamento mensal)</p>
-        <p className="text-[11px] text-muted-foreground">
-          Marque os tipos que aplicam a este contrato. Não é obrigatório informar quantidades ou preços
-          agora.
-        </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {ORDEM_TIPO_RECURSO_DATACENTER.map((tipo) => (
             <label
@@ -185,9 +288,52 @@ export function ContratoDatacenterFields({
             </label>
           ))}
         </div>
+        {tiposOrdenados.length > 0 && (
+          <div className="space-y-3 pt-2 border-t border-border/60 mt-2">
+            <p className="text-[11px] text-muted-foreground">
+              Quantidade máx. (referência contratual) e valor unitário mensal (R$) por linha — usados no
+              cálculo do consumo de cada mês.
+            </p>
+            {tiposOrdenados.map((tipo) => {
+              const d = value.detalhesPorTipo[tipo] ?? linhaVazia();
+              return (
+                <div
+                  key={tipo}
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end rounded border bg-background/50 p-2"
+                >
+                  <div className="sm:col-span-6 text-xs font-medium leading-tight">
+                    {LABEL_TIPO_RECURSO_DATACENTER[tipo]}
+                  </div>
+                  <div className="sm:col-span-3 space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">Qtd. máx.</Label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Ex.: 32"
+                      value={d.quantidadeMaxima}
+                      onChange={(e) => setDetalhe(tipo, "quantidadeMaxima", e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="sm:col-span-3 space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">R$ unit. / mês</Label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Ex.: 150,50"
+                      value={d.valorUnitarioMensal}
+                      onChange={(e) => setDetalhe(tipo, "valorUnitarioMensal", e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       <p className="text-xs text-muted-foreground border-t pt-3">
-        Detalhes opcionais (capacidades contratadas e links) — podem complementar o cadastro.
+        Detalhes opcionais (capacidades globais e links) — complementam o cadastro.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -255,6 +401,101 @@ export function ContratoDatacenterFields({
           className="text-sm"
         />
       </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs">Licenças de software adicionais</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() =>
+              patch({ licencasSoftware: [...value.licencasSoftware, emptyLicencaRow()] })
+            }
+          >
+            <Plus className="mr-1 h-3 w-3" />
+            Adicionar licença
+          </Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Como os links: cadastre cada licença com quantidade máxima, valor unitário mensal e depois lance o
+          consumo na medição do mês.
+        </p>
+        {value.licencasSoftware.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Nenhuma licença adicional.</p>
+        ) : (
+          <div className="space-y-2">
+            {value.licencasSoftware.map((row, idx) => (
+              <div
+                key={row.clientId}
+                className="grid grid-cols-12 gap-2 items-end border rounded-md p-2"
+              >
+                <div className="col-span-12 sm:col-span-4 space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Nome / produto</Label>
+                  <Input
+                    placeholder="Ex.: SQL Server Standard"
+                    value={row.nome}
+                    onChange={(e) => {
+                      const licencasSoftware = [...value.licencasSoftware];
+                      licencasSoftware[idx] = { ...row, nome: e.target.value };
+                      patch({ licencasSoftware });
+                    }}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="col-span-6 sm:col-span-2 space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Qtd. máx.</Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={row.quantidadeMaxima}
+                    onChange={(e) => {
+                      const licencasSoftware = [...value.licencasSoftware];
+                      licencasSoftware[idx] = { ...row, quantidadeMaxima: e.target.value };
+                      patch({ licencasSoftware });
+                    }}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="col-span-6 sm:col-span-3 space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">R$ unit. / mês</Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={row.valorUnitarioMensal}
+                    onChange={(e) => {
+                      const licencasSoftware = [...value.licencasSoftware];
+                      licencasSoftware[idx] = { ...row, valorUnitarioMensal: e.target.value };
+                      patch({ licencasSoftware });
+                    }}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="col-span-12 sm:col-span-3 flex justify-end pb-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-destructive"
+                    onClick={() => {
+                      patch({
+                        licencasSoftware: value.licencasSoftware.filter(
+                          (l) => l.clientId !== row.clientId
+                        ),
+                      });
+                    }}
+                    aria-label="Remover licença"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Label className="text-xs">Links metropolitanos</Label>

@@ -105,6 +105,13 @@ enum StatusPendencia {
   VENCIDA
 }
 
+enum StatusMeta {
+  NAO_INICIADA
+  EM_ANDAMENTO
+  CONCLUIDA
+  BLOQUEADA
+}
+
 enum OrigemPendencia {
   EDITAL
   HOMOLOGACAO
@@ -257,6 +264,7 @@ model Contrato {
   datacenter               ContratoDatacenter?
   linksMetropolitanos      ContratoLinkMetropolitano[]
   datacenterItensPrevistos ContratoDatacenterItemPrevisto[]
+  datacenterLicencasSoftware ContratoDatacenterLicencaSoftware[]
 
   @@map("contratos")
 }
@@ -317,10 +325,59 @@ model ContratoDatacenterItemPrevisto {
   atualizadoEm          DateTime              @updatedAt @map("atualizado_em")
 
   contrato Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  consumosMedicao MedicaoDatacenterConsumoItem[]
 
   @@unique([contratoId, tipo])
   @@index([contratoId])
   @@map("contratos_datacenter_itens_previstos")
+}
+
+/** Licenças de software adicionais no contrato datacenter (cadastro livre, como links). */
+model ContratoDatacenterLicencaSoftware {
+  id                  String   @id @default(cuid())
+  contratoId          String   @map("contrato_id")
+  nome                String   @db.VarChar(200)
+  /** Quantidade máxima contratada (referência). */
+  quantidadeMaxima    Decimal? @map("quantidade_maxima") @db.Decimal(18, 4)
+  valorUnitarioMensal Decimal? @map("valor_unitario_mensal") @db.Decimal(18, 4)
+  ordem               Int      @default(0)
+  criadoEm            DateTime @default(now()) @map("criado_em")
+  atualizadoEm        DateTime @updatedAt @map("atualizado_em")
+
+  contrato        Contrato                       @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  consumosMedicao MedicaoDatacenterConsumoLicenca[]
+
+  @@index([contratoId])
+  @@map("contratos_datacenter_licencas_software")
+}
+
+/** Medição mensal: quantidade usada por linha de item previsto (faturamento = usado × valor unitário). */
+model MedicaoDatacenterConsumoItem {
+  id              String  @id @default(cuid())
+  medicaoMensalId String  @map("medicao_mensal_id")
+  itemPrevistoId  String  @map("item_previsto_id")
+  quantidadeUsada Decimal @default(0) @map("quantidade_usada") @db.Decimal(18, 4)
+
+  medicaoMensal MedicaoMensal                  @relation(fields: [medicaoMensalId], references: [id], onDelete: Cascade)
+  itemPrevisto  ContratoDatacenterItemPrevisto @relation(fields: [itemPrevistoId], references: [id], onDelete: Cascade)
+
+  @@unique([medicaoMensalId, itemPrevistoId])
+  @@index([medicaoMensalId])
+  @@map("medicoes_datacenter_consumo_itens")
+}
+
+model MedicaoDatacenterConsumoLicenca {
+  id              String  @id @default(cuid())
+  medicaoMensalId String  @map("medicao_mensal_id")
+  licencaId       String  @map("licenca_id")
+  quantidadeUsada Decimal @default(0) @map("quantidade_usada") @db.Decimal(18, 4)
+
+  medicaoMensal MedicaoMensal                    @relation(fields: [medicaoMensalId], references: [id], onDelete: Cascade)
+  licenca       ContratoDatacenterLicencaSoftware @relation(fields: [licencaId], references: [id], onDelete: Cascade)
+
+  @@unique([medicaoMensalId, licencaId])
+  @@index([medicaoMensalId])
+  @@map("medicoes_datacenter_consumo_licencas")
 }
 
 /** Configuração da API GLPI (persistida; fallback opcional via variáveis de ambiente). */
@@ -631,6 +688,8 @@ model MedicaoMensal {
   atas           AtaReuniao[]
   anexos         Anexo[]
   lancamentosUst LancamentoUst[]
+  consumoDatacenterItens   MedicaoDatacenterConsumoItem[]
+  consumoDatacenterLicencas MedicaoDatacenterConsumoLicenca[]
 
   @@unique([contratoId, ano, mes])
   @@map("medicoes_mensais")
@@ -732,12 +791,64 @@ model GlpiChamado {
   atualizadoEm     DateTime         @updatedAt @map("atualizado_em")
 
   contrato Contrato? @relation(fields: [contratoId], references: [id], onDelete: SetNull)
+  desdobramentosMeta MetaDesdobramentoGlpiChamado[]
 
   @@index([contratoId])
   @@index([colunaKanban])
   @@index([fornecedorNome])
   @@index([dataModificacao])
   @@map("glpi_chamados")
+}
+
+model MetaPlanejamento {
+  id            String     @id @default(cuid())
+  ano           Int
+  titulo        String
+  descricao     String?    @db.Text
+  contextoOrigem String?   @map("contexto_origem") @db.Text
+  status        StatusMeta @default(NAO_INICIADA)
+  prazo         DateTime?  @map("prazo")
+  criadoEm      DateTime   @default(now()) @map("criado_em")
+  atualizadoEm  DateTime   @updatedAt @map("atualizado_em")
+
+  desdobramentos MetaDesdobramento[]
+
+  @@index([ano])
+  @@map("metas_planejamento")
+}
+
+model MetaDesdobramento {
+  id                String     @id @default(cuid())
+  metaId            String     @map("meta_id")
+  titulo            String
+  descricao         String?    @db.Text
+  responsavel       String?    @db.VarChar(200)
+  status            StatusMeta @default(NAO_INICIADA)
+  percentualConcluido Int      @default(0) @map("percentual_concluido")
+  prazoInicio       DateTime?  @map("prazo_inicio")
+  prazoFim          DateTime?  @map("prazo_fim")
+  criadoEm          DateTime   @default(now()) @map("criado_em")
+  atualizadoEm      DateTime   @updatedAt @map("atualizado_em")
+
+  meta      MetaPlanejamento               @relation(fields: [metaId], references: [id], onDelete: Cascade)
+  chamados  MetaDesdobramentoGlpiChamado[]
+
+  @@index([metaId])
+  @@map("metas_desdobramentos")
+}
+
+model MetaDesdobramentoGlpiChamado {
+  id               String @id @default(cuid())
+  desdobramentoId  String @map("desdobramento_id")
+  glpiChamadoId    String @map("glpi_chamado_id")
+  criadoEm         DateTime @default(now()) @map("criado_em")
+
+  desdobramento MetaDesdobramento @relation(fields: [desdobramentoId], references: [id], onDelete: Cascade)
+  glpiChamado   GlpiChamado       @relation(fields: [glpiChamadoId], references: [id], onDelete: Cascade)
+
+  @@unique([desdobramentoId, glpiChamadoId])
+  @@index([glpiChamadoId])
+  @@map("metas_desdobramentos_glpi_chamados")
 }
 
 model HistoricoAuditoria {

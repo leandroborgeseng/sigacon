@@ -1,9 +1,13 @@
 import { prisma } from "@/lib/prisma";
-import { StatusItem, StatusFechamentoMedicao } from "@prisma/client";
+import { StatusItem, StatusFechamentoMedicao, TipoContrato } from "@prisma/client";
 import {
   calcularMedicaoMensal,
   toDecimal,
 } from "@/lib/finance";
+import {
+  garantirConsumoDatacenterNaMedicao,
+  valorFaturamentoDatacenterMedicao,
+} from "@/server/services/medicao-datacenter";
 
 const STATUS_CONSIDERADO_ATENDIDO: StatusItem[] = [StatusItem.ATENDE];
 const STATUS_CONSIDERADO_PARCIAL: StatusItem[] = [StatusItem.PARCIAL];
@@ -90,6 +94,15 @@ export async function getOrCreateMedicao(contratoId: string, ano: number, mes: n
   const ustSync = await calcularTotaisUstMes(contratoId, ano, mes);
   const valorChecklist = calc.valorDevidoMes;
 
+  async function consolidadoComDatacenter(medicaoId: string) {
+    let extraDc = 0;
+    if (contrato.tipoContrato === TipoContrato.DATACENTER) {
+      await garantirConsumoDatacenterNaMedicao(medicaoId);
+      extraDc = await valorFaturamentoDatacenterMedicao(medicaoId);
+    }
+    return toDecimal(valorChecklist + ustSync.valorMonetarioNum + extraDc);
+  }
+
   if (existing) {
     const row = await prisma.medicaoMensal.update({
       where: { id: existing.id },
@@ -101,13 +114,13 @@ export async function getOrCreateMedicao(contratoId: string, ano: number, mes: n
         totalItensNaoAtendidos,
         totalUstMes: ustSync.totalUst,
         valorMedicaoUstMes: ustSync.valorMonetario,
-        valorTotalConsolidadoMes: toDecimal(valorChecklist + ustSync.valorMonetarioNum),
+        valorTotalConsolidadoMes: await consolidadoComDatacenter(existing.id),
       },
     });
     return row;
   }
 
-  return prisma.medicaoMensal.create({
+  const created = await prisma.medicaoMensal.create({
     data: {
       ...data,
       totalItensValidos,
@@ -117,6 +130,12 @@ export async function getOrCreateMedicao(contratoId: string, ano: number, mes: n
       totalUstMes: ustSync.totalUst,
       valorMedicaoUstMes: ustSync.valorMonetario,
       valorTotalConsolidadoMes: toDecimal(valorChecklist + ustSync.valorMonetarioNum),
+    },
+  });
+  return prisma.medicaoMensal.update({
+    where: { id: created.id },
+    data: {
+      valorTotalConsolidadoMes: await consolidadoComDatacenter(created.id),
     },
   });
 }
@@ -139,16 +158,22 @@ async function calcularTotaisUstMes(contratoId: string, ano: number, mes: number
 export async function sincronizarUstNaMedicao(contratoId: string, ano: number, mes: number) {
   const med = await prisma.medicaoMensal.findUnique({
     where: { contratoId_ano_mes: { contratoId, ano, mes } },
+    include: { contrato: { select: { tipoContrato: true } } },
   });
   if (!med) return null;
   const ust = await calcularTotaisUstMes(contratoId, ano, mes);
   const valorChecklist = Number(med.valorDevidoMes);
+  let extraDc = 0;
+  if (med.contrato.tipoContrato === TipoContrato.DATACENTER) {
+    await garantirConsumoDatacenterNaMedicao(med.id);
+    extraDc = await valorFaturamentoDatacenterMedicao(med.id);
+  }
   return prisma.medicaoMensal.update({
     where: { id: med.id },
     data: {
       totalUstMes: ust.totalUst,
       valorMedicaoUstMes: ust.valorMonetario,
-      valorTotalConsolidadoMes: toDecimal(valorChecklist + ust.valorMonetarioNum),
+      valorTotalConsolidadoMes: toDecimal(valorChecklist + ust.valorMonetarioNum + extraDc),
     },
   });
 }

@@ -69,7 +69,17 @@ type ContratoParaEdicao = {
     velocidadeMbps: number | null;
     quantidade: number;
   }>;
-  datacenterItensPrevistos?: Array<{ tipo: TipoRecursoDatacenter }>;
+  datacenterItensPrevistos?: Array<{
+    tipo: TipoRecursoDatacenter;
+    quantidadeContratada?: unknown;
+    valorUnitarioMensal?: unknown;
+  }>;
+  datacenterLicencasSoftware?: Array<{
+    id: string;
+    nome: string;
+    quantidadeMaxima: unknown;
+    valorUnitarioMensal: unknown;
+  }>;
 };
 
 export function ContratoEditDialog({
@@ -94,7 +104,8 @@ export function ContratoEditDialog({
     hydrateDatacenterForm(
       contrato.datacenter ?? null,
       contrato.linksMetropolitanos ?? [],
-      contrato.datacenterItensPrevistos ?? []
+      contrato.datacenterItensPrevistos ?? [],
+      contrato.datacenterLicencasSoftware ?? []
     )
   );
 
@@ -111,7 +122,8 @@ export function ContratoEditDialog({
       hydrateDatacenterForm(
         contrato.datacenter ?? null,
         contrato.linksMetropolitanos ?? [],
-        contrato.datacenterItensPrevistos ?? []
+        contrato.datacenterItensPrevistos ?? [],
+        contrato.datacenterLicencasSoftware ?? []
       )
     );
   }, [
@@ -122,6 +134,7 @@ export function ContratoEditDialog({
     contrato.datacenter,
     contrato.linksMetropolitanos,
     contrato.datacenterItensPrevistos,
+    contrato.datacenterLicencasSoftware,
   ]);
 
   const form = useForm<Partial<ContratoInput>>({

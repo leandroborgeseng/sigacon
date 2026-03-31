@@ -75,7 +75,7 @@ export function indiceOrdenacaoTipoDatacenter(tipo: TipoRecursoDatacenter): numb
   return ORDEM_IDX.get(tipo) ?? 99;
 }
 
-/** Soma mensal quando quantidade × valor unitário existem em cada linha (etapa futura). */
+/** Soma mensal quando quantidade × valor unitário existem em cada linha. */
 export function somaValorMensalPrevistoDatacenter(
   itens: Array<{
     quantidadeContratada: unknown;
@@ -87,6 +87,26 @@ export function somaValorMensalPrevistoDatacenter(
   for (const i of itens) {
     const q =
       i.quantidadeContratada != null ? Number(i.quantidadeContratada) : Number.NaN;
+    const v = i.valorUnitarioMensal != null ? Number(i.valorUnitarioMensal) : Number.NaN;
+    if (Number.isFinite(q) && Number.isFinite(v)) {
+      total += q * v;
+      usados += 1;
+    }
+  }
+  return usados > 0 ? total : null;
+}
+
+/** Soma mensal para licenças adicionais (qtd máxima × valor unitário, quando ambos preenchidos). */
+export function somaValorMensalPrevistoLicencas(
+  licencas: Array<{
+    quantidadeMaxima: unknown;
+    valorUnitarioMensal: unknown;
+  }>
+): number | null {
+  let total = 0;
+  let usados = 0;
+  for (const i of licencas) {
+    const q = i.quantidadeMaxima != null ? Number(i.quantidadeMaxima) : Number.NaN;
     const v = i.valorUnitarioMensal != null ? Number(i.valorUnitarioMensal) : Number.NaN;
     if (Number.isFinite(q) && Number.isFinite(v)) {
       total += q * v;

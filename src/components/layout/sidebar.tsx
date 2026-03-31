@@ -20,6 +20,7 @@ import {
   Printer,
   KanbanSquare,
   Settings,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -48,6 +49,7 @@ const NAV: Record<string, NavItem> = {
   itens: { href: "/itens", label: "Itens contratuais", icon: ListChecks },
   pendencias: { href: "/pendencias", label: "Pendências", icon: AlertCircle },
   medicoes: { href: "/medicoes", label: "Medição mensal", icon: Calculator },
+  metas: { href: "/metas", label: "Metas", icon: Target },
   atas: { href: "/atas", label: "Atas de reunião", icon: BookOpen },
   execucao: { href: "/execucao-tecnica", label: "UST & catálogo", icon: Gauge },
   importacao: { href: "/importacao", label: "Importação XLSX", icon: Upload },
@@ -70,17 +72,16 @@ const NAV: Record<string, NavItem> = {
     icon: Printer,
     relatorioExecutivo: true,
   },
-  admin: { href: "/admin", label: "Visão admin", icon: LayoutGrid, adminOnly: true },
   usuarios: { href: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
   perfis: { href: "/usuarios/perfis", label: "Perfis e permissões", icon: Shield, adminOnly: true },
 };
 
 const GROUP_DEF: { id: string; label: string; keys: (keyof typeof NAV)[] }[] = [
-  { id: "principal", label: "Visão geral", keys: ["dashboard", "admin"] },
+  { id: "principal", label: "Visão geral", keys: ["dashboard"] },
   {
     id: "contratos",
     label: "Contratos e entregas",
-    keys: ["contratos", "modulos", "itens", "pendencias", "medicoes", "atas", "execucao"],
+    keys: ["contratos", "modulos", "itens", "pendencias", "medicoes", "metas", "atas", "execucao"],
   },
   { id: "apoio", label: "Dados e apoio", keys: ["importacao", "manual"] },
   {

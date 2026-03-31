@@ -17,7 +17,7 @@ export default async function MedicoesPage() {
 
   const contratos = await prisma.contrato.findMany({
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true },
+    select: { id: true, nome: true, tipoContrato: true },
   });
 
   return (

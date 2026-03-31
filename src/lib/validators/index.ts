@@ -7,3 +7,5 @@ export * from "./ata";
 export * from "./usuario";
 export * from "./ust";
 export * from "./gestao-contrato";
+export * from "./medicao";
+export * from "./metas";
