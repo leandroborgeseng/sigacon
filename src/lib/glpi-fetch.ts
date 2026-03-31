@@ -48,10 +48,11 @@ function requestUrlString(input: RequestInfo | URL): string {
 export async function glpiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (glpiTlsInsecureEnabled()) {
     const url = requestUrlString(input);
-    return undiciFetch(url, {
-      ...init,
+    const res = await undiciFetch(url, {
+      ...(init ?? {}),
       dispatcher: getTlsInsecureAgent(),
-    } as RequestInit & { dispatcher: Agent });
+    } as Parameters<typeof undiciFetch>[1]);
+    return res as unknown as Response;
   }
   return fetch(input, init);
 }

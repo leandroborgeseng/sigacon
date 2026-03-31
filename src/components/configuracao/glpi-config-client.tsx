@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { GLPI_REST_API_DOC_URL } from "@/lib/glpi-docs";
-import { validarFormatoUrlApiGlpi } from "@/lib/glpi-test-connection";
+import { validarFormatoUrlApiGlpi } from "@/lib/glpi-url-validation";
 import { cn } from "@/lib/utils";
 
 type GlpiTestStep = { id: string; label: string; ok: boolean; detail?: string };
