@@ -252,7 +252,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [solucaoSaving, setSolucaoSaving] = useState(false);
   const [dropCol, setDropCol] = useState<GlpiKanbanColuna | null>(null);
   const [draggingTicketId, setDraggingTicketId] = useState<number | null>(null);
-  const [fullscreen, setFullscreen] = useState(false);
   const [editTicketName, setEditTicketName] = useState("");
   const [editTicketContent, setEditTicketContent] = useState("");
   const [editPrioridade, setEditPrioridade] = useState("");
@@ -339,13 +338,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     void carregar();
   }, [carregar]);
 
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      setFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, []);
 
   useEffect(() => {
     // Metadados para selects (se falhar, mantém inputs numéricos como fallback mental).
@@ -619,7 +611,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   }, [tarefasProjetoCards]);
 
   return (
-    <div className={cn("space-y-4", fullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto")}>
+    <div className="space-y-4">
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
@@ -736,21 +728,6 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 Abrir em janela única
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={async () => {
-                if (document.fullscreenElement) {
-                  await document.exitFullscreen();
-                } else {
-                  await document.documentElement.requestFullscreen();
-                }
-              }}
-            >
-              {fullscreen ? "Sair tela cheia" : "Tela cheia"}
-            </Button>
             {msg && <span className="text-xs text-muted-foreground shrink-0">{msg}</span>}
           </div>
         </CardContent>

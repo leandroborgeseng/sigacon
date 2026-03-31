@@ -40,19 +40,39 @@ export async function GET(request: Request) {
   const contratoId = searchParams.get("contratoId")?.trim() || undefined;
   const metaId = searchParams.get("metaId")?.trim() || undefined;
   const projetoId = searchParams.get("projetoId")?.trim() || undefined;
+  let gruposContrato: number[] = [];
+  if (contratoId) {
+    const contrato = await prisma.contrato.findUnique({
+      where: { id: contratoId },
+      select: { id: true, glpiGruposTecnicos: { select: { glpiGroupId: true } } },
+    });
+    if (!contrato) {
+      return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
+    }
+    gruposContrato = contrato.glpiGruposTecnicos.map((g) => g.glpiGroupId);
+  }
 
   const whereChamados: Record<string, unknown> = {};
   const whereTarefas: Record<string, unknown> = {};
 
   if (contexto === "contratos") {
     if (contratoId) {
-      whereChamados.contratoId = contratoId;
-      whereTarefas.glpiChamado = { is: { contratoId } };
+      const orChamados: Array<Record<string, unknown>> = [{ contratoId }];
+      if (gruposContrato.length > 0) {
+        orChamados.push({ grupoTecnicoIdGlpi: { in: gruposContrato } });
+      }
+      whereChamados.OR = orChamados;
+
+      const orTarefas: Array<Record<string, unknown>> = [{ glpiChamado: { is: { contratoId } } }];
+      if (gruposContrato.length > 0) {
+        orTarefas.push({ glpiChamado: { is: { grupoTecnicoIdGlpi: { in: gruposContrato } } } });
+      }
+      whereTarefas.OR = orTarefas;
     }
-    if (vinculo === "com") {
+    if (!contratoId && vinculo === "com") {
       whereChamados.contratoId = { not: null };
       whereTarefas.glpiChamado = { is: { contratoId: { not: null } } };
-    } else if (vinculo === "sem") {
+    } else if (!contratoId && vinculo === "sem") {
       whereChamados.contratoId = null;
       whereTarefas.OR = [{ glpiChamadoId: null }, { glpiChamado: { is: { contratoId: null } } }];
     }
