@@ -17,6 +17,9 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ message: "Dados inválidos", errors: parsed.error.flatten() }, { status: 400 });
   }
+  if (parsed.data.responsavelGlpiId && !parsed.data.responsavelGlpiNome) {
+    return NextResponse.json({ message: "Informe o nome do usuário GLPI responsável" }, { status: 400 });
+  }
 
   const tarefa = await prisma.projetoTarefa.create({
     data: {
@@ -25,6 +28,8 @@ export async function POST(request: Request) {
       descricao: parsed.data.descricao ?? null,
       status: parsed.data.status ?? StatusProjeto.NAO_INICIADO,
       responsavel: parsed.data.responsavel ?? null,
+      responsavelGlpiId: parsed.data.responsavelGlpiId ?? null,
+      responsavelGlpiNome: parsed.data.responsavelGlpiNome ?? null,
       prazo: parsed.data.prazo ?? null,
       glpiChamadoId: parsed.data.glpiChamadoId || null,
     },

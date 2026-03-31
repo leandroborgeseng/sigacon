@@ -22,29 +22,21 @@ export default async function ProjetosPage() {
     "editar"
   );
 
-  const [projetosIniciais, chamadosDisponiveis] = await Promise.all([
-    prisma.projeto.findMany({
-      orderBy: [{ status: "asc" }, { fimPrevisto: "asc" }, { criadoEm: "asc" }],
-      include: {
-        tarefas: {
-          orderBy: [{ status: "asc" }, { prazo: "asc" }, { criadoEm: "asc" }],
-          include: {
-            glpiChamado: { select: { id: true, glpiTicketId: true, titulo: true } },
-          },
+  const projetosIniciais = await prisma.projeto.findMany({
+    orderBy: [{ status: "asc" }, { fimPrevisto: "asc" }, { criadoEm: "asc" }],
+    include: {
+      tarefas: {
+        orderBy: [{ status: "asc" }, { prazo: "asc" }, { criadoEm: "asc" }],
+        include: {
+          glpiChamado: { select: { id: true, glpiTicketId: true, titulo: true } },
         },
       },
-    }),
-    prisma.glpiChamado.findMany({
-      orderBy: [{ dataModificacao: "desc" }, { glpiTicketId: "desc" }],
-      take: 200,
-      select: { id: true, glpiTicketId: true, titulo: true },
-    }),
-  ]);
+    },
+  });
 
   return (
     <ProjetosClient
       projetosIniciais={JSON.parse(JSON.stringify(projetosIniciais))}
-      chamadosDisponiveis={JSON.parse(JSON.stringify(chamadosDisponiveis))}
       podeEditar={podeEditar}
     />
   );

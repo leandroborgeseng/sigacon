@@ -165,6 +165,16 @@ enum GlpiKanbanColuna {
   FECHADO
 }
 
+enum TipoAlertaGlpi {
+  SEM_ATRIBUICAO
+  SLA_ESTOURADO
+}
+
+enum StatusAlerta {
+  ABERTO
+  RESOLVIDO
+}
+
 enum TipoAnexo {
   EVIDENCIA_CUMPRIMENTO
   EVIDENCIA_DESCUMPRIMENTO
@@ -410,6 +420,70 @@ model GlpiConfig {
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   @@map("glpi_config")
+}
+
+/** Cache local de usuários GLPI para busca rápida sem consultar API em tempo real. */
+model GlpiUsuarioCache {
+  id            Int      @id @map("id")
+  nome          String   @map("nome") @db.VarChar(500)
+  nomeCompleto  String?  @map("nome_completo") @db.VarChar(500)
+  login         String?  @map("login") @db.VarChar(255)
+  email         String?  @map("email") @db.VarChar(320)
+  nomeBusca     String   @map("nome_busca") @db.VarChar(500)
+  ativo         Boolean  @default(true) @map("ativo")
+  atualizadoGlpiEm DateTime? @map("atualizado_glpi_em")
+  sincronizadoEm DateTime @default(now()) @map("sincronizado_em")
+
+  @@index([nomeBusca])
+  @@index([ativo])
+  @@map("glpi_usuarios_cache")
+}
+
+/** Estado operacional das sincronizações GLPI (métricas básicas). */
+model GlpiSyncStatus {
+  chave                String    @id
+  ultimoInicioEm       DateTime? @map("ultimo_inicio_em")
+  ultimoFimEm          DateTime? @map("ultimo_fim_em")
+  ultimoSucessoEm      DateTime? @map("ultimo_sucesso_em")
+  ultimoErro           String?   @map("ultimo_erro") @db.Text
+  ultimoProcessados    Int       @default(0) @map("ultimo_processados")
+  ultimoErrosContagem  Int       @default(0) @map("ultimo_erros_contagem")
+  ultimaDuracaoMs      Int?      @map("ultima_duracao_ms")
+  atualizadoEm         DateTime  @updatedAt @map("atualizado_em")
+
+  @@map("glpi_sync_status")
+}
+
+model ConfigAlertaGlpi {
+  id                    String   @id @default("default")
+  ativo                 Boolean  @default(true)
+  prazoSlaHorasPadrao   Int      @default(48) @map("prazo_sla_horas_padrao")
+  somenteChamadosAbertos Boolean @default(true) @map("somente_chamados_abertos")
+  notificarPorEmail     Boolean  @default(false) @map("notificar_por_email")
+  atualizadoEm          DateTime @updatedAt @map("atualizado_em")
+
+  @@map("config_alerta_glpi")
+}
+
+model AlertaGlpiChamado {
+  id                String        @id @default(cuid())
+  chamadoId         String        @map("chamado_id")
+  tipo              TipoAlertaGlpi
+  status            StatusAlerta  @default(ABERTO)
+  titulo            String        @db.VarChar(300)
+  descricao         String?       @db.Text
+  primeiraDeteccaoEm DateTime     @default(now()) @map("primeira_deteccao_em")
+  ultimaDeteccaoEm  DateTime      @default(now()) @map("ultima_deteccao_em")
+  resolvidoEm       DateTime?     @map("resolvido_em")
+  emailEnviadoEm    DateTime?     @map("email_enviado_em")
+  criadoEm          DateTime      @default(now()) @map("criado_em")
+  atualizadoEm      DateTime      @updatedAt @map("atualizado_em")
+
+  chamado GlpiChamado @relation(fields: [chamadoId], references: [id], onDelete: Cascade)
+
+  @@index([status, tipo])
+  @@index([chamadoId, status])
+  @@map("alertas_glpi_chamados")
 }
 
 /** Grupos técnicos GLPI vinculados ao contrato (filtro de chamados / Kanban). */
@@ -800,10 +874,14 @@ model GlpiChamado {
   contrato Contrato? @relation(fields: [contratoId], references: [id], onDelete: SetNull)
   desdobramentosMeta MetaDesdobramentoGlpiChamado[]
   projetoTarefas ProjetoTarefa[]
+  alertas AlertaGlpiChamado[]
 
   @@index([contratoId])
   @@index([colunaKanban])
   @@index([fornecedorNome])
+  @@index([statusGlpi, dataModificacao])
+  @@index([titulo])
+  @@index([tecnicoResponsavelNome])
   @@index([dataModificacao])
   @@map("glpi_chamados")
 }
@@ -830,6 +908,8 @@ model ProjetoTarefa {
   descricao      String?       @db.Text
   status         StatusProjeto @default(NAO_INICIADO)
   responsavel    String?       @db.VarChar(200)
+  responsavelGlpiId Int?       @map("responsavel_glpi_id")
+  responsavelGlpiNome String?  @map("responsavel_glpi_nome") @db.VarChar(300)
   prazo          DateTime?     @map("prazo")
   glpiChamadoId  String?       @map("glpi_chamado_id")
   criadoEm       DateTime      @default(now()) @map("criado_em")

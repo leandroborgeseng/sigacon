@@ -131,6 +131,8 @@ export async function GET(request: Request) {
         descricao: true,
         status: true,
         responsavel: true,
+        responsavelGlpiId: true,
+        responsavelGlpiNome: true,
         prazo: true,
         glpiChamadoId: true,
         glpiChamado: {

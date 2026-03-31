@@ -63,6 +63,8 @@ export function ManualSistemaContent() {
           <TocItem href="#admin">Administração</TocItem>
           <TocItem href="#auditoria">Auditoria e histórico</TocItem>
           <TocItem href="#glpi">GLPI e ambiente</TocItem>
+          <TocItem href="#visao-holistica">Visão holística e dados consolidados</TocItem>
+          <TocItem href="#alertas-glpi">Alertas GLPI e notificações</TocItem>
           <TocItem href="#glossario">Glossário</TocItem>
         </ol>
       </nav>
@@ -608,6 +610,86 @@ export function ManualSistemaContent() {
             próprio board.
           </Li>
         </Ul>
+      </section>
+
+      {/* 16.1 */}
+      <section id="visao-holistica" className="scroll-mt-24 space-y-2 border-b pb-10">
+        <h2 className="text-2xl font-bold tracking-tight">16.1 Visão holística e dados consolidados</h2>
+        <P>
+          Para gestão integrada de TI, a leitura ideal cruza quatro dimensões:{" "}
+          <strong>contratos</strong>, <strong>chamados GLPI</strong>, <strong>metas</strong> e{" "}
+          <strong>projetos</strong>. O SIGACON já concentra essas dimensões no Kanban e nos módulos
+          de gestão.
+        </P>
+        <Sub>Dados essenciais para decisão executiva</Sub>
+        <Ul>
+          <Li>
+            <strong>Contrato:</strong> vigência, consumo financeiro, medição, risco de estouro de
+            limite e pendências críticas.
+          </Li>
+          <Li>
+            <strong>Operação (GLPI):</strong> chamados abertos, sem atribuição, envelhecimento por
+            status e volume por fornecedor/contrato.
+          </Li>
+          <Li>
+            <strong>Planejamento (Metas):</strong> metas por ano, desdobramentos, progresso e vínculos
+            com chamados.
+          </Li>
+          <Li>
+            <strong>Execução (Projetos):</strong> tarefas, responsáveis GLPI, prazos e bloqueios.
+          </Li>
+        </Ul>
+        <P>
+          Recomendação operacional: instituir rotina semanal com painel único contendo indicadores de
+          backlog, SLA, pendências contratuais e avanço de metas/projetos.
+        </P>
+      </section>
+
+      {/* 16.2 */}
+      <section id="alertas-glpi" className="scroll-mt-24 space-y-2 border-b pb-10">
+        <h2 className="text-2xl font-bold tracking-tight">16.2 Alertas GLPI e notificações</h2>
+        <Sub>Tipos de alerta já suportados</Sub>
+        <Ul>
+          <Li>
+            <strong>Sem atribuição:</strong> chamado aberto sem técnico responsável.
+          </Li>
+          <Li>
+            <strong>SLA estourado:</strong> chamado aberto acima do prazo padrão configurado.
+          </Li>
+        </Ul>
+        <Sub>Configuração e processamento</Sub>
+        <Ul>
+          <Li>
+            Configuração persistida em <Code>config_alerta_glpi</Code> (prazo SLA padrão, ativo,
+            notificação por e-mail e escopo de chamados abertos).
+          </Li>
+          <Li>
+            Processamento via API <Code>POST /api/integracao/glpi/alertas/processar</Code>.
+          </Li>
+          <Li>
+            Configuração dos parâmetros via <Code>GET/PATCH /api/integracao/glpi/alertas/config</Code>.
+          </Li>
+          <Li>
+            Consulta de alertas via <Code>GET /api/integracao/glpi/alertas</Code>.
+          </Li>
+          <Li>
+            Resumo operacional via <Code>GET /api/integracao/glpi/alertas/resumo</Code>.
+          </Li>
+          <Li>
+            Status de sincronização via <Code>GET /api/integracao/glpi/sync/status</Code>.
+          </Li>
+        </Ul>
+        <Sub>Notificação por e-mail (API externa)</Sub>
+        <P>
+          O envio usa integração HTTP com provedor externo via variáveis{" "}
+          <Code>ALERT_EMAIL_API_URL</Code> e <Code>ALERT_EMAIL_API_KEY</Code>. O sistema notifica
+          perfis internos (Admin/Gestor) e pode evoluir para regras por contrato/equipe.
+        </P>
+        <Sub>Usuários GLPI para atribuição e comunicação</Sub>
+        <P>
+          O cache local de usuários GLPI armazena ID, nome, nome completo, login e e-mail para
+          pesquisa rápida e suporte a notificações futuras por responsável.
+        </P>
       </section>
 
       {/* 17 */}

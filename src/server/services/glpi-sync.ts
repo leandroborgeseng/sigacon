@@ -82,6 +82,8 @@ export type SincronizarParams = {
   termoTitulo?: string;
   /** Incremental: processa apenas tickets alterados após este instante. */
   alteradosApos?: Date;
+  /** Quando true, atualiza somente tickets abertos (cache local). */
+  somenteAbertosLocais?: boolean;
 };
 
 type SyncResumo = { processados: number; erros: string[] };
@@ -147,6 +149,69 @@ export async function sincronizarChamadosGlpi(params: SincronizarParams): Promis
   let fornecedorNome: string | null = null;
   let termoLivre = params.termoTitulo?.trim();
   let gruposIds: { glpiGroupId: number }[] = [];
+
+  if (params.somenteAbertosLocais) {
+    let processadosAbertos = 0;
+    try {
+      await glpiWithSession(async (ctx) => {
+        const abertos = await prisma.glpiChamado.findMany({
+          where: { statusGlpi: { in: [1, 2, 3, 4] } },
+          orderBy: [{ dataModificacao: "desc" }, { glpiTicketId: "desc" }],
+          select: { glpiTicketId: true, contratoId: true, fornecedorNome: true },
+          take: 300,
+        });
+        for (const row of abertos) {
+          try {
+            const t = await glpiGetTicket(ctx, row.glpiTicketId);
+            const status = typeof t.status === "number" ? t.status : Number(t.status);
+            if (Number.isNaN(status)) continue;
+            const coluna = statusGlpiParaColuna(status);
+            const titulo = (t.name ?? `#${row.glpiTicketId}`).trim() || `#${row.glpiTicketId}`;
+            const preview = t.content ? stripHtml(String(t.content)) : null;
+            const categoriaIdGlpi = asInt(t.itilcategories_id);
+            const categoriaNome = asText(t._itilcategories_id);
+            const grupoTecnicoIdGlpi = asInt(t.groups_id_assign);
+            const grupoTecnicoNome = asText(t._groups_id_assign);
+            const tecnicoResponsavelIdGlpi = asInt(t.users_id_assign);
+            const tecnicoResponsavelNome = asText(t._users_id_assign);
+            const agora = new Date();
+            await prisma.glpiChamado.update({
+              where: { glpiTicketId: row.glpiTicketId },
+              data: {
+                titulo,
+                conteudoPreview: preview,
+                urgencia: t.urgency ?? null,
+                prioridade: t.priority ?? null,
+                categoriaIdGlpi,
+                categoriaNome,
+                grupoTecnicoIdGlpi,
+                grupoTecnicoNome,
+                tecnicoResponsavelIdGlpi,
+                tecnicoResponsavelNome,
+                statusGlpi: status,
+                statusLabel: statusLabelGlpi(status),
+                colunaKanban: coluna,
+                dataAbertura: t.date ? new Date(t.date) : null,
+                dataModificacao: t.date_mod ? new Date(t.date_mod) : null,
+                fornecedorNome: row.fornecedorNome ?? undefined,
+                contratoId: row.contratoId ?? undefined,
+                sincronizadoEm: agora,
+                ultimoPullEm: agora,
+                syncStatus: "OK",
+                syncErro: null,
+              },
+            });
+            processadosAbertos++;
+          } catch (e) {
+            erros.push(`Ticket aberto ${row.glpiTicketId}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+      });
+    } catch (e) {
+      erros.push(e instanceof Error ? e.message : String(e));
+    }
+    return { processados: processadosAbertos, erros };
+  }
 
   if (params.contratoId) {
     const c = await prisma.contrato.findUnique({
@@ -363,6 +428,12 @@ export async function sincronizarChamadosGlpiAutomatico(input?: {
         retriesExecutados += r.retriesExecutados;
         erros.push(...r.erros.map((e) => `[contrato ${c.id}] ${e}`));
         contratosProcessados++;
+      }
+      if (incremental) {
+        const abertos = await syncComRetry({ somenteAbertosLocais: true }, maxRetries);
+        processados += abertos.processados;
+        retriesExecutados += abertos.retriesExecutados;
+        erros.push(...abertos.erros.map((e) => `[abertos] ${e}`));
       }
     }
 

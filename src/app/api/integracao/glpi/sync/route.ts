@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 import { glpiEstaConfigurado } from "@/lib/glpi-config";
 import { sincronizarChamadosGlpi, sincronizarChamadosGlpiAutomatico } from "@/server/services/glpi-sync";
+import { sincronizarUsuariosGlpiCache } from "@/server/services/glpi-users-sync";
+import { processarAlertasGlpiChamados } from "@/server/services/glpi-alertas";
 
 /**
  * POST: busca tickets no GLPI e atualiza o cache local.
@@ -17,6 +20,8 @@ export async function POST(request: Request) {
     automatico?: boolean;
     maxRetries?: number;
     incremental?: boolean;
+    sincronizarUsuarios?: boolean;
+    processarAlertas?: boolean;
   };
   const autoHeader = request.headers.get("x-glpi-sync-secret")?.trim();
   const autoSecret = process.env.GLPI_SYNC_SECRET?.trim();
@@ -43,7 +48,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = isAuto
+    const inicio = new Date();
+    const resultChamados = isAuto
       ? await sincronizarChamadosGlpiAutomatico({
           contratoId: body.contratoId,
           maxRetries: body.maxRetries,
@@ -53,7 +59,40 @@ export async function POST(request: Request) {
           contratoId: body.contratoId,
           termoTitulo: body.termoTitulo,
         });
-    return NextResponse.json(result);
+    const deveSyncUsuarios = body.sincronizarUsuarios ?? isAuto;
+    const resultUsuarios = deveSyncUsuarios
+      ? await sincronizarUsuariosGlpiCache({ forcar: Boolean(isAuto) })
+      : null;
+    const deveProcessarAlertas = body.processarAlertas ?? isAuto;
+    const resultAlertas = deveProcessarAlertas ? await processarAlertasGlpiChamados() : null;
+    const fim = new Date();
+    await prisma.glpiSyncStatus.upsert({
+      where: { chave: "chamados_glpi" },
+      create: {
+        chave: "chamados_glpi",
+        ultimoInicioEm: inicio,
+        ultimoFimEm: fim,
+        ultimoSucessoEm: resultChamados.erros.length === 0 ? fim : null,
+        ultimoErro: resultChamados.erros.length ? resultChamados.erros.slice(0, 5).join(" | ") : null,
+        ultimoProcessados: resultChamados.processados,
+        ultimoErrosContagem: resultChamados.erros.length,
+        ultimaDuracaoMs: Math.max(0, fim.getTime() - inicio.getTime()),
+      },
+      update: {
+        ultimoInicioEm: inicio,
+        ultimoFimEm: fim,
+        ...(resultChamados.erros.length === 0 ? { ultimoSucessoEm: fim } : {}),
+        ultimoErro: resultChamados.erros.length ? resultChamados.erros.slice(0, 5).join(" | ") : null,
+        ultimoProcessados: resultChamados.processados,
+        ultimoErrosContagem: resultChamados.erros.length,
+        ultimaDuracaoMs: Math.max(0, fim.getTime() - inicio.getTime()),
+      },
+    });
+    return NextResponse.json({
+      ...resultChamados,
+      usuarios: resultUsuarios,
+      alertas: resultAlertas,
+    });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

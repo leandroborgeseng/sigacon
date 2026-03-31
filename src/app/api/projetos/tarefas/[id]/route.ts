@@ -18,6 +18,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!parsed.success) {
     return NextResponse.json({ message: "Dados inválidos", errors: parsed.error.flatten() }, { status: 400 });
   }
+  if (parsed.data.responsavelGlpiId && parsed.data.responsavelGlpiNome === undefined) {
+    return NextResponse.json({ message: "Informe o nome do usuário GLPI responsável" }, { status: 400 });
+  }
 
   const tarefa = await prisma.projetoTarefa.update({
     where: { id },
@@ -27,6 +30,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ...(parsed.data.descricao !== undefined ? { descricao: parsed.data.descricao ?? null } : {}),
       ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
       ...(parsed.data.responsavel !== undefined ? { responsavel: parsed.data.responsavel ?? null } : {}),
+      ...(parsed.data.responsavelGlpiId !== undefined
+        ? { responsavelGlpiId: parsed.data.responsavelGlpiId ?? null }
+        : {}),
+      ...(parsed.data.responsavelGlpiNome !== undefined
+        ? { responsavelGlpiNome: parsed.data.responsavelGlpiNome ?? null }
+        : {}),
       ...(parsed.data.prazo !== undefined ? { prazo: parsed.data.prazo ?? null } : {}),
       ...(parsed.data.glpiChamadoId !== undefined ? { glpiChamadoId: parsed.data.glpiChamadoId || null } : {}),
     },

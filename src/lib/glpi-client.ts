@@ -695,7 +695,63 @@ export async function glpiListItilCategories(ctx: GlpiSessionContext): Promise<G
   return out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
 
-export type GlpiUsuarioLista = { id: number; name: string };
+export type GlpiUsuarioLista = {
+  id: number;
+  name: string;
+  fullName?: string | null;
+  login?: string | null;
+  email?: string | null;
+};
+
+type GlpiUserSearchResult = {
+  items: GlpiUsuarioLista[];
+  hasMore: boolean;
+};
+
+function parseUsuariosGlpi(rawJson: unknown): GlpiUsuarioLista[] {
+  const raw: unknown[] = Array.isArray(rawJson)
+    ? rawJson
+    : rawJson &&
+        typeof rawJson === "object" &&
+        "data" in rawJson &&
+        Array.isArray((rawJson as { data: unknown[] }).data)
+      ? (rawJson as { data: unknown[] }).data
+      : [];
+  const out: GlpiUsuarioLista[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const id = parseId(o.id ?? o["2"] ?? o["User.id"] ?? o.users_id);
+    if (id == null) continue;
+    const name =
+      (typeof o.name === "string" && o.name.trim()) ||
+      (typeof o["1"] === "string" && o["1"].trim()) ||
+      (typeof o.realname === "string" && o.realname.trim()
+        ? `${o.realname}${typeof o.firstname === "string" && o.firstname.trim() ? ` ${o.firstname}` : ""}`.trim()
+        : "") ||
+      `Usuário ${id}`;
+    const fullName =
+      typeof o.realname === "string" && o.realname.trim()
+        ? `${o.realname}${typeof o.firstname === "string" && o.firstname.trim() ? ` ${o.firstname}` : ""}`.trim()
+        : null;
+    const login =
+      typeof o.name === "string" && o.name.trim()
+        ? o.name.trim()
+        : typeof o["1"] === "string" && o["1"].trim()
+          ? String(o["1"]).trim()
+          : null;
+    const emailRaw =
+      (typeof o.email === "string" && o.email.trim()) ||
+      (typeof o["5"] === "string" && o["5"].trim()) ||
+      (typeof o["User.email"] === "string" && o["User.email"].trim()) ||
+      "";
+    const email = emailRaw || null;
+    out.push({ id, name, fullName, login, email });
+  }
+  const uniq = new Map<number, GlpiUsuarioLista>();
+  for (const u of out) uniq.set(u.id, u);
+  return [...uniq.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
 
 /** Lista usuários do GLPI (para atribuição). */
 export async function glpiListUsers(ctx: GlpiSessionContext): Promise<GlpiUsuarioLista[]> {
@@ -704,30 +760,63 @@ export async function glpiListUsers(ctx: GlpiSessionContext): Promise<GlpiUsuari
     const t = await r.text();
     throw new Error(`GLPI GET User: ${r.status} ${t.slice(0, 300)}`);
   }
-  const json = (await r.json()) as unknown;
-  const raw: unknown[] = Array.isArray(json)
-    ? json
-    : json && typeof json === "object" && "data" in json && Array.isArray((json as { data: unknown[] }).data)
-      ? (json as { data: unknown[] }).data
-      : [];
-  const out: GlpiUsuarioLista[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const o = item as Record<string, unknown>;
-    const id =
-      typeof o.id === "number"
-        ? o.id
-        : typeof o.id === "string"
-          ? parseInt(o.id, 10)
-          : NaN;
-    if (!Number.isFinite(id)) continue;
-    const name =
-      typeof o.name === "string" && o.name.trim()
-        ? o.name.trim()
-        : typeof o.realname === "string" && o.realname.trim()
-          ? `${o.realname}${typeof o.firstname === "string" && o.firstname.trim() ? ` ${o.firstname}` : ""}`.trim()
-          : `Usuário ${id}`;
-    out.push({ id, name });
+  return parseUsuariosGlpi((await r.json()) as unknown);
+}
+
+export async function glpiSearchUsers(
+  ctx: GlpiSessionContext,
+  input?: { q?: string; offset?: number; limit?: number }
+): Promise<GlpiUserSearchResult> {
+  const q = input?.q?.trim() ?? "";
+  const offset = Math.max(0, input?.offset ?? 0);
+  const limit = Math.max(5, Math.min(50, input?.limit ?? 20));
+  const end = offset + limit - 1;
+
+  if (q.length >= 2) {
+    const params = new URLSearchParams();
+    params.set("range", `${offset}-${end}`);
+    params.set("criteria[0][field]", "1");
+    params.set("criteria[0][searchtype]", "contains");
+    params.set("criteria[0][value]", q);
+    params.set("sort", "1");
+    params.set("order", "ASC");
+    const sr = await glpiFetch(`${ctx.baseUrl}/search/User?${params.toString()}`, {
+      headers: headers(ctx),
+    });
+    if (sr.ok) {
+      const items = parseUsuariosGlpi((await sr.json()) as unknown);
+      return { items, hasMore: items.length === limit };
+    }
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+  const r = await glpiFetch(`${ctx.baseUrl}/User?range=${offset}-${end}&sort=name`, {
+    headers: headers(ctx),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`GLPI GET User: ${r.status} ${t.slice(0, 300)}`);
+  }
+  let items = parseUsuariosGlpi((await r.json()) as unknown);
+  if (q.length >= 2) {
+    const term = q.toLowerCase();
+    items = items.filter((u) => u.name.toLowerCase().includes(term));
+  }
+  return { items, hasMore: items.length === limit };
+}
+
+export async function glpiListUsersPage(
+  ctx: GlpiSessionContext,
+  input?: { offset?: number; limit?: number }
+): Promise<GlpiUsuarioLista[]> {
+  const offset = Math.max(0, input?.offset ?? 0);
+  const limit = Math.max(20, Math.min(200, input?.limit ?? 200));
+  const end = offset + limit - 1;
+  const r = await glpiFetch(`${ctx.baseUrl}/User?range=${offset}-${end}&sort=id`, {
+    headers: headers(ctx),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(`GLPI GET User page: ${r.status} ${t.slice(0, 300)}`);
+  }
+  return parseUsuariosGlpi((await r.json()) as unknown);
 }

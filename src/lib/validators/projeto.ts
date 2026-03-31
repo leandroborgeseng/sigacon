@@ -15,6 +15,8 @@ export const projetoTarefaSchema = z.object({
   descricao: z.string().max(8000).optional().nullable(),
   status: z.nativeEnum(StatusProjeto).optional(),
   responsavel: z.string().max(200).optional().nullable(),
+  responsavelGlpiId: z.number().int().positive().optional().nullable(),
+  responsavelGlpiNome: z.string().max(300).optional().nullable(),
   prazo: z.coerce.date().optional().nullable(),
   glpiChamadoId: z.string().optional().nullable(),
 });

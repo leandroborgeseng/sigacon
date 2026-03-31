@@ -60,6 +60,8 @@ type TarefaProjetoCard = {
   descricao: string | null;
   status: StatusProjeto;
   responsavel: string | null;
+  responsavelGlpiId?: number | null;
+  responsavelGlpiNome?: string | null;
   prazo: string | null;
   glpiChamadoId: string | null;
   glpiChamado: { id: string; glpiTicketId: number; titulo: string } | null;
@@ -859,7 +861,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   <p className="text-xs text-muted-foreground">Projeto: {t.projeto.nome}</p>
                   <div className="flex flex-wrap gap-1">
                     <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium">
-                      Responsável: {t.responsavel?.trim() || "-"}
+                      Responsável: {t.responsavelGlpiNome?.trim() || t.responsavel?.trim() || "-"}
                     </span>
                     <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium">
                       Vinculado ao chamado: {t.glpiChamado ? "Sim" : "Não"}

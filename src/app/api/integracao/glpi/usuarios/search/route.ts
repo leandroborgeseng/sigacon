@@ -7,6 +7,7 @@ import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
+
   const pode = await canRecurso(
     session.perfil as PerfilUsuario,
     RecursoPermissao.CUSTOMIZACAO,
@@ -16,8 +17,10 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") || "").trim();
-  const limit = Math.max(5, Math.min(100, Number(searchParams.get("limit") || "50")));
-  const offset = Math.max(0, Number(searchParams.get("offset") || "0"));
+  const limit = Math.max(5, Math.min(50, Number(searchParams.get("limit") || "20")));
+  const cursor = searchParams.get("cursor");
+  const offsetParam = cursor ?? searchParams.get("offset") ?? "0";
+  const offset = Math.max(0, Number(offsetParam));
   const termos = q
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -34,19 +37,33 @@ export async function GET(request: Request) {
           ],
         }
       : { ativo: true };
-    const usuarios = await prisma.glpiUsuarioCache.findMany({
-      where,
-      orderBy: { nome: "asc" },
-      skip: offset,
-      take: limit,
-      select: { id: true, nome: true },
+    const [items, total] = await Promise.all([
+      prisma.glpiUsuarioCache.findMany({
+        where,
+        orderBy: { nome: "asc" },
+        skip: offset,
+        take: limit,
+        select: { id: true, nome: true },
+      }),
+      prisma.glpiUsuarioCache.count({ where }),
+    ]);
+    return NextResponse.json({
+      items: items.map((u) => ({ id: u.id, name: u.nome })),
+      offset,
+      limit,
+      hasMore: offset + items.length < total,
+      totalEstimado: total,
+      nextCursor: offset + items.length < total ? String(offset + items.length) : null,
     });
-    return NextResponse.json({ usuarios: usuarios.map((u) => ({ id: u.id, name: u.nome })) });
   } catch (e) {
     return NextResponse.json(
-      { message: e instanceof Error ? e.message : "Erro ao listar usuários GLPI", usuarios: [] },
+      {
+        message: e instanceof Error ? e.message : "Erro ao buscar usuários GLPI",
+        items: [],
+        hasMore: false,
+        totalEstimado: 0,
+      },
       { status: 502 }
     );
   }
 }
-
