@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { GLPI_REST_API_DOC_URL } from "@/lib/glpi-docs";
 import { validarFormatoUrlApiGlpi } from "@/lib/glpi-test-connection";
 import { cn } from "@/lib/utils";
 
@@ -265,14 +266,27 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
     <Card>
       <CardHeader className="pb-4">
         <CardTitle>GLPI</CardTitle>
-        <CardDescription>
-          URL base conforme o GLPI (doc REST): <code className="text-[11px]">…/api.php/v1</code>,{" "}
-          <code className="text-[11px]">…/apirest.php</code> ou <code className="text-[11px]">…/api</code> com rewrite no servidor.
-          User Token e App Token; teste ao sair dos campos.
-          Tokens vazios mantêm o salvo. Variáveis no servidor:{" "}
-          <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
-          <code className="text-[11px]">GLPI_USER_TOKEN</code>. HTTPS com certificado interno:{" "}
-          <code className="text-[11px]">GLPI_TLS_INSECURE=1</code> (como <code className="text-[11px]">curl -k</code>).
+        <CardDescription className="space-y-2">
+          <p>
+            URL base conforme o GLPI (doc REST): <code className="text-[11px]">…/api.php/v1</code>,{" "}
+            <code className="text-[11px]">…/apirest.php</code> ou <code className="text-[11px]">…/api</code> com rewrite no servidor.
+            User Token e App Token; teste ao sair dos campos.
+          </p>
+          <p>
+            Documentação:{" "}
+            <a
+              href={GLPI_REST_API_DOC_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              GLPI REST API (apirest.md)
+            </a>
+            . Tokens vazios mantêm o salvo. Variáveis no servidor:{" "}
+            <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
+            <code className="text-[11px]">GLPI_USER_TOKEN</code>. HTTPS interno:{" "}
+            <code className="text-[11px]">GLPI_TLS_INSECURE=1</code> (como <code className="text-[11px]">curl -k</code>).
+          </p>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 max-w-xl">

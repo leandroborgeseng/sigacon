@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { GlpiConfigClient } from "@/components/configuracao/glpi-config-client";
+import { GLPI_REST_API_DOC_URL } from "@/lib/glpi-docs";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,16 @@ export default async function ConfiguracaoGlpiPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Integrações</h1>
         <p className="text-muted-foreground">
-          URL e tokens: validação em tempo real e teste ao sair dos campos. Banco de dados com fallback para variáveis de ambiente.
+          URL e tokens: validação em tempo real e teste ao sair dos campos. Banco de dados com fallback para variáveis de ambiente.{" "}
+          <a
+            href={GLPI_REST_API_DOC_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground underline underline-offset-2"
+          >
+            Documentação REST GLPI (apirest.md)
+          </a>
+          .
         </p>
       </div>
       <GlpiConfigClient podeEditar={podeEditar} />
