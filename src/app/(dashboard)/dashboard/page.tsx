@@ -14,7 +14,7 @@ import {
   getDashboardSerieTempo,
 } from "@/server/services/dashboard-extras";
 import { DashboardClient } from "./dashboard-client";
-import { PerfilUsuario } from "@prisma/client";
+import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,10 +27,11 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { getAdminResumo } from "@/server/services/admin-resumo";
-import { PERFIL_LABELS } from "@/lib/permissions";
+import { PERFIL_LABELS, canRecurso } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/utils";
 import { Users, Shield, FileText, Gauge, BookMarked, ScrollText, Printer } from "lucide-react";
 import { RecalcMedicaoLote } from "@/components/admin/recalc-medicao-lote";
+import { MetasClient } from "@/components/metas/metas-client";
 
 type PageProps = {
   searchParams?: Promise<{ contratoId?: string }>;
@@ -100,6 +101,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   }
 
   const isAdmin = session.perfil === PerfilUsuario.ADMIN;
+  const podeEditarMetas = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.CUSTOMIZACAO,
+    "editar"
+  );
   const adminResumo = isAdmin ? await getAdminResumo() : null;
 
   return (
@@ -113,34 +119,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </p>
       </div>
 
-      <DashboardClient
-        contratos={contratos}
-        contratoId={contratoId}
-        indicators={indicators}
-        insights={insights}
-        alertas={alertas}
-        porModulo={porModulo.map((m) => ({
-          nome: m.nome,
-          contratoNome: m.contratoNome,
-          totalItens: m.totalItens,
-          atendidos: m.atendidos,
-          percentualAtendimento: m.percentualAtendimento,
-          pendenciasAbertas: m.pendenciasAbertas,
-        }))}
-        tarefasMes={tarefasMes}
-        serieTempo={serieTempo}
-        glpiResumo={glpiResumo}
-      />
-
-      {isAdmin && adminResumo && (
-        <div className="space-y-6">
-          <div className="border-t pt-6">
+      {isAdmin && (
+        <div className="space-y-3">
+          <div>
             <h2 className="text-2xl font-semibold tracking-tight">Gestão administrativa</h2>
             <p className="text-sm text-muted-foreground">
               Resumo da plataforma, uso de UST e trilha de auditoria.
             </p>
           </div>
-
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
               <Link href="/usuarios">
@@ -173,7 +159,38 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </Link>
             </Button>
           </div>
+        </div>
+      )}
 
+      <DashboardClient
+        contratos={contratos}
+        contratoId={contratoId}
+        indicators={indicators}
+        insights={insights}
+        alertas={alertas}
+        porModulo={porModulo.map((m) => ({
+          nome: m.nome,
+          contratoNome: m.contratoNome,
+          totalItens: m.totalItens,
+          atendidos: m.atendidos,
+          percentualAtendimento: m.percentualAtendimento,
+          pendenciasAbertas: m.pendenciasAbertas,
+        }))}
+        tarefasMes={tarefasMes}
+        serieTempo={serieTempo}
+        glpiResumo={glpiResumo}
+      />
+
+      <div id="metas" className="border-t pt-6 scroll-mt-24">
+        <h2 className="text-2xl font-semibold tracking-tight">Metas estratégicas</h2>
+        <p className="text-sm text-muted-foreground">
+          Lista/tabela de metas com expansão para desdobramentos e vínculo aos chamados GLPI.
+        </p>
+      </div>
+      <MetasClient podeEditar={podeEditarMetas} embedded />
+
+      {isAdmin && adminResumo && (
+        <div className="space-y-6">
           <RecalcMedicaoLote />
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

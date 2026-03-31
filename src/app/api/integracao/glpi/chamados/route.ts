@@ -23,6 +23,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const contratoId = searchParams.get("contratoId")?.trim() || undefined;
+  const comMetasParam = searchParams.get("comMetas")?.trim();
+  const filtroComMetas =
+    comMetasParam === "1" ? true : comMetasParam === "0" ? false : undefined;
   let filtroGruposContrato: number[] | null = null;
 
   if (contratoId) {
@@ -47,9 +50,28 @@ export async function GET(request: Request) {
             grupoTecnicoIdGlpi: { in: filtroGruposContrato },
           }
         : {}),
+      ...(filtroComMetas === true
+        ? { desdobramentosMeta: { some: {} } }
+        : filtroComMetas === false
+          ? { desdobramentosMeta: { none: {} } }
+          : {}),
     },
     orderBy: [{ colunaKanban: "asc" }, { dataModificacao: "desc" }, { glpiTicketId: "desc" }],
-    include: { contrato: { select: { id: true, nome: true } } },
+    include: {
+      contrato: { select: { id: true, nome: true } },
+      desdobramentosMeta: {
+        select: {
+          id: true,
+          desdobramento: {
+            select: {
+              id: true,
+              titulo: true,
+              meta: { select: { id: true, titulo: true } },
+            },
+          },
+        },
+      },
+    },
     take: 1000,
   });
 
