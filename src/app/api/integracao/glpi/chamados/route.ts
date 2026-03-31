@@ -29,11 +29,17 @@ export async function GET(request: Request) {
   if (!perm.ok) return NextResponse.json({ message: perm.message }, { status: perm.status });
 
   const { searchParams } = new URL(request.url);
+  const contexto = (searchParams.get("contexto")?.trim() || "contratos") as
+    | "contratos"
+    | "metas"
+    | "projetos";
+  const vinculo = (searchParams.get("vinculo")?.trim() || "todos") as
+    | "todos"
+    | "com"
+    | "sem";
   const contratoId = searchParams.get("contratoId")?.trim() || undefined;
-  const comMetasParam = searchParams.get("comMetas")?.trim();
   const metaId = searchParams.get("metaId")?.trim() || undefined;
-  const filtroComMetas =
-    comMetasParam === "1" ? true : comMetasParam === "0" ? false : undefined;
+  const projetoId = searchParams.get("projetoId")?.trim() || undefined;
   let filtroGruposContrato: number[] | null = null;
 
   if (contratoId) {
@@ -51,23 +57,53 @@ export async function GET(request: Request) {
     filtroGruposContrato = ids;
   }
 
-  const [chamados, tarefasProjeto] = await Promise.all([
+  const whereChamados: Record<string, unknown> = {};
+  const whereTarefas: Record<string, unknown> = {};
+
+  if (contexto === "contratos") {
+    if (filtroGruposContrato) {
+      whereChamados.grupoTecnicoIdGlpi = { in: filtroGruposContrato };
+      whereTarefas.OR = [
+        { glpiChamado: { is: { grupoTecnicoIdGlpi: { in: filtroGruposContrato } } } },
+        { glpiChamadoId: null },
+      ];
+    }
+    if (vinculo === "com") {
+      whereChamados.contratoId = { not: null };
+      whereTarefas.glpiChamado = { is: { contratoId: { not: null } } };
+    } else if (vinculo === "sem") {
+      whereChamados.contratoId = null;
+      whereTarefas.OR = [{ glpiChamadoId: null }, { glpiChamado: { is: { contratoId: null } } }];
+    }
+  } else if (contexto === "metas") {
+    if (metaId) whereChamados.desdobramentosMeta = { some: { desdobramento: { metaId } } };
+    if (vinculo === "com") {
+      whereChamados.desdobramentosMeta = { some: {} };
+      whereTarefas.glpiChamado = { is: { desdobramentosMeta: { some: {} } } };
+    } else if (vinculo === "sem") {
+      whereChamados.desdobramentosMeta = { none: {} };
+      whereTarefas.OR = [
+        { glpiChamadoId: null },
+        { glpiChamado: { is: { desdobramentosMeta: { none: {} } } } },
+      ];
+    } else if (metaId) {
+      whereTarefas.glpiChamado = { is: { desdobramentosMeta: { some: { desdobramento: { metaId } } } } };
+    }
+  } else if (contexto === "projetos") {
+    if (projetoId) {
+      whereChamados.projetoTarefas = { some: { projetoId } };
+      whereTarefas.projetoId = projetoId;
+    }
+    if (vinculo === "com") whereChamados.projetoTarefas = { some: {} };
+    if (vinculo === "sem") {
+      whereChamados.projetoTarefas = { none: {} };
+      whereTarefas.id = "__none__";
+    }
+  }
+
+  const [chamados, tarefasProjeto, metasDisponiveis, projetosDisponiveis] = await Promise.all([
     prisma.glpiChamado.findMany({
-      where: {
-        ...(filtroGruposContrato
-          ? {
-              grupoTecnicoIdGlpi: { in: filtroGruposContrato },
-            }
-          : {}),
-        ...(filtroComMetas === true
-          ? { desdobramentosMeta: { some: {} } }
-          : filtroComMetas === false
-            ? { desdobramentosMeta: { none: {} } }
-            : {}),
-        ...(metaId
-          ? { desdobramentosMeta: { some: { desdobramento: { metaId } } } }
-          : {}),
-      },
+      where: whereChamados,
       orderBy: [{ colunaKanban: "asc" }, { dataModificacao: "desc" }, { glpiTicketId: "desc" }],
       include: {
         contrato: { select: { id: true, nome: true } },
@@ -87,16 +123,7 @@ export async function GET(request: Request) {
       take: 1000,
     }),
     prisma.projetoTarefa.findMany({
-      where: {
-        ...(contratoId
-          ? {
-              OR: [
-                { glpiChamado: { is: { grupoTecnicoIdGlpi: { in: filtroGruposContrato ?? [] } } } },
-                { glpiChamadoId: null },
-              ],
-            }
-          : {}),
-      },
+      where: whereTarefas,
       orderBy: [{ status: "asc" }, { prazo: "asc" }, { criadoEm: "asc" }],
       select: {
         id: true,
@@ -122,6 +149,16 @@ export async function GET(request: Request) {
       },
       take: 2000,
     }),
+    prisma.metaPlanejamento.findMany({
+      orderBy: [{ ano: "desc" }, { titulo: "asc" }],
+      select: { id: true, titulo: true },
+      take: 500,
+    }),
+    prisma.projeto.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+      take: 500,
+    }),
   ]);
   return NextResponse.json({
     chamados,
@@ -129,6 +166,8 @@ export async function GET(request: Request) {
       ...t,
       colunaKanban: colunaKanbanPorStatusProjeto(t.status),
     })),
+    metasDisponiveis,
+    projetosDisponiveis,
   });
 }
 

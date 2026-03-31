@@ -6,9 +6,15 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { GlpiKanbanClient } from "@/components/integracao/glpi-kanban-client";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
-export default async function IntegracaoGlpiPage() {
+type PageProps = {
+  searchParams?: Promise<{ standalone?: string }>;
+};
+
+export default async function IntegracaoGlpiPage({ searchParams }: PageProps) {
   const session = await getSession();
   if (!session) redirect("/login");
+  const sp = (await searchParams) ?? {};
+  const standalone = sp.standalone === "1";
 
   const pode = await canRecurso(
     session.perfil as PerfilUsuario,
@@ -23,14 +29,16 @@ export default async function IntegracaoGlpiPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <Breadcrumb items={[{ label: "Integrações" }]} />
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Kanban de chamados</h1>
-        <p className="text-muted-foreground">
-          Sincronização manual com cache local, movimentação de status e edição de campos principais do ticket no sistema de chamados.
-        </p>
-      </div>
+    <div className={standalone ? "h-screen p-3" : "space-y-6"}>
+      {!standalone && <Breadcrumb items={[{ label: "Integrações" }]} />}
+      {!standalone && (
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Kanban de chamados</h1>
+          <p className="text-muted-foreground">
+            Sincronização manual com cache local, movimentação de status e edição de campos principais do ticket no sistema de chamados.
+          </p>
+        </div>
+      )}
       <GlpiKanbanClient contratos={contratos} />
     </div>
   );

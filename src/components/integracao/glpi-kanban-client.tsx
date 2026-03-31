@@ -221,15 +221,19 @@ function RichTextEditor({
 
 export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const searchParams = useSearchParams();
+  const standalone = searchParams.get("standalone") === "1";
   const contratoIdFromUrl = searchParams.get("contratoId")?.trim() ?? "";
   const [contratoId, setContratoId] = useState<string>(contratoIdFromUrl);
-  const [modoVisao, setModoVisao] = useState<"status" | "meta">("status");
+  const [contexto, setContexto] = useState<"contratos" | "metas" | "projetos">("contratos");
   const [metaIdSelecionada, setMetaIdSelecionada] = useState<string>("__todas__");
-  const [filtroMetas, setFiltroMetas] = useState<"todos" | "com" | "sem">("todos");
+  const [projetoIdSelecionado, setProjetoIdSelecionado] = useState<string>("__todos__");
+  const [mostrarVinculo, setMostrarVinculo] = useState<"todos" | "com" | "sem">("todos");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [cards, setCards] = useState<Chamado[]>([]);
   const [tarefasProjetoCards, setTarefasProjetoCards] = useState<TarefaProjetoCard[]>([]);
+  const [metasFiltro, setMetasFiltro] = useState<Array<{ id: string; titulo: string }>>([]);
+  const [projetosFiltro, setProjetosFiltro] = useState<Array<{ id: string; nome: string }>>([]);
   const [grupos, setGrupos] = useState<Option[]>([]);
   const [categorias, setCategorias] = useState<Option[]>([]);
   const [usuarios, setUsuarios] = useState<Option[]>([]);
@@ -261,14 +265,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     setMsg("");
     try {
       const qs = new URLSearchParams();
-      if (contratoId) qs.set("contratoId", contratoId);
-      if (modoVisao === "meta" && metaIdSelecionada !== "__todas__") {
-        qs.set("metaId", metaIdSelecionada);
-        qs.set("comMetas", "1");
-      } else {
-        if (filtroMetas === "com") qs.set("comMetas", "1");
-        if (filtroMetas === "sem") qs.set("comMetas", "0");
-      }
+      qs.set("contexto", contexto);
+      qs.set("vinculo", mostrarVinculo);
+      if (contexto === "contratos" && contratoId) qs.set("contratoId", contratoId);
+      if (contexto === "metas" && metaIdSelecionada !== "__todas__") qs.set("metaId", metaIdSelecionada);
+      if (contexto === "projetos" && projetoIdSelecionado !== "__todos__") qs.set("projetoId", projetoIdSelecionado);
       const r = await fetch(`/api/integracao/glpi/chamados?${qs.toString()}`);
       const j = await r.json();
       if (!r.ok) {
@@ -277,13 +278,15 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
       }
       const chamados = (j?.chamados ?? []) as Chamado[];
       const tarefasProjeto = (j?.tarefasProjeto ?? []) as TarefaProjetoCard[];
+      setMetasFiltro((j?.metasDisponiveis ?? []) as Array<{ id: string; titulo: string }>);
+      setProjetosFiltro((j?.projetosDisponiveis ?? []) as Array<{ id: string; nome: string }>);
       setCards(chamados);
       setTarefasProjetoCards(tarefasProjeto);
       setMsg(`${chamados.length} chamado(s) e ${tarefasProjeto.length} tarefa(s) carregado(s).`);
     } finally {
       setLoading(false);
     }
-  }, [contratoId, filtroMetas, modoVisao, metaIdSelecionada]);
+  }, [contexto, contratoId, metaIdSelecionada, projetoIdSelecionado, mostrarVinculo]);
 
   async function sincronizar() {
     setLoading(true);
@@ -613,69 +616,45 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     return m;
   }, [tarefasProjetoCards]);
 
-  const metasDisponiveis = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of cards) {
-      for (const v of c.desdobramentosMeta ?? []) {
-        m.set(v.desdobramento.meta.id, v.desdobramento.meta.titulo);
-      }
-    }
-    return [...m.entries()]
-      .map(([id, titulo]) => ({ id, titulo }))
-      .sort((a, b) => a.titulo.localeCompare(b.titulo));
-  }, [cards]);
-
   return (
     <div className={cn("space-y-4", fullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto")}>
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
-            <span className="text-xs text-muted-foreground shrink-0">Visão</span>
+            <span className="text-xs text-muted-foreground shrink-0">Quero ver por</span>
             <div className="w-[160px] shrink-0">
-              <Select value={modoVisao} onValueChange={(v) => setModoVisao(v as "status" | "meta")}>
+              <Select value={contexto} onValueChange={(v) => setContexto(v as "contratos" | "metas" | "projetos")}>
                 <SelectTrigger className="h-8">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="status">Por status</SelectItem>
-                  <SelectItem value="meta">Por meta</SelectItem>
+                  <SelectItem value="contratos">Contratos</SelectItem>
+                  <SelectItem value="metas">Metas</SelectItem>
+                  <SelectItem value="projetos">Projetos</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <span className="text-xs text-muted-foreground shrink-0">Contrato</span>
-            <div className="w-[280px] shrink-0">
-              <Select value={contratoId || "__todos__"} onValueChange={(v) => setContratoId(v === "__todos__" ? "" : v)}>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__todos__">Todos</SelectItem>
-                  {contratos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <span className="text-xs text-muted-foreground shrink-0">Metas</span>
-            <div className="w-[180px] shrink-0">
-              <Select
-                value={filtroMetas}
-                onValueChange={(v) => setFiltroMetas(v as "todos" | "com" | "sem")}
-                disabled={modoVisao === "meta"}
-              >
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="com">Com metas</SelectItem>
-                  <SelectItem value="sem">Sem metas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {modoVisao === "meta" && (
+            {contexto === "contratos" && (
+              <>
+                <span className="text-xs text-muted-foreground shrink-0">Contrato</span>
+                <div className="w-[280px] shrink-0">
+                  <Select value={contratoId || "__todos__"} onValueChange={(v) => setContratoId(v === "__todos__" ? "" : v)}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__todos__">Todos</SelectItem>
+                      {contratos.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {contexto === "metas" && (
               <>
                 <span className="text-xs text-muted-foreground shrink-0">Meta</span>
                 <div className="w-[320px] shrink-0">
@@ -685,7 +664,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__todas__">Todas as metas</SelectItem>
-                      {metasDisponiveis.map((m) => (
+                      {metasFiltro.map((m) => (
                         <SelectItem key={m.id} value={m.id}>
                           {m.titulo}
                         </SelectItem>
@@ -695,9 +674,66 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 </div>
               </>
             )}
+            {contexto === "projetos" && (
+              <>
+                <span className="text-xs text-muted-foreground shrink-0">Projeto</span>
+                <div className="w-[320px] shrink-0">
+                  <Select value={projetoIdSelecionado} onValueChange={setProjetoIdSelecionado}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Selecione o projeto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__todos__">Todos os projetos</SelectItem>
+                      {projetosFiltro.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            <span className="text-xs text-muted-foreground shrink-0">Mostrar</span>
+            <div className="w-[180px] shrink-0">
+              <Select value={mostrarVinculo} onValueChange={(v) => setMostrarVinculo(v as "todos" | "com" | "sem")}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="com">Com vínculo</SelectItem>
+                  <SelectItem value="sem">Sem vínculo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button size="sm" onClick={sincronizar} disabled={loading} className="shrink-0">
               Buscar no sistema de chamados
             </Button>
+            {!standalone && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => {
+                  const w = window.open(
+                    "/integracao/glpi?standalone=1",
+                    "kanban_janela",
+                    `popup=yes,width=${window.screen.availWidth},height=${window.screen.availHeight},left=0,top=0`
+                  );
+                  w?.focus();
+                  try {
+                    w?.moveTo(0, 0);
+                    w?.resizeTo(window.screen.availWidth, window.screen.availHeight);
+                  } catch {
+                    // Ignora falha de resize/move por política do navegador.
+                  }
+                }}
+              >
+                Abrir em janela única
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
