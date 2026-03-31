@@ -211,6 +211,8 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const searchParams = useSearchParams();
   const contratoIdFromUrl = searchParams.get("contratoId")?.trim() ?? "";
   const [contratoId, setContratoId] = useState<string>(contratoIdFromUrl);
+  const [modoVisao, setModoVisao] = useState<"status" | "meta">("status");
+  const [metaIdSelecionada, setMetaIdSelecionada] = useState<string>("__todas__");
   const [filtroMetas, setFiltroMetas] = useState<"todos" | "com" | "sem">("todos");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
@@ -247,8 +249,13 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     try {
       const qs = new URLSearchParams();
       if (contratoId) qs.set("contratoId", contratoId);
-      if (filtroMetas === "com") qs.set("comMetas", "1");
-      if (filtroMetas === "sem") qs.set("comMetas", "0");
+      if (modoVisao === "meta" && metaIdSelecionada !== "__todas__") {
+        qs.set("metaId", metaIdSelecionada);
+        qs.set("comMetas", "1");
+      } else {
+        if (filtroMetas === "com") qs.set("comMetas", "1");
+        if (filtroMetas === "sem") qs.set("comMetas", "0");
+      }
       const r = await fetch(`/api/integracao/glpi/chamados?${qs.toString()}`);
       const j = await r.json();
       if (!r.ok) {
@@ -260,7 +267,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     } finally {
       setLoading(false);
     }
-  }, [contratoId, filtroMetas]);
+  }, [contratoId, filtroMetas, modoVisao, metaIdSelecionada]);
 
   async function sincronizar() {
     setLoading(true);
@@ -582,11 +589,35 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     return m;
   }, [cards]);
 
+  const metasDisponiveis = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of cards) {
+      for (const v of c.desdobramentosMeta ?? []) {
+        m.set(v.desdobramento.meta.id, v.desdobramento.meta.titulo);
+      }
+    }
+    return [...m.entries()]
+      .map(([id, titulo]) => ({ id, titulo }))
+      .sort((a, b) => a.titulo.localeCompare(b.titulo));
+  }, [cards]);
+
   return (
     <div className={cn("space-y-4", fullscreen && "fixed inset-0 z-50 bg-background p-4 overflow-auto")}>
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+            <span className="text-xs text-muted-foreground shrink-0">Visão</span>
+            <div className="w-[160px] shrink-0">
+              <Select value={modoVisao} onValueChange={(v) => setModoVisao(v as "status" | "meta")}>
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="status">Por status</SelectItem>
+                  <SelectItem value="meta">Por meta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <span className="text-xs text-muted-foreground shrink-0">Contrato</span>
             <div className="w-[280px] shrink-0">
               <Select value={contratoId || "__todos__"} onValueChange={(v) => setContratoId(v === "__todos__" ? "" : v)}>
@@ -608,6 +639,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
               <Select
                 value={filtroMetas}
                 onValueChange={(v) => setFiltroMetas(v as "todos" | "com" | "sem")}
+                disabled={modoVisao === "meta"}
               >
                 <SelectTrigger className="h-8">
                   <SelectValue placeholder="Todos" />
@@ -619,6 +651,26 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                 </SelectContent>
               </Select>
             </div>
+            {modoVisao === "meta" && (
+              <>
+                <span className="text-xs text-muted-foreground shrink-0">Meta</span>
+                <div className="w-[320px] shrink-0">
+                  <Select value={metaIdSelecionada} onValueChange={setMetaIdSelecionada}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Selecione a meta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__todas__">Todas as metas</SelectItem>
+                      {metasDisponiveis.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.titulo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             <Button size="sm" onClick={sincronizar} disabled={loading} className="shrink-0">
               Buscar no sistema de chamados
             </Button>
@@ -694,24 +746,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                   }}
                 >
                   <p className="text-sm font-medium">#{c.glpiTicketId} - {c.titulo}</p>
-                  {(c.desdobramentosMeta?.length ?? 0) > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {c.desdobramentosMeta?.slice(0, 2).map((v) => (
-                        <span
-                          key={v.id}
-                          className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium"
-                          title={`${v.desdobramento.meta.titulo} > ${v.desdobramento.titulo}`}
-                        >
-                          [META] - {v.desdobramento.meta.titulo}
-                        </span>
-                      ))}
-                      {(c.desdobramentosMeta?.length ?? 0) > 2 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          +{(c.desdobramentosMeta?.length ?? 0) - 2}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium">
+                      Vinculado à meta: {(c.desdobramentosMeta?.length ?? 0) > 0 ? "Sim" : "Não"}
+                    </span>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {c.statusLabel ?? `Status ${c.statusGlpi}`} | prio {c.prioridade ?? "-"} | urg {c.urgencia ?? "-"}
                   </p>

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { GestaoSwitcher } from "@/components/gestao/gestao-switcher";
 
 const STATUS_LABEL: Record<StatusMeta, string> = {
   [StatusMeta.NAO_INICIADA]: "Não iniciada",
@@ -321,6 +322,9 @@ export function MetasClient({ podeEditar, embedded = false }: { podeEditar: bool
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Metas</h1>
           <p className="text-muted-foreground">Plano de metas e desdobramentos com vínculo aos chamados GLPI.</p>
+          <div className="mt-3">
+            <GestaoSwitcher atual="metas" />
+          </div>
         </div>
       )}
 

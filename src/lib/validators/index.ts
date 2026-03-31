@@ -9,3 +9,4 @@ export * from "./ust";
 export * from "./gestao-contrato";
 export * from "./medicao";
 export * from "./metas";
+export * from "./projeto";

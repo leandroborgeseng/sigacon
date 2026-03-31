@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ContratoCreateDialog } from "@/components/contratos/contrato-create-dialog";
+import { GestaoSwitcher } from "@/components/gestao/gestao-switcher";
 import { canRecurso } from "@/lib/permissions";
 import { PerfilUsuario, RecursoPermissao, TipoContrato } from "@prisma/client";
 
@@ -45,6 +46,7 @@ export default async function ContratosPage() {
         </div>
         <ContratoCreateDialog podeCriar={podeCriarContrato} />
       </div>
+      <GestaoSwitcher atual="contratos" />
       <Card>
         <CardHeader>
           <CardTitle>Listagem</CardTitle>

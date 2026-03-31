@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const contratoId = searchParams.get("contratoId")?.trim() || undefined;
   const comMetasParam = searchParams.get("comMetas")?.trim();
+  const metaId = searchParams.get("metaId")?.trim() || undefined;
   const filtroComMetas =
     comMetasParam === "1" ? true : comMetasParam === "0" ? false : undefined;
   let filtroGruposContrato: number[] | null = null;
@@ -55,6 +56,9 @@ export async function GET(request: Request) {
         : filtroComMetas === false
           ? { desdobramentosMeta: { none: {} } }
           : {}),
+      ...(metaId
+        ? { desdobramentosMeta: { some: { desdobramento: { metaId } } } }
+        : {}),
     },
     orderBy: [{ colunaKanban: "asc" }, { dataModificacao: "desc" }, { glpiTicketId: "desc" }],
     include: {

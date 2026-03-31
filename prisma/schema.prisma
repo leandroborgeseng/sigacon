@@ -112,6 +112,13 @@ enum StatusMeta {
   BLOQUEADA
 }
 
+enum StatusProjeto {
+  NAO_INICIADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  BLOQUEADO
+}
+
 enum OrigemPendencia {
   EDITAL
   HOMOLOGACAO
@@ -792,12 +799,48 @@ model GlpiChamado {
 
   contrato Contrato? @relation(fields: [contratoId], references: [id], onDelete: SetNull)
   desdobramentosMeta MetaDesdobramentoGlpiChamado[]
+  projetoTarefas ProjetoTarefa[]
 
   @@index([contratoId])
   @@index([colunaKanban])
   @@index([fornecedorNome])
   @@index([dataModificacao])
   @@map("glpi_chamados")
+}
+
+model Projeto {
+  id            String        @id @default(cuid())
+  nome          String
+  descricao     String?       @db.Text
+  status        StatusProjeto @default(NAO_INICIADO)
+  inicioPrevisto DateTime?    @map("inicio_previsto")
+  fimPrevisto   DateTime?     @map("fim_previsto")
+  criadoEm      DateTime      @default(now()) @map("criado_em")
+  atualizadoEm  DateTime      @updatedAt @map("atualizado_em")
+
+  tarefas ProjetoTarefa[]
+
+  @@map("projetos")
+}
+
+model ProjetoTarefa {
+  id             String        @id @default(cuid())
+  projetoId      String        @map("projeto_id")
+  titulo         String
+  descricao      String?       @db.Text
+  status         StatusProjeto @default(NAO_INICIADO)
+  responsavel    String?       @db.VarChar(200)
+  prazo          DateTime?     @map("prazo")
+  glpiChamadoId  String?       @map("glpi_chamado_id")
+  criadoEm       DateTime      @default(now()) @map("criado_em")
+  atualizadoEm   DateTime      @updatedAt @map("atualizado_em")
+
+  projeto     Projeto     @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  glpiChamado GlpiChamado? @relation(fields: [glpiChamadoId], references: [id], onDelete: SetNull)
+
+  @@index([projetoId])
+  @@index([glpiChamadoId])
+  @@map("projetos_tarefas")
 }
 
 model MetaPlanejamento {

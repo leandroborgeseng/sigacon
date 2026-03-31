@@ -21,6 +21,7 @@ import {
   KanbanSquare,
   Settings,
   Target,
+  FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -44,7 +45,8 @@ type NavItem = {
 
 const NAV: Record<string, NavItem> = {
   dashboard: { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  metas: { href: "/dashboard#metas", label: "Metas", icon: Target },
+  metas: { href: "/metas", label: "Metas", icon: Target },
+  projetos: { href: "/projetos", label: "Projetos", icon: FolderKanban },
   contratos: { href: "/contratos", label: "Contratos", icon: FileText },
   modulos: { href: "/modulos", label: "Módulos", icon: Layers },
   itens: { href: "/itens", label: "Itens contratuais", icon: ListChecks },
@@ -77,7 +79,7 @@ const NAV: Record<string, NavItem> = {
 };
 
 const GROUP_DEF: { id: string; label: string; keys: (keyof typeof NAV)[] }[] = [
-  { id: "principal", label: "Visão geral", keys: ["dashboard", "metas"] },
+  { id: "principal", label: "Visão geral", keys: ["dashboard", "metas", "projetos"] },
   {
     id: "contratos",
     label: "Contratos e entregas",
