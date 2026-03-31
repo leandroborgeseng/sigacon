@@ -5,6 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { atualizarChamadoGlpi } from "@/server/services/glpi-sync";
 import { PerfilUsuario, RecursoPermissao, type GlpiKanbanColuna } from "@prisma/client";
 
+function colunaKanbanPorStatusProjeto(status: "NAO_INICIADO" | "EM_ANDAMENTO" | "CONCLUIDO" | "BLOQUEADO"): GlpiKanbanColuna {
+  if (status === "EM_ANDAMENTO") return "EM_ANDAMENTO";
+  if (status === "BLOQUEADO") return "AGUARDANDO";
+  if (status === "CONCLUIDO") return "FECHADO";
+  return "BACKLOG";
+}
+
 async function checkPermissao() {
   const session = await getSession();
   if (!session) return { ok: false as const, status: 401, message: "Não autorizado" };
@@ -44,42 +51,85 @@ export async function GET(request: Request) {
     filtroGruposContrato = ids;
   }
 
-  const chamados = await prisma.glpiChamado.findMany({
-    where: {
-      ...(filtroGruposContrato
-        ? {
-            grupoTecnicoIdGlpi: { in: filtroGruposContrato },
-          }
-        : {}),
-      ...(filtroComMetas === true
-        ? { desdobramentosMeta: { some: {} } }
-        : filtroComMetas === false
-          ? { desdobramentosMeta: { none: {} } }
+  const [chamados, tarefasProjeto] = await Promise.all([
+    prisma.glpiChamado.findMany({
+      where: {
+        ...(filtroGruposContrato
+          ? {
+              grupoTecnicoIdGlpi: { in: filtroGruposContrato },
+            }
           : {}),
-      ...(metaId
-        ? { desdobramentosMeta: { some: { desdobramento: { metaId } } } }
-        : {}),
-    },
-    orderBy: [{ colunaKanban: "asc" }, { dataModificacao: "desc" }, { glpiTicketId: "desc" }],
-    include: {
-      contrato: { select: { id: true, nome: true } },
-      desdobramentosMeta: {
-        select: {
-          id: true,
-          desdobramento: {
-            select: {
-              id: true,
-              titulo: true,
-              meta: { select: { id: true, titulo: true } },
+        ...(filtroComMetas === true
+          ? { desdobramentosMeta: { some: {} } }
+          : filtroComMetas === false
+            ? { desdobramentosMeta: { none: {} } }
+            : {}),
+        ...(metaId
+          ? { desdobramentosMeta: { some: { desdobramento: { metaId } } } }
+          : {}),
+      },
+      orderBy: [{ colunaKanban: "asc" }, { dataModificacao: "desc" }, { glpiTicketId: "desc" }],
+      include: {
+        contrato: { select: { id: true, nome: true } },
+        desdobramentosMeta: {
+          select: {
+            id: true,
+            desdobramento: {
+              select: {
+                id: true,
+                titulo: true,
+                meta: { select: { id: true, titulo: true } },
+              },
             },
           },
         },
       },
-    },
-    take: 1000,
+      take: 1000,
+    }),
+    prisma.projetoTarefa.findMany({
+      where: {
+        ...(contratoId
+          ? {
+              OR: [
+                { glpiChamado: { is: { grupoTecnicoIdGlpi: { in: filtroGruposContrato ?? [] } } } },
+                { glpiChamadoId: null },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ status: "asc" }, { prazo: "asc" }, { criadoEm: "asc" }],
+      select: {
+        id: true,
+        titulo: true,
+        descricao: true,
+        status: true,
+        responsavel: true,
+        prazo: true,
+        glpiChamadoId: true,
+        glpiChamado: {
+          select: {
+            id: true,
+            glpiTicketId: true,
+            titulo: true,
+          },
+        },
+        projeto: {
+          select: {
+            id: true,
+            nome: true,
+          },
+        },
+      },
+      take: 2000,
+    }),
+  ]);
+  return NextResponse.json({
+    chamados,
+    tarefasProjeto: tarefasProjeto.map((t) => ({
+      ...t,
+      colunaKanban: colunaKanbanPorStatusProjeto(t.status),
+    })),
   });
-
-  return NextResponse.json(chamados);
 }
 
 export async function PATCH(request: Request) {

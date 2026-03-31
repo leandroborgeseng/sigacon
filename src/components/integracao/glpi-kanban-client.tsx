@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import type { GlpiKanbanColuna } from "@prisma/client";
+import { StatusProjeto, type GlpiKanbanColuna } from "@prisma/client";
 import { ORDEM_COLUNAS, GLPI_KANBAN_LABELS } from "@/lib/glpi-kanban-map";
 import type { GlpiTicketPayload } from "@/lib/glpi-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +53,18 @@ type Chamado = {
     id: string;
     desdobramento: { id: string; titulo: string; meta: { id: string; titulo: string } };
   }>;
+};
+type TarefaProjetoCard = {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  status: StatusProjeto;
+  responsavel: string | null;
+  prazo: string | null;
+  glpiChamadoId: string | null;
+  glpiChamado: { id: string; glpiTicketId: number; titulo: string } | null;
+  projeto: { id: string; nome: string };
+  colunaKanban: GlpiKanbanColuna;
 };
 
 type Contrato = { id: string; nome: string; fornecedor: string };
@@ -217,6 +229,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [cards, setCards] = useState<Chamado[]>([]);
+  const [tarefasProjetoCards, setTarefasProjetoCards] = useState<TarefaProjetoCard[]>([]);
   const [grupos, setGrupos] = useState<Option[]>([]);
   const [categorias, setCategorias] = useState<Option[]>([]);
   const [usuarios, setUsuarios] = useState<Option[]>([]);
@@ -262,8 +275,11 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
         setMsg(j.message ?? "Erro ao carregar chamados");
         return;
       }
-      setCards(j as Chamado[]);
-      setMsg(`${(j as Chamado[]).length} chamado(s) carregado(s).`);
+      const chamados = (j?.chamados ?? []) as Chamado[];
+      const tarefasProjeto = (j?.tarefasProjeto ?? []) as TarefaProjetoCard[];
+      setCards(chamados);
+      setTarefasProjetoCards(tarefasProjeto);
+      setMsg(`${chamados.length} chamado(s) e ${tarefasProjeto.length} tarefa(s) carregado(s).`);
     } finally {
       setLoading(false);
     }
@@ -588,6 +604,14 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
     }
     return m;
   }, [cards]);
+  const tarefasProjetoPorColuna = useMemo(() => {
+    const m = new Map<GlpiKanbanColuna, TarefaProjetoCard[]>();
+    ORDEM_COLUNAS.forEach((c) => m.set(c, []));
+    for (const tarefa of tarefasProjetoCards) {
+      m.get(tarefa.colunaKanban)?.push(tarefa);
+    }
+    return m;
+  }, [tarefasProjetoCards]);
 
   const metasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
@@ -699,7 +723,7 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
           <Card key={col} className="min-h-[300px]">
             <CardHeader className={cn("pb-2", colunaClasses(col).header)}>
               <CardTitle className={cn("text-sm", colunaClasses(col).title)}>
-                {GLPI_KANBAN_LABELS[col]} ({porColuna.get(col)?.length ?? 0})
+                {GLPI_KANBAN_LABELS[col]} ({(porColuna.get(col)?.length ?? 0) + (tarefasProjetoPorColuna.get(col)?.length ?? 0)})
               </CardTitle>
             </CardHeader>
             <CardContent
@@ -787,6 +811,62 @@ export function GlpiKanbanClient({ contratos }: { contratos: Contrato[] }) {
                     >
                       Editar chamado
                     </Button>
+                  </div>
+                </div>
+              ))}
+              {(tarefasProjetoPorColuna.get(col) ?? []).map((t) => (
+                <div
+                  key={`proj-${t.id}`}
+                  className={cn("rounded border p-2 space-y-2", cardClasses(t.colunaKanban))}
+                >
+                  <p className="text-sm font-medium">[PROJETO] {t.titulo}</p>
+                  <p className="text-xs text-muted-foreground">Projeto: {t.projeto.nome}</p>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium">
+                      Responsável: {t.responsavel?.trim() || "-"}
+                    </span>
+                    <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium">
+                      Vinculado ao chamado: {t.glpiChamado ? "Sim" : "Não"}
+                    </span>
+                  </div>
+                  {t.glpiChamado ? (
+                    <p className="text-xs text-muted-foreground">
+                      Chamado: #{t.glpiChamado.glpiTicketId} - {t.glpiChamado.titulo}
+                    </p>
+                  ) : null}
+                  {t.prazo ? (
+                    <p className="text-xs text-muted-foreground">
+                      Prazo: {new Date(t.prazo).toLocaleDateString("pt-BR")}
+                    </p>
+                  ) : null}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Status da tarefa:</span>
+                    <Select
+                      value={t.status}
+                      onValueChange={async (v) => {
+                        const r = await fetch(`/api/projetos/tarefas/${t.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ status: v }),
+                        });
+                        if (!r.ok) {
+                          const j = await r.json().catch(() => ({}));
+                          setMsg((j as { message?: string }).message ?? "Falha ao atualizar tarefa de projeto");
+                          return;
+                        }
+                        await carregar();
+                      }}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={StatusProjeto.NAO_INICIADO}>Não iniciado</SelectItem>
+                        <SelectItem value={StatusProjeto.EM_ANDAMENTO}>Em andamento</SelectItem>
+                        <SelectItem value={StatusProjeto.BLOQUEADO}>Bloqueado</SelectItem>
+                        <SelectItem value={StatusProjeto.CONCLUIDO}>Concluído</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               ))}

@@ -79,7 +79,7 @@ const NAV: Record<string, NavItem> = {
 };
 
 const GROUP_DEF: { id: string; label: string; keys: (keyof typeof NAV)[] }[] = [
-  { id: "principal", label: "Visão geral", keys: ["dashboard", "metas", "projetos"] },
+  { id: "principal", label: "Visão geral", keys: ["dashboard", "kanbanGlpi", "metas", "projetos"] },
   {
     id: "contratos",
     label: "Contratos e entregas",
@@ -89,7 +89,7 @@ const GROUP_DEF: { id: string; label: string; keys: (keyof typeof NAV)[] }[] = [
   {
     id: "integracao",
     label: "Integrações e relatórios",
-    keys: ["configGlpi", "kanbanGlpi", "relExec"],
+    keys: ["configGlpi", "relExec"],
   },
   { id: "admin", label: "Administração", keys: ["usuarios", "perfis"] },
 ];

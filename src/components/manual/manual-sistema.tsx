@@ -50,6 +50,7 @@ export function ManualSistemaContent() {
           <TocItem href="#acesso">Acesso, perfis e permissões</TocItem>
           <TocItem href="#navegacao">Navegação (menu)</TocItem>
           <TocItem href="#dashboard">Dashboard e insights</TocItem>
+          <TocItem href="#gestoes">Gestões: contratos, metas e projetos</TocItem>
           <TocItem href="#contratos">Contratos</TocItem>
           <TocItem href="#modulos">Módulos</TocItem>
           <TocItem href="#itens">Itens contratuais</TocItem>
@@ -158,12 +159,12 @@ export function ManualSistemaContent() {
       <section id="navegacao" className="scroll-mt-24 space-y-2 border-b pb-10">
         <h2 className="text-2xl font-bold tracking-tight">3. Navegação (menu lateral)</h2>
         <P>
-          Itens comuns (conforme permissão): <strong>Dashboard</strong>, <strong>Contratos</strong>
-          , <strong>Módulos</strong>, <strong>Itens contratuais</strong>,{" "}
-          <strong>Pendências</strong>, <strong>UST &amp; catálogo</strong>,{" "}
-          <strong>Medição mensal</strong>, <strong>Atas</strong>, <strong>Importação</strong>,{" "}
-          <strong>Manual</strong>. Administradores veem ainda <strong>Visão admin</strong>,{" "}
-          <strong>Usuários</strong> e <strong>Perfis e permissões</strong>.
+          O menu foi organizado em grupos. Em <strong>Visão geral</strong>, ficam{" "}
+          <strong>Dashboard</strong>, <strong>Kanban</strong>, <strong>Metas</strong> e{" "}
+          <strong>Projetos</strong>. Em <strong>Contratos e entregas</strong>, ficam contratos,
+          módulos, itens, pendências, medições, atas e UST. Os grupos{" "}
+          <strong>Dados e apoio</strong>, <strong>Integrações e relatórios</strong> e{" "}
+          <strong>Administração</strong> aparecem conforme permissão/perfil.
         </P>
       </section>
 
@@ -238,6 +239,30 @@ export function ManualSistemaContent() {
         </Ul>
       </section>
 
+      {/* 4.1 */}
+      <section id="gestoes" className="scroll-mt-24 space-y-2 border-b pb-10">
+        <h2 className="text-2xl font-bold tracking-tight">4.1 Gestões: contratos, metas e projetos</h2>
+        <P>
+          O sistema possui três frentes de gestão operacional com alternância direta por botões:
+          <strong> Gestão de contratos</strong>, <strong>Gestão de metas</strong> e{" "}
+          <strong>Gestão de projetos</strong>.
+        </P>
+        <Ul>
+          <Li>
+            <strong>Contratos:</strong> cadastro e acompanhamento administrativo, incluindo visão
+            detalhada por tipo de contrato (software e datacenter).
+          </Li>
+          <Li>
+            <strong>Metas:</strong> planejamento anual, desdobramentos, filtros, visão tabela/kanban,
+            vínculo com chamados GLPI e exportação CSV/ODS.
+          </Li>
+          <Li>
+            <strong>Projetos:</strong> cadastro de projetos com tarefas, responsável, prazo, status e
+            vínculo opcional de cada tarefa com chamado GLPI.
+          </Li>
+        </Ul>
+      </section>
+
       {/* 5 */}
       <section id="contratos" className="scroll-mt-24 space-y-2 border-b pb-10">
         <h2 className="text-2xl font-bold tracking-tight">5. Contratos</h2>
@@ -283,6 +308,22 @@ export function ManualSistemaContent() {
           <Li>
             <strong>Parcelas de pagamento:</strong> competência ano/mês, valor previsto e pago,
             vencimento, pagamento, NF, status (previsto, pago, atrasado, parcial), observação.
+          </Li>
+        </Ul>
+        <Sub>Contratos Datacenter (itens, licenças e consumo mensal)</Sub>
+        <Ul>
+          <Li>
+            É possível cadastrar <strong>itens previstos</strong> com quantidade máxima e valor
+            unitário mensal.
+          </Li>
+          <Li>
+            Também é possível cadastrar <strong>licenças de software adicionais</strong>, com
+            quantidade máxima e valor unitário mensal por licença.
+          </Li>
+          <Li>
+            Na medição mensal do contrato datacenter, o sistema permite lançar{" "}
+            <strong>quantidade usada no mês</strong> para itens e licenças, calculando o faturamento
+            datacenter e o valor consolidado.
           </Li>
         </Ul>
         <Sub>Ações e zona de risco</Sub>
@@ -501,8 +542,11 @@ export function ManualSistemaContent() {
       {/* 14 */}
       <section id="admin" className="scroll-mt-24 space-y-2 border-b pb-10">
         <h2 className="text-2xl font-bold tracking-tight">14. Administração</h2>
-        <Sub>Visão admin (/admin)</Sub>
-        <P>Somente perfil Administrador. Inclui:</P>
+        <Sub>Gestão administrativa no Dashboard</Sub>
+        <P>
+          A visão administrativa foi incorporada ao topo do <strong>Dashboard</strong> e é exibida
+          para perfil Administrador.
+        </P>
         <Ul>
           <Li>Contagem de usuários ativos e inativos.</Li>
           <Li>Lançamentos UST no mês corrente (volume global).</Li>
@@ -547,6 +591,23 @@ export function ManualSistemaContent() {
           o schema do banco deve estar alinhado ao Prisma (deploy com <Code>db push</Code> conforme
           documentação de implantação).
         </P>
+        <Sub>Kanban integrado (chamados + projetos)</Sub>
+        <Ul>
+          <Li>
+            O Kanban fica em <strong>Visão geral</strong>, abaixo de Dashboard no menu lateral.
+          </Li>
+          <Li>
+            O board exibe <strong>chamados GLPI</strong> e também <strong>tarefas de projetos</strong>{" "}
+            na mesma visão por colunas.
+          </Li>
+          <Li>
+            Para chamados, há filtros por contrato e metas (incluindo visão por meta específica).
+          </Li>
+          <Li>
+            Para tarefas de projeto, a coluna é definida pelo status da tarefa e pode ser alterada no
+            próprio board.
+          </Li>
+        </Ul>
       </section>
 
       {/* 17 */}
