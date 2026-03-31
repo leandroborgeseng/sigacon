@@ -1,6 +1,19 @@
-/** fetch ao GLPI com opção de ignorar falha de certificado TLS (GLPI_TLS_INSECURE). */
+/**
+ * HTTP(s) para o GLPI no servidor Node (Railway, Docker).
+ * curl no seu Mac pode funcionar enquanto o app falha: TLS com cadeia incompleta e/ou IPv6.
+ */
 
-let glpiInsecureChain: Promise<unknown> = Promise.resolve();
+import dns from "node:dns";
+import { Agent, fetch as undiciFetch } from "undici";
+
+const ipv4First =
+  process.env.GLPI_FORCE_IPV4?.trim().toLowerCase() === "1" ||
+  process.env.GLPI_FORCE_IPV4?.trim().toLowerCase() === "true" ||
+  process.env.GLPI_FORCE_IPV4?.trim().toLowerCase() === "yes";
+
+if (ipv4First && typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 /** true se GLPI_TLS_INSECURE está ativo (1/true/yes). */
 export function glpiTlsInsecureEnabled(): boolean {
@@ -8,35 +21,39 @@ export function glpiTlsInsecureEnabled(): boolean {
   return v === "1" || v === "true" || v === "yes";
 }
 
-/**
- * Enfileira chamadas quando TLS inseguro está ligado para evitar corrida em NODE_TLS_REJECT_UNAUTHORIZED
- * (outras requisições HTTPS no processo não devem ver o valor alterado em paralelo).
- */
-async function fetchComTlsInseguro(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  try {
-    return await fetch(input, init);
-  } finally {
-    if (prev === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev;
+let tlsInsecureAgent: Agent | null = null;
+
+function getTlsInsecureAgent(): Agent {
+  if (!tlsInsecureAgent) {
+    tlsInsecureAgent = new Agent({
+      connect: {
+        rejectUnauthorized: false,
+      },
+    });
   }
+  return tlsInsecureAgent;
+}
+
+function requestUrlString(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return (input as Request).url;
 }
 
 /**
- * fetch HTTP(s) para o GLPI. Com GLPI_TLS_INSECURE=1 ignora verificação do certificado TLS
- * (equivalente a curl -k). Use só quando o servidor GLPI tiver certificado interno ou cadeia incompleta.
+ * fetch para o GLPI.
+ * - GLPI_TLS_INSECURE=1: TLS como curl -k via Agent (sem NODE_TLS_REJECT_UNAUTHORIZED global).
+ * - GLPI_FORCE_IPV4=1: prioriza IPv4 (ajuda quando IPv6 do servidor GLPI não responde ao Railway).
  */
 export async function glpiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  if (!glpiTlsInsecureEnabled()) {
-    return fetch(input, init);
+  if (glpiTlsInsecureEnabled()) {
+    const url = requestUrlString(input);
+    return undiciFetch(url, {
+      ...init,
+      dispatcher: getTlsInsecureAgent(),
+    } as RequestInit & { dispatcher: Agent });
   }
-  const next = glpiInsecureChain.then(() => fetchComTlsInseguro(input, init));
-  glpiInsecureChain = next.then(
-    () => undefined,
-    () => undefined
-  );
-  return next;
+  return fetch(input, init);
 }
 
 /** Dica para mensagens de erro de rede/TLS quando TLS estrito ainda está ativo. */
@@ -60,7 +77,10 @@ export function glpiTlsInsecureHintParaErroDeRede(message: string): string {
 /** Dica quando initSession esgota tempo ou ping retorna fetch failed (TLS ou firewall). */
 export function glpiRedeTlsOuFirewallHint(): string {
   if (glpiTlsInsecureEnabled()) {
-    return " Se o problema continua, o firewall do GLPI pode estar bloqueando o IP de saída do seu hospedeiro (ex.: Railway): libere esse IP ou use um proxy.";
+    const ipv4 = ipv4First
+      ? ""
+      : " Se ainda falhar, tente GLPI_FORCE_IPV4=1 (alguns servidores só respondem bem em IPv4 a partir da nuvem).";
+    return ` Se o problema continua, o firewall do GLPI pode estar bloqueando o IP de saída do hospedeiro (ex.: Railway): libere esse IP ou use um proxy.${ipv4}`;
   }
-  return " Com ping mostrando \"fetch failed\" ou tempo esgotado no initSession, defina GLPI_TLS_INSECURE=1 no ambiente do app (como curl -k). Se já estiver ativo, verifique firewall do GLPI para o IP do servidor da aplicação.";
+  return " Com ping mostrando \"fetch failed\" ou tempo esgotado no initSession, defina GLPI_TLS_INSECURE=1 no ambiente do app (como curl -k). Se já estiver ativo, use GLPI_FORCE_IPV4=1 e verifique firewall do GLPI para o IP do servidor da aplicação.";
 }

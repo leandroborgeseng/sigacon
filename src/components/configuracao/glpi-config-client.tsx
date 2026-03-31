@@ -284,8 +284,9 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             </a>
             . Tokens vazios mantêm o salvo. Variáveis no servidor:{" "}
             <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
-            <code className="text-[11px]">GLPI_USER_TOKEN</code>. HTTPS interno:{" "}
-            <code className="text-[11px]">GLPI_TLS_INSECURE=1</code> (como <code className="text-[11px]">curl -k</code>).
+            <code className="text-[11px]">GLPI_USER_TOKEN</code>. No deploy (ex.: Railway):{" "}
+            <code className="text-[11px]">GLPI_TLS_INSECURE=1</code> se o ping falhar (como <code className="text-[11px]">curl -k</code>);{" "}
+            <code className="text-[11px]">GLPI_FORCE_IPV4=1</code> se ainda falhar após isso.
           </p>
         </CardDescription>
       </CardHeader>
