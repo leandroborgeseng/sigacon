@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { TipoContrato } from "@prisma/client";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { ImportacaoClient } from "@/components/importacao/importacao-client";
 import { ImportacaoContratosClient } from "@/components/importacao/importacao-contratos-client";
@@ -11,6 +12,7 @@ export default async function ImportacaoPage() {
   if (!session) redirect("/login");
 
   const contratos = await prisma.contrato.findMany({
+    where: { tipoContrato: { not: TipoContrato.DATACENTER } },
     orderBy: { nome: "asc" },
     select: { id: true, nome: true },
   });
@@ -21,7 +23,7 @@ export default async function ImportacaoPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Importação XLSX</h1>
         <p className="text-muted-foreground">
-          Importação em massa com formato padrão
+          Importação em massa com formato padrão (apenas contratos de software; datacenter usa o cadastro do contrato).
         </p>
       </div>
       <Tabs defaultValue="itens">

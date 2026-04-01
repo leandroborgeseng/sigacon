@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { ModuloItensStatus } from "@/components/modulos/modulo-itens-status";
+import { ItemContratualCreateDialog } from "@/components/itens/item-contratual-create-dialog";
+import { canRecurso } from "@/lib/permissions";
+import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
 export default async function ModuloDetailPage({
   params,
@@ -28,6 +31,12 @@ export default async function ModuloDetailPage({
 
   if (!modulo) notFound();
 
+  const podeEditar = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.CONTRATOS,
+    "editar"
+  );
+
   const atendidos = modulo.itens.filter((i) => i.statusAtual === "ATENDE").length;
   const percentual =
     modulo.itens.length > 0
@@ -42,7 +51,7 @@ export default async function ModuloDetailPage({
           { label: modulo.nome },
         ]}
       />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{modulo.nome}</h1>
           <p className="text-muted-foreground">
@@ -97,11 +106,26 @@ export default async function ModuloDetailPage({
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Itens ({modulo.itens.length})</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Altere o status de cada item (Cumprido, Não cumprido, Inconclusivo, etc.) no dropdown.
-          </p>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+          <div>
+            <CardTitle>Itens ({modulo.itens.length})</CardTitle>
+            <p className="text-sm text-muted-foreground pt-1">
+              Altere o status de cada item no dropdown. Novos itens podem ser cadastrados manualmente (botão acima ou em Itens contratuais).
+            </p>
+          </div>
+          {podeEditar && modulo.contrato.ativo !== false ? (
+            <ItemContratualCreateDialog
+              podeEditar
+              contratos={[{ id: modulo.contrato.id, nome: modulo.contrato.nome }]}
+              modulos={[{ id: modulo.id, nome: modulo.nome, contratoId: modulo.contratoId }]}
+              moduloIdFixo={modulo.id}
+              trigger={
+                <Button type="button" variant="secondary" size="sm">
+                  Novo item
+                </Button>
+              }
+            />
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
           <ModuloItensStatus

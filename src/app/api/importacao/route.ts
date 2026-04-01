@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { TipoContrato } from "@prisma/client";
 import { importarPlanilhaXLSX } from "@/server/importers/xlsx-importer";
 
 export async function POST(request: Request) {
@@ -14,6 +16,23 @@ export async function POST(request: Request) {
     if (!contratoId) {
       return NextResponse.json(
         { message: "Selecione o contrato de destino" },
+        { status: 400 }
+      );
+    }
+
+    const contratoDestino = await prisma.contrato.findUnique({
+      where: { id: contratoId },
+      select: { id: true, tipoContrato: true },
+    });
+    if (!contratoDestino) {
+      return NextResponse.json({ message: "Contrato não encontrado" }, { status: 404 });
+    }
+    if (contratoDestino.tipoContrato === TipoContrato.DATACENTER) {
+      return NextResponse.json(
+        {
+          message:
+            "Importação por planilha não se aplica a contratos datacenter (sem módulos/itens deste tipo).",
+        },
         { status: 400 }
       );
     }

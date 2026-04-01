@@ -24,6 +24,7 @@ import {
 import { formatDate } from "@/lib/utils";
 import { StatusItem } from "@prisma/client";
 import { cn } from "@/lib/utils";
+import { ItemContratualCreateDialog } from "@/components/itens/item-contratual-create-dialog";
 
 const FILTER_ALL = "__todos__";
 
@@ -54,9 +55,19 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "w
 type Props = {
   contratos: Contrato[];
   modulosIniciais: Modulo[];
+  /** Contratos que aceitam itens por módulo (exclui datacenter). */
+  contratosCadastroItem: Contrato[];
+  modulosCadastroItem: Modulo[];
+  podeEditar: boolean;
 };
 
-export function ItensList({ contratos, modulosIniciais }: Props) {
+export function ItensList({
+  contratos,
+  modulosIniciais,
+  contratosCadastroItem,
+  modulosCadastroItem,
+  podeEditar,
+}: Props) {
   const [contratoId, setContratoId] = useState<string>("");
   const [moduloId, setModuloId] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -72,6 +83,21 @@ export function ItensList({ contratos, modulosIniciais }: Props) {
     if (!contratoId) return modulosIniciais;
     return modulosIniciais.filter((m) => m.contratoId === contratoId);
   }, [contratoId, modulosIniciais]);
+
+  const contratoSoftwareDoModuloFiltro =
+    moduloId && modulosCadastroItem.some((m) => m.id === moduloId)
+      ? modulosCadastroItem.find((m) => m.id === moduloId)?.contratoId
+      : undefined;
+
+  const contratoIdFixoDialog =
+    contratoId && contratosCadastroItem.some((c) => c.id === contratoId)
+      ? contratoId
+      : contratoSoftwareDoModuloFiltro && contratosCadastroItem.some((c) => c.id === contratoSoftwareDoModuloFiltro)
+        ? contratoSoftwareDoModuloFiltro
+        : undefined;
+
+  const moduloIdFixoDialog =
+    moduloId && modulosCadastroItem.some((m) => m.id === moduloId) ? moduloId : undefined;
 
   useEffect(() => {
     setModuloId("");
@@ -106,7 +132,14 @@ export function ItensList({ contratos, modulosIniciais }: Props) {
         <p className="text-sm text-muted-foreground">
           Sem filtro: todos os itens de todos os contratos. Use contrato e/ou módulo para refinar.
         </p>
-        <div className="flex flex-wrap gap-2 pt-2">
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          <ItemContratualCreateDialog
+            contratos={contratosCadastroItem}
+            modulos={modulosCadastroItem}
+            podeEditar={podeEditar}
+            contratoIdFixo={contratoIdFixoDialog}
+            moduloIdFixo={moduloIdFixoDialog}
+          />
           <Select
             value={contratoId || FILTER_ALL}
             onValueChange={(v) => {

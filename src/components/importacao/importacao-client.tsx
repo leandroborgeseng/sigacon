@@ -97,6 +97,12 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {contratos.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Não há contratos elegíveis para importação por planilha. Contratos datacenter usam apenas o cadastro do contrato
+            (itens previstos e licenças), sem módulos deste tipo.
+          </p>
+        ) : null}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Contrato de destino</Label>
@@ -127,7 +133,7 @@ export function ImportacaoClient({ contratos }: { contratos: Contrato[] }) {
               className="block w-full max-w-md text-sm"
             />
           </div>
-          <Button type="submit" disabled={!canSubmit || loading}>
+          <Button type="submit" disabled={!canSubmit || loading || contratos.length === 0}>
             <Upload className="mr-2 h-4 w-4" />
             {loading ? "Importando..." : "Importar"}
           </Button>

@@ -19,6 +19,8 @@ import { ModuloFilterSelect } from "@/components/modulos/modulo-filter-select";
 import { ModuloEditDialog } from "@/components/modulos/modulo-edit-dialog";
 import { ModuloDeleteButton } from "@/components/modulos/modulo-delete-button";
 import { ModulosAccordion } from "@/components/modulos/modulos-accordion";
+import { canRecurso } from "@/lib/permissions";
+import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
 type PageProps = {
   searchParams?: Promise<{ contratoId?: string }>;
@@ -27,6 +29,12 @@ type PageProps = {
 export default async function ModulosPage({ searchParams }: PageProps) {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  const podeEditar = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.CONTRATOS,
+    "editar"
+  );
 
   let contratoId: string | undefined;
   try {
@@ -57,12 +65,12 @@ export default async function ModulosPage({ searchParams }: PageProps) {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Módulos</h1>
           <p className="text-muted-foreground">
-            Módulos por contrato
+            Módulos por contrato. Cadastre módulos manualmente ou use a importação de planilha no contrato.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <ModuloFilterSelect contratos={contratos} contratoId={contratoId} />
-          <ModuloCreateDialog contratos={contratos} />
+          <ModuloCreateDialog contratos={contratos} podeEditar={podeEditar} />
         </div>
       </div>
       <Card>

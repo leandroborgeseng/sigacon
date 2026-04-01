@@ -19,6 +19,8 @@ import {
 import { canRecurso } from "@/lib/permissions";
 import { PerfilUsuario, RecursoPermissao, TipoContrato } from "@prisma/client";
 import { ContratoGestaoExtendida } from "@/components/contratos/contrato-gestao-extendida";
+import { ModuloCreateDialog } from "@/components/modulos/modulo-create-dialog";
+import { ItemContratualCreateDialog } from "@/components/itens/item-contratual-create-dialog";
 import {
   LABEL_TIPO_RECURSO_DATACENTER,
   indiceOrdenacaoTipoDatacenter,
@@ -173,10 +175,12 @@ export default async function ContratoDetailPage({
               {contrato.gestorContrato}
             </p>
           )}
-          <p>
-            <span className="font-medium">Total de itens:</span>{" "}
-            {contrato._count.itens}
-          </p>
+          {contrato.tipoContrato !== TipoContrato.DATACENTER ? (
+            <p>
+              <span className="font-medium">Total de itens contratuais:</span>{" "}
+              {contrato._count.itens}
+            </p>
+          ) : null}
           <div>
             <span className="font-medium">Grupos técnicos GLPI:</span>{" "}
             {contrato.glpiGruposTecnicos.length === 0 ? (
@@ -414,15 +418,33 @@ export default async function ContratoDetailPage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Módulos</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
+      {contrato.tipoContrato !== TipoContrato.DATACENTER ? (
+        <Card>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+            <CardTitle>Módulos</CardTitle>
+            {podeEditarGestao && contrato.ativo !== false ? (
+              <div className="flex flex-wrap gap-2">
+                <ModuloCreateDialog
+                  contratos={[{ id, nome: contrato.nome }]}
+                  contratoIdFixo={id}
+                  podeEditar
+                />
+                <ItemContratualCreateDialog
+                  podeEditar
+                  contratos={[{ id, nome: contrato.nome }]}
+                  modulos={contrato.modulos.map((m) => ({
+                    id: m.id,
+                    nome: m.nome,
+                    contratoId: id,
+                  }))}
+                  contratoIdFixo={id}
+                />
+              </div>
+            ) : null}
+          </CardHeader>
+          <CardContent className="p-0">
             {contrato.modulos.length === 0 ? (
-              <p className="p-4 text-muted-foreground">
-                Nenhum módulo cadastrado.
-              </p>
+              <p className="p-4 text-muted-foreground">Nenhum módulo cadastrado.</p>
             ) : (
               <ul className="divide-y">
                 {contrato.modulos.map((m) => (
@@ -435,9 +457,7 @@ export default async function ContratoDetailPage({
                         {m.nome}
                       </Link>
                       {m.descricao && (
-                        <p className="text-sm text-muted-foreground">
-                          {m.descricao}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{m.descricao}</p>
                       )}
                     </div>
                     <Badge variant={m.ativo ? "default" : "secondary"}>
@@ -447,8 +467,9 @@ export default async function ContratoDetailPage({
                 ))}
               </ul>
             )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

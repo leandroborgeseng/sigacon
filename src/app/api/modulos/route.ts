@@ -3,6 +3,8 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { moduloSchema } from "@/lib/validators";
 import { registerAudit } from "@/server/services/audit";
+import { canRecurso } from "@/lib/permissions";
+import { PerfilUsuario, RecursoPermissao, TipoContrato } from "@prisma/client";
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -27,12 +29,35 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
 
+  const podeEditar = await canRecurso(
+    session.perfil as PerfilUsuario,
+    RecursoPermissao.CONTRATOS,
+    "editar"
+  );
+  if (!podeEditar) {
+    return NextResponse.json({ message: "Sem permissão para cadastrar módulos" }, { status: 403 });
+  }
+
   try {
     const body = await request.json();
     const parsed = moduloSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         { message: "Dados inválidos", errors: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const contratoAlvo = await prisma.contrato.findUnique({
+      where: { id: parsed.data.contratoId },
+      select: { tipoContrato: true },
+    });
+    if (contratoAlvo?.tipoContrato === TipoContrato.DATACENTER) {
+      return NextResponse.json(
+        {
+          message:
+            "Contratos datacenter não utilizam módulos; a estrutura é definida no próprio cadastro do contrato (itens previstos e licenças).",
+        },
         { status: 400 }
       );
     }

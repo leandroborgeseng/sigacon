@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { GlpiKanbanClient } from "@/components/integracao/glpi-kanban-client";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
 
@@ -30,7 +29,6 @@ export default async function IntegracaoGlpiPage({ searchParams }: PageProps) {
 
   return (
     <div className={standalone ? "h-screen p-3" : "space-y-6"}>
-      {!standalone && <Breadcrumb items={[{ label: "Integrações" }]} />}
       {!standalone && (
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Kanban de chamados</h1>

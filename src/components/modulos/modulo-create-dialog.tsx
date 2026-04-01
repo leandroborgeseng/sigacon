@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,14 +28,22 @@ import { Plus } from "lucide-react";
 
 type Contrato = { id: string; nome: string };
 
-export function ModuloCreateDialog({ contratos }: { contratos: Contrato[] }) {
+type ModuloCreateDialogProps = {
+  contratos: Contrato[];
+  /** Se informado, o módulo é sempre criado neste contrato (sem seletor). */
+  contratoIdFixo?: string;
+  podeEditar?: boolean;
+  trigger?: ReactNode;
+};
+
+export function ModuloCreateDialog({ contratos, contratoIdFixo, podeEditar = true, trigger }: ModuloCreateDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
   const form = useForm<ModuloInput>({
     resolver: zodResolver(moduloSchema),
     defaultValues: {
-      contratoId: "",
+      contratoId: contratoIdFixo ?? "",
       nome: "",
       descricao: "",
       implantado: false,
@@ -55,17 +63,33 @@ export function ModuloCreateDialog({ contratos }: { contratos: Contrato[] }) {
       return;
     }
     setOpen(false);
-    form.reset({ ...form.getValues(), nome: "", descricao: "" });
+    form.reset({
+      contratoId: contratoIdFixo ?? "",
+      nome: "",
+      descricao: "",
+      implantado: false,
+      ativo: true,
+    });
     router.refresh();
   }
+
+  useEffect(() => {
+    if (open && contratoIdFixo) {
+      form.setValue("contratoId", contratoIdFixo);
+    }
+  }, [open, contratoIdFixo, form]);
+
+  if (podeEditar === false) return null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button disabled={contratos.length === 0}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo módulo
-        </Button>
+        {trigger ?? (
+          <Button disabled={contratos.length === 0 && !contratoIdFixo}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo módulo
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -79,26 +103,34 @@ export function ModuloCreateDialog({ contratos }: { contratos: Contrato[] }) {
           )}
           <div className="space-y-2">
             <Label>Contrato</Label>
-            <Select
-              value={form.watch("contratoId") || "__nenhum__"}
-              onValueChange={(v) => form.setValue("contratoId", v === "__nenhum__" ? "" : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o contrato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__nenhum__">Selecione o contrato</SelectItem>
-                {contratos.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {form.formState.errors.contratoId && (
-              <p className="text-xs text-destructive">
-                {form.formState.errors.contratoId.message}
+            {contratoIdFixo ? (
+              <p className="text-sm text-muted-foreground py-1">
+                {contratos.find((c) => c.id === contratoIdFixo)?.nome ?? contratoIdFixo}
               </p>
+            ) : (
+              <>
+                <Select
+                  value={form.watch("contratoId") || "__nenhum__"}
+                  onValueChange={(v) => form.setValue("contratoId", v === "__nenhum__" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o contrato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__nenhum__">Selecione o contrato</SelectItem>
+                    {contratos.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.contratoId && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.contratoId.message}
+                  </p>
+                )}
+              </>
             )}
           </div>
           <div className="space-y-2">
