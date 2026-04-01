@@ -25,7 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { GestaoSwitcher } from "@/components/gestao/gestao-switcher";
-import { FolderKanban, Plus } from "lucide-react";
+import { FolderKanban, Pencil, Plus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListLoadingSkeleton } from "@/components/ui/list-loading-skeleton";
@@ -110,6 +110,15 @@ const NOVO_PROJETO_VAZIO: NovoProjetoDraft = {
   fimPrevisto: "",
 };
 
+type EditarTarefaModalState = {
+  projetoId: string;
+  tarefa: Tarefa;
+  draft: NovaTarefaDraft;
+  descricao: string;
+  buscaUser: string;
+  buscaChamado: string;
+};
+
 function dateToInput(value: string | null | undefined): string {
   if (!value) return "";
   return new Date(value).toISOString().slice(0, 10);
@@ -141,13 +150,20 @@ export function ProjetosClient({
   const [chamadosLoading, setChamadosLoading] = useState<Record<string, boolean>>({});
   const [somenteChamadosAbertos, setSomenteChamadosAbertos] = useState<Record<string, boolean>>({});
   const [buscaUsuario, setBuscaUsuario] = useState<Record<string, string>>({});
-  const [usuariosResultados, setUsuariosResultados] = useState<Record<string, GlpiUserLite[]>>({});
-  const [usuariosNextCursor, setUsuariosNextCursor] = useState<Record<string, string | null>>({});
-  const [usuariosLoading, setUsuariosLoading] = useState<Record<string, boolean>>({});
+  /** Todos os usuários GLPI (carregados em páginas ao abrir a tela, se pode editar). */
+  const [glpiUsuariosLista, setGlpiUsuariosLista] = useState<GlpiUserLite[]>([]);
+  const [glpiUsuariosCarregando, setGlpiUsuariosCarregando] = useState(false);
   const [modoVisao, setModoVisao] = useState<"TABELA" | "KANBAN">("TABELA");
   const [filtroStatus, setFiltroStatus] = useState<"TODOS" | StatusProjeto>("TODOS");
   const [filtroResponsavel, setFiltroResponsavel] = useState("TODOS");
   const [filtroGlpi, setFiltroGlpi] = useState<"TODOS" | "VINCULADAS" | "NAO_VINCULADAS">("TODOS");
+
+  const [editarTarefaModal, setEditarTarefaModal] = useState<EditarTarefaModalState | null>(null);
+  const [editarTarefaSalvando, setEditarTarefaSalvando] = useState(false);
+  const [editarChamadosResultados, setEditarChamadosResultados] = useState<ChamadoLite[]>([]);
+  const [editarChamadosNextCursor, setEditarChamadosNextCursor] = useState<string | null>(null);
+  const [editarChamadosLoading, setEditarChamadosLoading] = useState(false);
+  const [editarSomenteChamadosAbertos, setEditarSomenteChamadosAbertos] = useState(true);
 
   const statusLabel = useMemo(
     () => Object.fromEntries(statusOptions.map((s) => [s.value, s.label])) as Record<StatusProjeto, string>,
@@ -181,29 +197,108 @@ export function ProjetosClient({
   }, [buscaChamado, somenteChamadosAbertos]);
 
   useEffect(() => {
-    const timers: number[] = [];
-    for (const [projetoId, texto] of Object.entries(buscaUsuario)) {
-      const q = texto.trim();
-      if (q.length < 2) {
-        setUsuariosResultados((prev) => ({ ...prev, [projetoId]: [] }));
-        continue;
-      }
-      const t = window.setTimeout(async () => {
-        setUsuariosLoading((prev) => ({ ...prev, [projetoId]: true }));
-        try {
-          const r = await fetch(`/api/integracao/glpi/usuarios/search?q=${encodeURIComponent(q)}&limit=20`);
-          if (!r.ok) return;
-          const data = (await r.json()) as { items?: GlpiUserLite[]; nextCursor?: string | null };
-          setUsuariosResultados((prev) => ({ ...prev, [projetoId]: data.items ?? [] }));
-          setUsuariosNextCursor((prev) => ({ ...prev, [projetoId]: data.nextCursor ?? null }));
-        } finally {
-          setUsuariosLoading((prev) => ({ ...prev, [projetoId]: false }));
-        }
-      }, 300);
-      timers.push(t);
+    if (!editarTarefaModal) {
+      setEditarChamadosResultados([]);
+      setEditarChamadosNextCursor(null);
+      return;
     }
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [buscaUsuario]);
+    const q = editarTarefaModal.buscaChamado.trim();
+    if (q.length < 2) {
+      setEditarChamadosResultados([]);
+      setEditarChamadosNextCursor(null);
+      return;
+    }
+    const t = window.setTimeout(async () => {
+      setEditarChamadosLoading(true);
+      try {
+        const r = await fetch(
+          `/api/integracao/glpi/chamados/search?q=${encodeURIComponent(q)}&somenteAbertos=${editarSomenteChamadosAbertos ? "1" : "0"}&limit=20`
+        );
+        if (!r.ok) return;
+        const data = (await r.json()) as { items?: ChamadoLite[]; nextCursor?: string | null };
+        setEditarChamadosResultados(data.items ?? []);
+        setEditarChamadosNextCursor(data.nextCursor ?? null);
+      } finally {
+        setEditarChamadosLoading(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reagir à busca de chamado no modal, não a cada campo do draft.
+  }, [editarTarefaModal?.buscaChamado, editarSomenteChamadosAbertos]);
+
+  const MAX_PAGINAS_USUARIOS_GLPI = 80;
+
+  useEffect(() => {
+    if (!podeEditar) return;
+    let cancelled = false;
+    (async () => {
+      setGlpiUsuariosCarregando(true);
+      const acc: GlpiUserLite[] = [];
+      let cursor = 0;
+      let mostrouErro = false;
+      try {
+        for (let pagina = 0; pagina < MAX_PAGINAS_USUARIOS_GLPI; pagina++) {
+          const r = await fetch(`/api/integracao/glpi/usuarios/search?q=&limit=200&cursor=${cursor}`);
+          if (!r.ok) {
+            if (!mostrouErro) {
+              mostrouErro = true;
+              const err = (await r.json().catch(() => ({}))) as { message?: string };
+              toast({
+                variant: "destructive",
+                title: "Não foi possível carregar usuários GLPI",
+                description: err.message ?? `Resposta HTTP ${r.status}`,
+              });
+            }
+            break;
+          }
+          const d = (await r.json()) as {
+            items?: GlpiUserLite[];
+            nextCursor?: string | null;
+            hasMore?: boolean;
+          };
+          const batch = d.items ?? [];
+          acc.push(...batch);
+          if (cancelled) break;
+          if (!d.hasMore || batch.length === 0) break;
+          const next = d.nextCursor != null ? Number(d.nextCursor) : cursor + batch.length;
+          if (!Number.isFinite(next) || next <= cursor) break;
+          cursor = next;
+        }
+        if (!cancelled && acc.length > 0) {
+          const map = new Map<number, GlpiUserLite>();
+          for (const u of acc) map.set(u.id, u);
+          setGlpiUsuariosLista([...map.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")));
+        }
+      } finally {
+        if (!cancelled) setGlpiUsuariosCarregando(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [podeEditar]);
+
+  const usuariosFiltradosLocal = useCallback((textoBusca: string) => {
+    const q = textoBusca.trim();
+    if (!glpiUsuariosLista.length) return [];
+    if (q.length < 1) return glpiUsuariosLista.slice(0, 150);
+    const n = q
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    const idDigitos = q.replace(/\D/g, "");
+    return glpiUsuariosLista
+      .filter((u) => {
+        const nomeN = u.name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+        if (nomeN.includes(n)) return true;
+        if (idDigitos.length > 0 && String(u.id).includes(idDigitos)) return true;
+        return false;
+      })
+      .slice(0, 150);
+  }, [glpiUsuariosLista]);
 
   const responsaveisOptions = useMemo(() => {
     const s = new Set<string>();
@@ -240,14 +335,17 @@ export function ProjetosClient({
   }, [projetos, filtroStatus, filtroResponsavel, filtroGlpi]);
 
   const kanban = useMemo(() => {
-    const out: Record<StatusProjeto, Array<{ projetoNome: string; tarefa: Tarefa }>> = {
+    const out: Record<
+      StatusProjeto,
+      Array<{ projetoId: string; projetoNome: string; tarefa: Tarefa }>
+    > = {
       [StatusProjeto.NAO_INICIADO]: [],
       [StatusProjeto.EM_ANDAMENTO]: [],
       [StatusProjeto.CONCLUIDO]: [],
       [StatusProjeto.BLOQUEADO]: [],
     };
     for (const p of projetosFiltrados) {
-      for (const t of p.tarefas) out[t.status].push({ projetoNome: p.nome, tarefa: t });
+      for (const t of p.tarefas) out[t.status].push({ projetoId: p.id, projetoNome: p.nome, tarefa: t });
     }
     return out;
   }, [projetosFiltrados]);
@@ -412,6 +510,95 @@ export function ProjetosClient({
     }
   }
 
+  function abrirEditarTarefa(projetoId: string, t: Tarefa) {
+    setEditarSomenteChamadosAbertos(true);
+    setEditarChamadosResultados([]);
+    setEditarChamadosNextCursor(null);
+    setEditarTarefaModal({
+      projetoId,
+      tarefa: t,
+      draft: {
+        titulo: t.titulo,
+        responsavelGlpiId: t.responsavelGlpiId ?? null,
+        responsavelGlpiNome: t.responsavelGlpiNome ?? "",
+        prazo: dateToInput(t.prazo),
+        status: t.status,
+        glpiChamadoId: t.glpiChamadoId ?? "",
+      },
+      descricao: t.descricao ?? "",
+      buscaUser: t.responsavelGlpiNome || t.responsavel || "",
+      buscaChamado: t.glpiChamado ? `#${t.glpiChamado.glpiTicketId} - ${t.glpiChamado.titulo}` : "",
+    });
+  }
+
+  async function salvarEditarTarefa() {
+    if (!editarTarefaModal || !podeEditar) return;
+    const { tarefa, draft, descricao } = editarTarefaModal;
+    const titulo = draft.titulo.trim();
+    if (titulo.length < 3) {
+      toast({
+        variant: "destructive",
+        title: "Título inválido",
+        description: "Use pelo menos 3 caracteres no título da tarefa.",
+      });
+      return;
+    }
+    if (draft.responsavelGlpiId != null && !draft.responsavelGlpiNome?.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Responsável GLPI",
+        description: "Escolha um usuário na lista de resultados abaixo da busca.",
+      });
+      return;
+    }
+    setEditarTarefaSalvando(true);
+    try {
+      const resp = await fetch(`/api/projetos/tarefas/${tarefa.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titulo,
+          descricao: descricao.trim() || null,
+          status: draft.status,
+          prazo: draft.prazo || null,
+          glpiChamadoId: draft.glpiChamadoId || null,
+          responsavelGlpiId: draft.responsavelGlpiId ?? null,
+          responsavelGlpiNome:
+            draft.responsavelGlpiId != null ? draft.responsavelGlpiNome?.trim() || null : null,
+        }),
+      });
+      if (resp.ok) {
+        await carregar();
+        toast({ variant: "success", title: "Tarefa atualizada" });
+        setEditarTarefaModal(null);
+      } else {
+        const err = (await resp.json().catch(() => ({}))) as { message?: string };
+        toast({ variant: "destructive", title: "Erro ao atualizar tarefa", description: err.message });
+      }
+    } finally {
+      setEditarTarefaSalvando(false);
+    }
+  }
+
+  async function carregarMaisChamadosEdit() {
+    const cursor = editarChamadosNextCursor;
+    if (!cursor || !editarTarefaModal) return;
+    const q = editarTarefaModal.buscaChamado.trim();
+    if (q.length < 2) return;
+    setEditarChamadosLoading(true);
+    try {
+      const r = await fetch(
+        `/api/integracao/glpi/chamados/search?q=${encodeURIComponent(q)}&somenteAbertos=${editarSomenteChamadosAbertos ? "1" : "0"}&limit=20&cursor=${encodeURIComponent(cursor)}`
+      );
+      if (!r.ok) return;
+      const data = (await r.json()) as { items?: ChamadoLite[]; nextCursor?: string | null };
+      setEditarChamadosResultados((prev) => [...prev, ...(data.items ?? [])]);
+      setEditarChamadosNextCursor(data.nextCursor ?? null);
+    } finally {
+      setEditarChamadosLoading(false);
+    }
+  }
+
   async function excluirTarefa(id: string) {
     if (!podeEditar) return;
     const resp = await fetch(`/api/projetos/tarefas/${id}`, { method: "DELETE" });
@@ -441,28 +628,6 @@ export function ProjetosClient({
       setChamadosNextCursor((prev) => ({ ...prev, [projetoId]: data.nextCursor ?? null }));
     } finally {
       setChamadosLoading((prev) => ({ ...prev, [projetoId]: false }));
-    }
-  }
-
-  async function carregarMaisUsuarios(projetoId: string) {
-    const cursor = usuariosNextCursor[projetoId];
-    if (!cursor) return;
-    const q = (buscaUsuario[projetoId] ?? "").trim();
-    if (q.length < 2) return;
-    setUsuariosLoading((prev) => ({ ...prev, [projetoId]: true }));
-    try {
-      const r = await fetch(
-        `/api/integracao/glpi/usuarios/search?q=${encodeURIComponent(q)}&limit=20&cursor=${encodeURIComponent(cursor)}`
-      );
-      if (!r.ok) return;
-      const data = (await r.json()) as { items?: GlpiUserLite[]; nextCursor?: string | null };
-      setUsuariosResultados((prev) => ({
-        ...prev,
-        [projetoId]: [...(prev[projetoId] ?? []), ...(data.items ?? [])],
-      }));
-      setUsuariosNextCursor((prev) => ({ ...prev, [projetoId]: data.nextCursor ?? null }));
-    } finally {
-      setUsuariosLoading((prev) => ({ ...prev, [projetoId]: false }));
     }
   }
 
@@ -629,7 +794,7 @@ export function ProjetosClient({
                         Nenhuma tarefa neste status com os filtros atuais.
                       </div>
                     ) : (
-                      kanban[coluna.value].map(({ projetoNome, tarefa }) => (
+                      kanban[coluna.value].map(({ projetoId, projetoNome, tarefa }) => (
                         <div
                           key={tarefa.id}
                           className="space-y-2 rounded-md border border-l-4 border-l-primary/40 bg-card p-2.5 shadow-sm"
@@ -666,6 +831,10 @@ export function ProjetosClient({
                                   ))}
                                 </SelectContent>
                               </Select>
+                              <Button size="sm" variant="outline" onClick={() => abrirEditarTarefa(projetoId, tarefa)}>
+                                <Pencil className="mr-1 h-3.5 w-3.5" />
+                                Editar
+                              </Button>
                               <Button size="sm" variant="ghost" onClick={() => excluirTarefa(tarefa.id)}>
                                 Remover
                               </Button>
@@ -794,9 +963,20 @@ export function ProjetosClient({
                                 {t.glpiChamado ? `#${t.glpiChamado.glpiTicketId} - ${t.glpiChamado.titulo}` : "Não vinculado"}
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={() => excluirTarefa(t.id)} disabled={!podeEditar}>
-                                  Remover
-                                </Button>
+                                <div className="flex justify-end gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => abrirEditarTarefa(projeto.id, t)}
+                                    disabled={!podeEditar}
+                                  >
+                                    <Pencil className="mr-1 h-3.5 w-3.5" />
+                                    Editar
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => excluirTarefa(t.id)} disabled={!podeEditar}>
+                                    Remover
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))
@@ -816,7 +996,7 @@ export function ProjetosClient({
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Responsável GLPI (opcional)</Label>
                           <Input
-                            placeholder="Digite para buscar e clique no nome"
+                            placeholder="Filtrar por nome ou ID; clique no usuário"
                             value={buscaUsuario[projeto.id] ?? ""}
                             onChange={(e) => setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: e.target.value }))}
                           />
@@ -836,34 +1016,46 @@ export function ProjetosClient({
                               </button>
                             </p>
                           ) : null}
-                          {(usuariosResultados[projeto.id]?.length ?? 0) > 0 ? (
-                            <div className="max-h-28 overflow-auto rounded border p-1 text-xs">
-                              {usuariosResultados[projeto.id].map((u) => (
-                                <button
-                                  key={u.id}
-                                  type="button"
-                                  className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
-                                  onClick={() => {
-                                    patchNovaTarefa(projeto.id, { responsavelGlpiId: u.id, responsavelGlpiNome: u.name });
-                                    setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: u.name }));
-                                  }}
-                                >
-                                  {u.name} (#{u.id})
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                          {usuariosNextCursor[projeto.id] ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              disabled={usuariosLoading[projeto.id]}
-                              onClick={() => carregarMaisUsuarios(projeto.id)}
-                            >
-                              {usuariosLoading[projeto.id] ? "Carregando..." : "Carregar mais usuários"}
-                            </Button>
-                          ) : null}
+                          {glpiUsuariosCarregando ? (
+                            <p className="text-xs text-muted-foreground">Carregando usuários do GLPI…</p>
+                          ) : glpiUsuariosLista.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">
+                              Nenhum usuário retornado. Verifique a integração GLPI e permissões.
+                            </p>
+                          ) : (
+                            <>
+                              {(buscaUsuario[projeto.id] ?? "").trim().length < 1 ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Até 150 na lista — digite para filtrar por nome ou ID.
+                                </p>
+                              ) : null}
+                              {(() => {
+                                const lista = usuariosFiltradosLocal(buscaUsuario[projeto.id] ?? "");
+                                return lista.length > 0 ? (
+                                  <div className="max-h-28 overflow-auto rounded border p-1 text-xs">
+                                    {lista.map((u) => (
+                                      <button
+                                        key={u.id}
+                                        type="button"
+                                        className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                                        onClick={() => {
+                                          patchNovaTarefa(projeto.id, {
+                                            responsavelGlpiId: u.id,
+                                            responsavelGlpiNome: u.name,
+                                          });
+                                          setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: u.name }));
+                                        }}
+                                      >
+                                        {u.name} (#{u.id})
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">Nenhum usuário corresponde à busca.</p>
+                                );
+                              })()}
+                            </>
+                          )}
                         </div>
 
                         <Input
@@ -965,6 +1157,269 @@ export function ProjetosClient({
           </CardContent>
         </Card>
       ) : null}
+
+      <Dialog
+        open={Boolean(editarTarefaModal)}
+        onOpenChange={(open) => {
+          if (!open) setEditarTarefaModal(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" showClose>
+          <DialogHeader>
+            <DialogTitle>Editar tarefa</DialogTitle>
+            <DialogDescription>
+              Projeto:{" "}
+              <span className="font-medium text-foreground">
+                {projetos.find((p) => p.id === editarTarefaModal?.projetoId)?.nome ?? "—"}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          {editarTarefaModal ? (
+            <div className="grid gap-3 py-1">
+              <div className="space-y-1">
+                <Label htmlFor="edit-tarefa-titulo">Título</Label>
+                <Input
+                  id="edit-tarefa-titulo"
+                  value={editarTarefaModal.draft.titulo}
+                  onChange={(e) =>
+                    setEditarTarefaModal((m) =>
+                      m ? { ...m, draft: { ...m.draft, titulo: e.target.value } } : null
+                    )
+                  }
+                  placeholder="Mínimo 3 caracteres"
+                  disabled={editarTarefaSalvando}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-tarefa-desc">Descrição (opcional)</Label>
+                <Textarea
+                  id="edit-tarefa-desc"
+                  value={editarTarefaModal.descricao}
+                  onChange={(e) =>
+                    setEditarTarefaModal((m) => (m ? { ...m, descricao: e.target.value } : null))
+                  }
+                  disabled={editarTarefaSalvando}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Responsável GLPI (opcional)</Label>
+                <Input
+                  placeholder="Filtrar por nome ou ID; clique no usuário"
+                  value={editarTarefaModal.buscaUser}
+                  onChange={(e) =>
+                    setEditarTarefaModal((m) => (m ? { ...m, buscaUser: e.target.value } : null))
+                  }
+                  disabled={editarTarefaSalvando}
+                />
+                {editarTarefaModal.draft.responsavelGlpiId != null ? (
+                  <p className="text-xs text-muted-foreground">
+                    Selecionado:{" "}
+                    <span className="font-medium text-foreground">
+                      {editarTarefaModal.draft.responsavelGlpiNome}
+                    </span>{" "}
+                    (#{editarTarefaModal.draft.responsavelGlpiId})
+                    <button
+                      type="button"
+                      className="ml-2 text-primary underline"
+                      disabled={editarTarefaSalvando}
+                      onClick={() =>
+                        setEditarTarefaModal((m) =>
+                          m
+                            ? {
+                                ...m,
+                                draft: { ...m.draft, responsavelGlpiId: null, responsavelGlpiNome: "" },
+                                buscaUser: "",
+                              }
+                            : null
+                        )
+                      }
+                    >
+                      Limpar
+                    </button>
+                  </p>
+                ) : null}
+                {glpiUsuariosCarregando ? (
+                  <p className="text-xs text-muted-foreground">Carregando usuários do GLPI…</p>
+                ) : glpiUsuariosLista.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum usuário retornado. Verifique a integração GLPI.
+                  </p>
+                ) : (
+                  <>
+                    {editarTarefaModal.buscaUser.trim().length < 1 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Até 150 na lista — digite para filtrar por nome ou ID.
+                      </p>
+                    ) : null}
+                    {(() => {
+                      const lista = usuariosFiltradosLocal(editarTarefaModal.buscaUser);
+                      return lista.length > 0 ? (
+                        <div className="max-h-32 overflow-auto rounded border p-1 text-xs">
+                          {lista.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                              disabled={editarTarefaSalvando}
+                              onClick={() =>
+                                setEditarTarefaModal((m) =>
+                                  m
+                                    ? {
+                                        ...m,
+                                        draft: {
+                                          ...m.draft,
+                                          responsavelGlpiId: u.id,
+                                          responsavelGlpiNome: u.name,
+                                        },
+                                        buscaUser: u.name,
+                                      }
+                                    : null
+                                )
+                              }
+                            >
+                              {u.name} (#{u.id})
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Nenhum usuário corresponde à busca.</p>
+                      );
+                    })()}
+                  </>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="edit-tarefa-prazo">Prazo</Label>
+                  <Input
+                    id="edit-tarefa-prazo"
+                    type="date"
+                    value={editarTarefaModal.draft.prazo}
+                    onChange={(e) =>
+                      setEditarTarefaModal((m) =>
+                        m ? { ...m, draft: { ...m.draft, prazo: e.target.value } } : null
+                      )
+                    }
+                    disabled={editarTarefaSalvando}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Status</Label>
+                  <Select
+                    value={editarTarefaModal.draft.status}
+                    onValueChange={(v) =>
+                      setEditarTarefaModal((m) =>
+                        m ? { ...m, draft: { ...m.draft, status: v as StatusProjeto } } : null
+                      )
+                    }
+                    disabled={editarTarefaSalvando}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Chamado GLPI (opcional)</Label>
+                <Input
+                  placeholder="Buscar chamado"
+                  value={editarTarefaModal.buscaChamado}
+                  onChange={(e) =>
+                    setEditarTarefaModal((m) => (m ? { ...m, buscaChamado: e.target.value } : null))
+                  }
+                  disabled={editarTarefaSalvando}
+                />
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={editarSomenteChamadosAbertos}
+                    disabled={editarTarefaSalvando}
+                    onChange={(e) => setEditarSomenteChamadosAbertos(e.target.checked)}
+                  />
+                  Buscar somente chamados abertos
+                </label>
+                {editarChamadosResultados.length > 0 ? (
+                  <div className="max-h-28 overflow-auto rounded border p-1 text-xs">
+                    <button
+                      type="button"
+                      className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                      disabled={editarTarefaSalvando}
+                      onClick={() =>
+                        setEditarTarefaModal((m) =>
+                          m ? { ...m, draft: { ...m.draft, glpiChamadoId: "" }, buscaChamado: "" } : null
+                        )
+                      }
+                    >
+                      Sem vínculo
+                    </button>
+                    {editarChamadosResultados.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                        disabled={editarTarefaSalvando}
+                        onClick={() =>
+                          setEditarTarefaModal((m) =>
+                            m
+                              ? {
+                                  ...m,
+                                  draft: { ...m.draft, glpiChamadoId: c.id },
+                                  buscaChamado: `#${c.glpiTicketId} - ${c.titulo}`,
+                                }
+                              : null
+                          )
+                        }
+                      >
+                        #{c.glpiTicketId} - {c.titulo}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {editarChamadosNextCursor ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={editarChamadosLoading || editarTarefaSalvando}
+                    onClick={() => void carregarMaisChamadosEdit()}
+                  >
+                    {editarChamadosLoading ? "Carregando..." : "Carregar mais chamados"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditarTarefaModal(null)}
+              disabled={editarTarefaSalvando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void salvarEditarTarefa()}
+              disabled={
+                editarTarefaSalvando || (editarTarefaModal?.draft.titulo.trim().length ?? 0) < 3
+              }
+            >
+              {editarTarefaSalvando ? "Salvando…" : "Salvar alterações"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={novoProjetoModalAberto} onOpenChange={setNovoProjetoModalAberto}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" showClose>

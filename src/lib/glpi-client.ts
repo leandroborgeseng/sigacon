@@ -769,7 +769,11 @@ export async function glpiSearchUsers(
 ): Promise<GlpiUserSearchResult> {
   const q = input?.q?.trim() ?? "";
   const offset = Math.max(0, input?.offset ?? 0);
-  const limit = Math.max(5, Math.min(50, input?.limit ?? 20));
+  /** Com termo: até 50 (search API). Sem termo: listagem completa paginada, até 200 por página. */
+  const limit =
+    q.length >= 2
+      ? Math.max(5, Math.min(50, input?.limit ?? 20))
+      : Math.max(20, Math.min(200, input?.limit ?? 200));
   const end = offset + limit - 1;
 
   if (q.length >= 2) {

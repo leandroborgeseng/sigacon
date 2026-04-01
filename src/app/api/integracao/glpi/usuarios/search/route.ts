@@ -80,7 +80,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") || "").trim();
-  const limit = Math.max(5, Math.min(50, Number(searchParams.get("limit") || "20")));
+  const limitParam = Number(searchParams.get("limit") || "20");
   const cursor = searchParams.get("cursor");
   const offsetParam = cursor ?? searchParams.get("offset") ?? "0";
   const offset = Math.max(0, Number(offsetParam));
@@ -90,32 +90,50 @@ export async function GET(request: Request) {
     .toLowerCase()
     .trim();
 
-  if (q.length >= 2) {
-    try {
-      const { items: glpiItems, hasMore } = await glpiWithSession((ctx) =>
-        glpiSearchUsers(ctx, { q, offset, limit })
+  /** Sempre tenta GLPI primeiro: lista paginada (q vazio) ou busca (q com 2+ caracteres). */
+  try {
+    const effectiveQ = q.length >= 2 ? q : "";
+    const pageLimit =
+      q.length >= 2
+        ? Math.max(5, Math.min(50, Number.isFinite(limitParam) ? limitParam : 20))
+        : Math.max(20, Math.min(200, Number.isFinite(limitParam) ? limitParam : 200));
+
+    const { items: glpiItems, hasMore } = await glpiWithSession((ctx) =>
+      glpiSearchUsers(ctx, { q: effectiveQ, offset, limit: pageLimit })
+    );
+
+    void upsertUsuariosGlpiCache(glpiItems).catch(() => {});
+
+    let out = glpiItems;
+    if (q.length === 1) {
+      const t = q.toLowerCase();
+      out = glpiItems.filter(
+        (u) =>
+          (u.name && u.name.toLowerCase().includes(t)) ||
+          (u.fullName && u.fullName.toLowerCase().includes(t)) ||
+          (u.login && u.login.toLowerCase().includes(t)) ||
+          (u.email && u.email.toLowerCase().includes(t))
       );
-      if (glpiItems.length > 0) {
-        void upsertUsuariosGlpiCache(glpiItems).catch(() => {});
-        return NextResponse.json({
-          items: glpiItems.map((u) => ({
-            id: u.id,
-            name: (u.fullName && u.fullName.trim()) || u.name,
-          })),
-          offset,
-          limit,
-          hasMore,
-          totalEstimado: hasMore ? offset + glpiItems.length + 1 : offset + glpiItems.length,
-          nextCursor: hasMore ? String(offset + glpiItems.length) : null,
-        });
-      }
-    } catch {
-      /* GLPI indisponível ou não configurado: segue para cache local */
     }
+
+    return NextResponse.json({
+      items: out.map((u) => ({
+        id: u.id,
+        name: (u.fullName && u.fullName.trim()) || u.name,
+      })),
+      offset,
+      limit: pageLimit,
+      hasMore,
+      totalEstimado: hasMore ? offset + glpiItems.length + 1 : offset + glpiItems.length,
+      nextCursor: hasMore ? String(offset + glpiItems.length) : null,
+    });
+  } catch {
+    /* GLPI indisponível: cache local */
   }
 
   try {
     const where = buscaNoCacheWhere(q, termos);
+    const limit = Math.max(5, Math.min(200, Number(searchParams.get("limit") || "20")));
     const [items, total] = await Promise.all([
       prisma.glpiUsuarioCache.findMany({
         where,
