@@ -119,6 +119,13 @@ type EditarTarefaModalState = {
   buscaChamado: string;
 };
 
+type NovaTarefaModalState = {
+  projetoId: string;
+  draft: NovaTarefaDraft;
+  buscaUser: string;
+  buscaChamado: string;
+};
+
 function dateToInput(value: string | null | undefined): string {
   if (!value) return "";
   return new Date(value).toISOString().slice(0, 10);
@@ -137,19 +144,12 @@ export function ProjetosClient({
   const [erro, setErro] = useState<string | null>(null);
   const [novoProjetoModalAberto, setNovoProjetoModalAberto] = useState(false);
   const [novoProjeto, setNovoProjeto] = useState<NovoProjetoDraft>({ ...NOVO_PROJETO_VAZIO });
-  const [novaTarefa, setNovaTarefa] = useState<Record<string, NovaTarefaDraft>>({});
-  const patchNovaTarefa = useCallback((projetoId: string, partial: Partial<NovaTarefaDraft>) => {
-    setNovaTarefa((prev) => {
-      const cur = prev[projetoId] ?? { ...EMPTY_NOVA_TAREFA };
-      return { ...prev, [projetoId]: { ...cur, ...partial } };
-    });
-  }, []);
-  const [buscaChamado, setBuscaChamado] = useState<Record<string, string>>({});
-  const [chamadosResultados, setChamadosResultados] = useState<Record<string, ChamadoLite[]>>({});
-  const [chamadosNextCursor, setChamadosNextCursor] = useState<Record<string, string | null>>({});
-  const [chamadosLoading, setChamadosLoading] = useState<Record<string, boolean>>({});
-  const [somenteChamadosAbertos, setSomenteChamadosAbertos] = useState<Record<string, boolean>>({});
-  const [buscaUsuario, setBuscaUsuario] = useState<Record<string, string>>({});
+  const [novaTarefaModal, setNovaTarefaModal] = useState<NovaTarefaModalState | null>(null);
+  const [novaTarefaEnviando, setNovaTarefaEnviando] = useState(false);
+  const [novaTarefaChamadosResultados, setNovaTarefaChamadosResultados] = useState<ChamadoLite[]>([]);
+  const [novaTarefaChamadosNextCursor, setNovaTarefaChamadosNextCursor] = useState<string | null>(null);
+  const [novaTarefaChamadosLoading, setNovaTarefaChamadosLoading] = useState(false);
+  const [novaTarefaSomenteChamadosAbertos, setNovaTarefaSomenteChamadosAbertos] = useState(true);
   /** Todos os usuários GLPI (carregados em páginas ao abrir a tela, se pode editar). */
   const [glpiUsuariosLista, setGlpiUsuariosLista] = useState<GlpiUserLite[]>([]);
   const [glpiUsuariosCarregando, setGlpiUsuariosCarregando] = useState(false);
@@ -171,30 +171,34 @@ export function ProjetosClient({
   );
 
   useEffect(() => {
-    const timers: number[] = [];
-    for (const [projetoId, texto] of Object.entries(buscaChamado)) {
-      const q = texto.trim();
-      if (q.length < 2) {
-        setChamadosResultados((prev) => ({ ...prev, [projetoId]: [] }));
-        continue;
-      }
-      const t = window.setTimeout(async () => {
-        setChamadosLoading((prev) => ({ ...prev, [projetoId]: true }));
-        try {
-          const somenteAbertos = somenteChamadosAbertos[projetoId] !== false;
-          const r = await fetch(`/api/integracao/glpi/chamados/search?q=${encodeURIComponent(q)}&somenteAbertos=${somenteAbertos ? "1" : "0"}&limit=20`);
-          if (!r.ok) return;
-          const data = (await r.json()) as { items?: ChamadoLite[]; nextCursor?: string | null };
-          setChamadosResultados((prev) => ({ ...prev, [projetoId]: data.items ?? [] }));
-          setChamadosNextCursor((prev) => ({ ...prev, [projetoId]: data.nextCursor ?? null }));
-        } finally {
-          setChamadosLoading((prev) => ({ ...prev, [projetoId]: false }));
-        }
-      }, 300);
-      timers.push(t);
+    if (!novaTarefaModal) {
+      setNovaTarefaChamadosResultados([]);
+      setNovaTarefaChamadosNextCursor(null);
+      return;
     }
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [buscaChamado, somenteChamadosAbertos]);
+    const q = novaTarefaModal.buscaChamado.trim();
+    if (q.length < 2) {
+      setNovaTarefaChamadosResultados([]);
+      setNovaTarefaChamadosNextCursor(null);
+      return;
+    }
+    const t = window.setTimeout(async () => {
+      setNovaTarefaChamadosLoading(true);
+      try {
+        const r = await fetch(
+          `/api/integracao/glpi/chamados/search?q=${encodeURIComponent(q)}&somenteAbertos=${novaTarefaSomenteChamadosAbertos ? "1" : "0"}&limit=20`
+        );
+        if (!r.ok) return;
+        const data = (await r.json()) as { items?: ChamadoLite[]; nextCursor?: string | null };
+        setNovaTarefaChamadosResultados(data.items ?? []);
+        setNovaTarefaChamadosNextCursor(data.nextCursor ?? null);
+      } finally {
+        setNovaTarefaChamadosLoading(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reagir à busca no modal de nova tarefa.
+  }, [novaTarefaModal?.buscaChamado, novaTarefaSomenteChamadosAbertos]);
 
   useEffect(() => {
     if (!editarTarefaModal) {
@@ -443,9 +447,21 @@ export function ProjetosClient({
     }
   }
 
-  async function criarTarefa(projetoId: string) {
-    if (!podeEditar) return;
-    const draft = novaTarefa[projetoId] ?? { ...EMPTY_NOVA_TAREFA };
+  function abrirNovaTarefaModal(projetoId: string) {
+    setNovaTarefaSomenteChamadosAbertos(true);
+    setNovaTarefaChamadosResultados([]);
+    setNovaTarefaChamadosNextCursor(null);
+    setNovaTarefaModal({
+      projetoId,
+      draft: { ...EMPTY_NOVA_TAREFA },
+      buscaUser: "",
+      buscaChamado: "",
+    });
+  }
+
+  async function criarTarefaDesdeModal() {
+    if (!novaTarefaModal || !podeEditar) return;
+    const { projetoId, draft } = novaTarefaModal;
     const titulo = draft.titulo.trim();
     if (titulo.length < 3) {
       toast({
@@ -464,34 +480,33 @@ export function ProjetosClient({
       return;
     }
 
-    const resp = await fetch("/api/projetos/tarefas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projetoId,
-        titulo,
-        responsavelGlpiId: draft.responsavelGlpiId ?? null,
-        responsavelGlpiNome: draft.responsavelGlpiNome?.trim() || null,
-        responsavel: null,
-        prazo: draft.prazo || null,
-        status: draft.status,
-        glpiChamadoId: draft.glpiChamadoId || null,
-      }),
-    });
-    if (!resp.ok) {
-      const err = (await resp.json().catch(() => ({}))) as { message?: string };
-      toast({ variant: "destructive", title: "Erro ao criar tarefa", description: err.message });
-      return;
+    setNovaTarefaEnviando(true);
+    try {
+      const resp = await fetch("/api/projetos/tarefas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projetoId,
+          titulo,
+          responsavelGlpiId: draft.responsavelGlpiId ?? null,
+          responsavelGlpiNome: draft.responsavelGlpiNome?.trim() || null,
+          responsavel: null,
+          prazo: draft.prazo || null,
+          status: draft.status,
+          glpiChamadoId: draft.glpiChamadoId || null,
+        }),
+      });
+      if (!resp.ok) {
+        const err = (await resp.json().catch(() => ({}))) as { message?: string };
+        toast({ variant: "destructive", title: "Erro ao criar tarefa", description: err.message });
+        return;
+      }
+      setNovaTarefaModal(null);
+      await carregar();
+      toast({ variant: "success", title: "Tarefa adicionada" });
+    } finally {
+      setNovaTarefaEnviando(false);
     }
-
-    setNovaTarefa((prev) => ({
-      ...prev,
-      [projetoId]: { ...EMPTY_NOVA_TAREFA },
-    }));
-    setBuscaUsuario((prev) => ({ ...prev, [projetoId]: "" }));
-    setBuscaChamado((prev) => ({ ...prev, [projetoId]: "" }));
-    await carregar();
-    toast({ variant: "success", title: "Tarefa adicionada" });
   }
 
   async function atualizarTarefa(id: string, patch: Partial<Tarefa>) {
@@ -608,26 +623,22 @@ export function ProjetosClient({
     }
   }
 
-  async function carregarMaisChamados(projetoId: string) {
-    const cursor = chamadosNextCursor[projetoId];
-    if (!cursor) return;
-    const q = (buscaChamado[projetoId] ?? "").trim();
+  async function carregarMaisChamadosNovaTarefa() {
+    const cursor = novaTarefaChamadosNextCursor;
+    if (!cursor || !novaTarefaModal) return;
+    const q = novaTarefaModal.buscaChamado.trim();
     if (q.length < 2) return;
-    setChamadosLoading((prev) => ({ ...prev, [projetoId]: true }));
-    const somenteAbertos = somenteChamadosAbertos[projetoId] !== false;
+    setNovaTarefaChamadosLoading(true);
     try {
       const r = await fetch(
-        `/api/integracao/glpi/chamados/search?q=${encodeURIComponent(q)}&somenteAbertos=${somenteAbertos ? "1" : "0"}&limit=20&cursor=${encodeURIComponent(cursor)}`
+        `/api/integracao/glpi/chamados/search?q=${encodeURIComponent(q)}&somenteAbertos=${novaTarefaSomenteChamadosAbertos ? "1" : "0"}&limit=20&cursor=${encodeURIComponent(cursor)}`
       );
       if (!r.ok) return;
       const data = (await r.json()) as { items?: ChamadoLite[]; nextCursor?: string | null };
-      setChamadosResultados((prev) => ({
-        ...prev,
-        [projetoId]: [...(prev[projetoId] ?? []), ...(data.items ?? [])],
-      }));
-      setChamadosNextCursor((prev) => ({ ...prev, [projetoId]: data.nextCursor ?? null }));
+      setNovaTarefaChamadosResultados((prev) => [...prev, ...(data.items ?? [])]);
+      setNovaTarefaChamadosNextCursor(data.nextCursor ?? null);
     } finally {
-      setChamadosLoading((prev) => ({ ...prev, [projetoId]: false }));
+      setNovaTarefaChamadosLoading(false);
     }
   }
 
@@ -835,6 +846,15 @@ export function ProjetosClient({
                                 <Pencil className="mr-1 h-3.5 w-3.5" />
                                 Editar
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                title="Nova tarefa neste projeto"
+                                onClick={() => abrirNovaTarefaModal(projetoId)}
+                              >
+                                <Plus className="mr-1 h-3 w-3" />
+                                Nova
+                              </Button>
                               <Button size="sm" variant="ghost" onClick={() => excluirTarefa(tarefa.id)}>
                                 Remover
                               </Button>
@@ -870,8 +890,6 @@ export function ProjetosClient({
               />
             ) : null}
             {projetosFiltrados.map((projeto) => {
-              const draft = novaTarefa[projeto.id] ?? { ...EMPTY_NOVA_TAREFA };
-              const tituloTarefaOk = draft.titulo.trim().length >= 3;
               const tarefasTotaisNoProjeto = projetos.find((p) => p.id === projeto.id)?.tarefas.length ?? 0;
               const mensagemTabelaVazia =
                 projeto.tarefas.length === 0
@@ -985,168 +1003,10 @@ export function ProjetosClient({
                     </Table>
 
                     {podeEditar ? (
-                      <div className="grid gap-2 md:grid-cols-6">
-                        <Input
-                          className="md:col-span-2"
-                          placeholder="Título da tarefa (mín. 3 caracteres)"
-                          value={draft.titulo}
-                          onChange={(e) => patchNovaTarefa(projeto.id, { titulo: e.target.value })}
-                        />
-
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Responsável GLPI (opcional)</Label>
-                          <Input
-                            placeholder="Filtrar por nome ou ID; clique no usuário"
-                            value={buscaUsuario[projeto.id] ?? ""}
-                            onChange={(e) => setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: e.target.value }))}
-                          />
-                          {draft.responsavelGlpiId != null ? (
-                            <p className="text-xs text-muted-foreground">
-                              Selecionado: <span className="font-medium text-foreground">{draft.responsavelGlpiNome}</span> (#
-                              {draft.responsavelGlpiId})
-                              <button
-                                type="button"
-                                className="ml-2 text-primary underline"
-                                onClick={() => {
-                                  patchNovaTarefa(projeto.id, { responsavelGlpiId: null, responsavelGlpiNome: "" });
-                                  setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: "" }));
-                                }}
-                              >
-                                Limpar
-                              </button>
-                            </p>
-                          ) : null}
-                          {glpiUsuariosCarregando ? (
-                            <p className="text-xs text-muted-foreground">Carregando usuários do GLPI…</p>
-                          ) : glpiUsuariosLista.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              Nenhum usuário retornado. Verifique a integração GLPI e permissões.
-                            </p>
-                          ) : (
-                            <>
-                              {(buscaUsuario[projeto.id] ?? "").trim().length < 1 ? (
-                                <p className="text-xs text-muted-foreground">
-                                  Até 150 na lista — digite para filtrar por nome ou ID.
-                                </p>
-                              ) : null}
-                              {(() => {
-                                const lista = usuariosFiltradosLocal(buscaUsuario[projeto.id] ?? "");
-                                return lista.length > 0 ? (
-                                  <div className="max-h-28 overflow-auto rounded border p-1 text-xs">
-                                    {lista.map((u) => (
-                                      <button
-                                        key={u.id}
-                                        type="button"
-                                        className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
-                                        onClick={() => {
-                                          patchNovaTarefa(projeto.id, {
-                                            responsavelGlpiId: u.id,
-                                            responsavelGlpiNome: u.name,
-                                          });
-                                          setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: u.name }));
-                                        }}
-                                      >
-                                        {u.name} (#{u.id})
-                                      </button>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">Nenhum usuário corresponde à busca.</p>
-                                );
-                              })()}
-                            </>
-                          )}
-                        </div>
-
-                        <Input
-                          type="date"
-                          value={draft.prazo}
-                          onChange={(e) => patchNovaTarefa(projeto.id, { prazo: e.target.value })}
-                        />
-
-                        <Select
-                          value={draft.status}
-                          onValueChange={(v) => patchNovaTarefa(projeto.id, { status: v as StatusProjeto })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {statusOptions.map((s) => (
-                              <SelectItem key={s.value} value={s.value}>
-                                {s.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        <div className="space-y-1">
-                          <Input
-                            placeholder="Buscar chamado GLPI (opcional)"
-                            value={buscaChamado[projeto.id] ?? ""}
-                            onChange={(e) => setBuscaChamado((prev) => ({ ...prev, [projeto.id]: e.target.value }))}
-                          />
-                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <input
-                              type="checkbox"
-                              checked={somenteChamadosAbertos[projeto.id] !== false}
-                              onChange={(e) =>
-                                setSomenteChamadosAbertos((prev) => ({
-                                  ...prev,
-                                  [projeto.id]: e.target.checked,
-                                }))
-                              }
-                            />
-                            Buscar somente chamados abertos
-                          </label>
-                          {(chamadosResultados[projeto.id]?.length ?? 0) > 0 ? (
-                            <div className="max-h-28 overflow-auto rounded border p-1 text-xs">
-                              <button
-                                type="button"
-                                className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
-                                onClick={() => patchNovaTarefa(projeto.id, { glpiChamadoId: "" })}
-                              >
-                                Sem vínculo
-                              </button>
-                              {chamadosResultados[projeto.id].map((c) => (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
-                                  onClick={() => {
-                                    patchNovaTarefa(projeto.id, { glpiChamadoId: c.id });
-                                    setBuscaChamado((prev) => ({ ...prev, [projeto.id]: `#${c.glpiTicketId} - ${c.titulo}` }));
-                                  }}
-                                >
-                                  #{c.glpiTicketId} - {c.titulo}
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                          {chamadosNextCursor[projeto.id] ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              disabled={chamadosLoading[projeto.id]}
-                              onClick={() => carregarMaisChamados(projeto.id)}
-                            >
-                              {chamadosLoading[projeto.id] ? "Carregando..." : "Carregar mais chamados"}
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <Button
-                          type="button"
-                          onClick={() => criarTarefa(projeto.id)}
-                          disabled={!tituloTarefaOk}
-                          title={
-                            !tituloTarefaOk
-                              ? "Informe um título com pelo menos 3 caracteres (responsável GLPI é opcional)"
-                              : undefined
-                          }
-                        >
-                          Adicionar tarefa
+                      <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                        <Button type="button" variant="secondary" onClick={() => abrirNovaTarefaModal(projeto.id)}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Nova tarefa
                         </Button>
                       </div>
                     ) : null}
@@ -1157,6 +1017,257 @@ export function ProjetosClient({
           </CardContent>
         </Card>
       ) : null}
+
+      <Dialog
+        open={Boolean(novaTarefaModal)}
+        onOpenChange={(open) => {
+          if (!open) setNovaTarefaModal(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" showClose>
+          <DialogHeader>
+            <DialogTitle>Nova tarefa</DialogTitle>
+            <DialogDescription>
+              Projeto:{" "}
+              <span className="font-medium text-foreground">
+                {projetos.find((p) => p.id === novaTarefaModal?.projetoId)?.nome ?? "—"}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          {novaTarefaModal ? (
+            <div className="grid gap-3 py-1">
+              <div className="space-y-1">
+                <Label htmlFor="nova-tarefa-titulo">Título</Label>
+                <Input
+                  id="nova-tarefa-titulo"
+                  value={novaTarefaModal.draft.titulo}
+                  onChange={(e) =>
+                    setNovaTarefaModal((m) =>
+                      m ? { ...m, draft: { ...m.draft, titulo: e.target.value } } : null
+                    )
+                  }
+                  placeholder="Mínimo 3 caracteres"
+                  disabled={novaTarefaEnviando}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Responsável GLPI (opcional)</Label>
+                <Input
+                  placeholder="Filtrar por nome ou ID; clique no usuário"
+                  value={novaTarefaModal.buscaUser}
+                  onChange={(e) =>
+                    setNovaTarefaModal((m) => (m ? { ...m, buscaUser: e.target.value } : null))
+                  }
+                  disabled={novaTarefaEnviando}
+                />
+                {novaTarefaModal.draft.responsavelGlpiId != null ? (
+                  <p className="text-xs text-muted-foreground">
+                    Selecionado:{" "}
+                    <span className="font-medium text-foreground">
+                      {novaTarefaModal.draft.responsavelGlpiNome}
+                    </span>{" "}
+                    (#{novaTarefaModal.draft.responsavelGlpiId})
+                    <button
+                      type="button"
+                      className="ml-2 text-primary underline"
+                      disabled={novaTarefaEnviando}
+                      onClick={() =>
+                        setNovaTarefaModal((m) =>
+                          m
+                            ? {
+                                ...m,
+                                draft: { ...m.draft, responsavelGlpiId: null, responsavelGlpiNome: "" },
+                                buscaUser: "",
+                              }
+                            : null
+                        )
+                      }
+                    >
+                      Limpar
+                    </button>
+                  </p>
+                ) : null}
+                {glpiUsuariosCarregando ? (
+                  <p className="text-xs text-muted-foreground">Carregando usuários do GLPI…</p>
+                ) : glpiUsuariosLista.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhum usuário retornado. Verifique a integração GLPI.
+                  </p>
+                ) : (
+                  <>
+                    {novaTarefaModal.buscaUser.trim().length < 1 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Até 150 na lista — digite para filtrar por nome ou ID.
+                      </p>
+                    ) : null}
+                    {(() => {
+                      const lista = usuariosFiltradosLocal(novaTarefaModal.buscaUser);
+                      return lista.length > 0 ? (
+                        <div className="max-h-32 overflow-auto rounded border p-1 text-xs">
+                          {lista.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                              disabled={novaTarefaEnviando}
+                              onClick={() =>
+                                setNovaTarefaModal((m) =>
+                                  m
+                                    ? {
+                                        ...m,
+                                        draft: {
+                                          ...m.draft,
+                                          responsavelGlpiId: u.id,
+                                          responsavelGlpiNome: u.name,
+                                        },
+                                        buscaUser: u.name,
+                                      }
+                                    : null
+                                )
+                              }
+                            >
+                              {u.name} (#{u.id})
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Nenhum usuário corresponde à busca.</p>
+                      );
+                    })()}
+                  </>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="nova-tarefa-prazo">Prazo</Label>
+                  <Input
+                    id="nova-tarefa-prazo"
+                    type="date"
+                    value={novaTarefaModal.draft.prazo}
+                    onChange={(e) =>
+                      setNovaTarefaModal((m) =>
+                        m ? { ...m, draft: { ...m.draft, prazo: e.target.value } } : null
+                      )
+                    }
+                    disabled={novaTarefaEnviando}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Status</Label>
+                  <Select
+                    value={novaTarefaModal.draft.status}
+                    onValueChange={(v) =>
+                      setNovaTarefaModal((m) =>
+                        m ? { ...m, draft: { ...m.draft, status: v as StatusProjeto } } : null
+                      )
+                    }
+                    disabled={novaTarefaEnviando}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Chamado GLPI (opcional)</Label>
+                <Input
+                  placeholder="Buscar chamado"
+                  value={novaTarefaModal.buscaChamado}
+                  onChange={(e) =>
+                    setNovaTarefaModal((m) => (m ? { ...m, buscaChamado: e.target.value } : null))
+                  }
+                  disabled={novaTarefaEnviando}
+                />
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={novaTarefaSomenteChamadosAbertos}
+                    disabled={novaTarefaEnviando}
+                    onChange={(e) => setNovaTarefaSomenteChamadosAbertos(e.target.checked)}
+                  />
+                  Buscar somente chamados abertos
+                </label>
+                {novaTarefaChamadosResultados.length > 0 ? (
+                  <div className="max-h-28 overflow-auto rounded border p-1 text-xs">
+                    <button
+                      type="button"
+                      className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                      disabled={novaTarefaEnviando}
+                      onClick={() =>
+                        setNovaTarefaModal((m) =>
+                          m ? { ...m, draft: { ...m.draft, glpiChamadoId: "" }, buscaChamado: "" } : null
+                        )
+                      }
+                    >
+                      Sem vínculo
+                    </button>
+                    {novaTarefaChamadosResultados.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
+                        disabled={novaTarefaEnviando}
+                        onClick={() =>
+                          setNovaTarefaModal((m) =>
+                            m
+                              ? {
+                                  ...m,
+                                  draft: { ...m.draft, glpiChamadoId: c.id },
+                                  buscaChamado: `#${c.glpiTicketId} - ${c.titulo}`,
+                                }
+                              : null
+                          )
+                        }
+                      >
+                        #{c.glpiTicketId} - {c.titulo}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {novaTarefaChamadosNextCursor ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={novaTarefaChamadosLoading || novaTarefaEnviando}
+                    onClick={() => void carregarMaisChamadosNovaTarefa()}
+                  >
+                    {novaTarefaChamadosLoading ? "Carregando..." : "Carregar mais chamados"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setNovaTarefaModal(null)}
+              disabled={novaTarefaEnviando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void criarTarefaDesdeModal()}
+              disabled={
+                novaTarefaEnviando || (novaTarefaModal?.draft.titulo.trim().length ?? 0) < 3
+              }
+            >
+              {novaTarefaEnviando ? "Criando…" : "Criar tarefa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(editarTarefaModal)}
@@ -1426,7 +1537,7 @@ export function ProjetosClient({
           <DialogHeader>
             <DialogTitle>Novo projeto</DialogTitle>
             <DialogDescription className="sr-only">
-              Preencha nome, descrição, status e prazos. Depois de criar, adicione tarefas em cada projeto na visualização em tabela.
+              Preencha nome, descrição, status e prazos. Depois de criar, use Nova tarefa em cada projeto para abrir o formulário.
             </DialogDescription>
           </DialogHeader>
           <form
