@@ -93,6 +93,15 @@ type NovaTarefaDraft = {
   glpiChamadoId: string;
 };
 
+const EMPTY_NOVA_TAREFA: NovaTarefaDraft = {
+  titulo: "",
+  responsavelGlpiId: null,
+  responsavelGlpiNome: "",
+  prazo: "",
+  status: StatusProjeto.NAO_INICIADO,
+  glpiChamadoId: "",
+};
+
 const NOVO_PROJETO_VAZIO: NovoProjetoDraft = {
   nome: "",
   descricao: "",
@@ -120,6 +129,12 @@ export function ProjetosClient({
   const [novoProjetoModalAberto, setNovoProjetoModalAberto] = useState(false);
   const [novoProjeto, setNovoProjeto] = useState<NovoProjetoDraft>({ ...NOVO_PROJETO_VAZIO });
   const [novaTarefa, setNovaTarefa] = useState<Record<string, NovaTarefaDraft>>({});
+  const patchNovaTarefa = useCallback((projetoId: string, partial: Partial<NovaTarefaDraft>) => {
+    setNovaTarefa((prev) => {
+      const cur = prev[projetoId] ?? { ...EMPTY_NOVA_TAREFA };
+      return { ...prev, [projetoId]: { ...cur, ...partial } };
+    });
+  }, []);
   const [buscaChamado, setBuscaChamado] = useState<Record<string, string>>({});
   const [chamadosResultados, setChamadosResultados] = useState<Record<string, ChamadoLite[]>>({});
   const [chamadosNextCursor, setChamadosNextCursor] = useState<Record<string, string | null>>({});
@@ -332,17 +347,33 @@ export function ProjetosClient({
 
   async function criarTarefa(projetoId: string) {
     if (!podeEditar) return;
-    const draft = novaTarefa[projetoId];
-    if (!draft?.titulo?.trim() || !draft.responsavelGlpiId || !draft.responsavelGlpiNome) return;
+    const draft = novaTarefa[projetoId] ?? { ...EMPTY_NOVA_TAREFA };
+    const titulo = draft.titulo.trim();
+    if (titulo.length < 3) {
+      toast({
+        variant: "destructive",
+        title: "Título inválido",
+        description: "Use pelo menos 3 caracteres no título da tarefa.",
+      });
+      return;
+    }
+    if (draft.responsavelGlpiId != null && !draft.responsavelGlpiNome?.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Responsável GLPI",
+        description: "Escolha um usuário na lista de resultados abaixo da busca.",
+      });
+      return;
+    }
 
     const resp = await fetch("/api/projetos/tarefas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projetoId,
-        titulo: draft.titulo,
-        responsavelGlpiId: draft.responsavelGlpiId,
-        responsavelGlpiNome: draft.responsavelGlpiNome,
+        titulo,
+        responsavelGlpiId: draft.responsavelGlpiId ?? null,
+        responsavelGlpiNome: draft.responsavelGlpiNome?.trim() || null,
         responsavel: null,
         prazo: draft.prazo || null,
         status: draft.status,
@@ -357,14 +388,7 @@ export function ProjetosClient({
 
     setNovaTarefa((prev) => ({
       ...prev,
-      [projetoId]: {
-        titulo: "",
-        responsavelGlpiId: null,
-        responsavelGlpiNome: "",
-        prazo: "",
-        status: StatusProjeto.NAO_INICIADO,
-        glpiChamadoId: "",
-      },
+      [projetoId]: { ...EMPTY_NOVA_TAREFA },
     }));
     setBuscaUsuario((prev) => ({ ...prev, [projetoId]: "" }));
     setBuscaChamado((prev) => ({ ...prev, [projetoId]: "" }));
@@ -677,15 +701,8 @@ export function ProjetosClient({
               />
             ) : null}
             {projetosFiltrados.map((projeto) => {
-              const draft =
-                novaTarefa[projeto.id] ?? {
-                  titulo: "",
-                  responsavelGlpiId: null,
-                  responsavelGlpiNome: "",
-                  prazo: "",
-                  status: StatusProjeto.NAO_INICIADO,
-                  glpiChamadoId: "",
-                };
+              const draft = novaTarefa[projeto.id] ?? { ...EMPTY_NOVA_TAREFA };
+              const tituloTarefaOk = draft.titulo.trim().length >= 3;
               const tarefasTotaisNoProjeto = projetos.find((p) => p.id === projeto.id)?.tarefas.length ?? 0;
               const mensagemTabelaVazia =
                 projeto.tarefas.length === 0
@@ -791,17 +808,34 @@ export function ProjetosClient({
                       <div className="grid gap-2 md:grid-cols-6">
                         <Input
                           className="md:col-span-2"
-                          placeholder="Título da tarefa"
+                          placeholder="Título da tarefa (mín. 3 caracteres)"
                           value={draft.titulo}
-                          onChange={(e) => setNovaTarefa((prev) => ({ ...prev, [projeto.id]: { ...draft, titulo: e.target.value } }))}
+                          onChange={(e) => patchNovaTarefa(projeto.id, { titulo: e.target.value })}
                         />
 
                         <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Responsável GLPI (opcional)</Label>
                           <Input
-                            placeholder="Buscar responsável GLPI"
+                            placeholder="Digite para buscar e clique no nome"
                             value={buscaUsuario[projeto.id] ?? ""}
                             onChange={(e) => setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: e.target.value }))}
                           />
+                          {draft.responsavelGlpiId != null ? (
+                            <p className="text-xs text-muted-foreground">
+                              Selecionado: <span className="font-medium text-foreground">{draft.responsavelGlpiNome}</span> (#
+                              {draft.responsavelGlpiId})
+                              <button
+                                type="button"
+                                className="ml-2 text-primary underline"
+                                onClick={() => {
+                                  patchNovaTarefa(projeto.id, { responsavelGlpiId: null, responsavelGlpiNome: "" });
+                                  setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: "" }));
+                                }}
+                              >
+                                Limpar
+                              </button>
+                            </p>
+                          ) : null}
                           {(usuariosResultados[projeto.id]?.length ?? 0) > 0 ? (
                             <div className="max-h-28 overflow-auto rounded border p-1 text-xs">
                               {usuariosResultados[projeto.id].map((u) => (
@@ -810,10 +844,7 @@ export function ProjetosClient({
                                   type="button"
                                   className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
                                   onClick={() => {
-                                    setNovaTarefa((prev) => ({
-                                      ...prev,
-                                      [projeto.id]: { ...draft, responsavelGlpiId: u.id, responsavelGlpiNome: u.name },
-                                    }));
+                                    patchNovaTarefa(projeto.id, { responsavelGlpiId: u.id, responsavelGlpiNome: u.name });
                                     setBuscaUsuario((prev) => ({ ...prev, [projeto.id]: u.name }));
                                   }}
                                 >
@@ -838,12 +869,12 @@ export function ProjetosClient({
                         <Input
                           type="date"
                           value={draft.prazo}
-                          onChange={(e) => setNovaTarefa((prev) => ({ ...prev, [projeto.id]: { ...draft, prazo: e.target.value } }))}
+                          onChange={(e) => patchNovaTarefa(projeto.id, { prazo: e.target.value })}
                         />
 
                         <Select
                           value={draft.status}
-                          onValueChange={(v) => setNovaTarefa((prev) => ({ ...prev, [projeto.id]: { ...draft, status: v as StatusProjeto } }))}
+                          onValueChange={(v) => patchNovaTarefa(projeto.id, { status: v as StatusProjeto })}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -881,7 +912,7 @@ export function ProjetosClient({
                               <button
                                 type="button"
                                 className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
-                                onClick={() => setNovaTarefa((prev) => ({ ...prev, [projeto.id]: { ...draft, glpiChamadoId: "" } }))}
+                                onClick={() => patchNovaTarefa(projeto.id, { glpiChamadoId: "" })}
                               >
                                 Sem vínculo
                               </button>
@@ -891,7 +922,7 @@ export function ProjetosClient({
                                   type="button"
                                   className="block w-full rounded px-2 py-1 text-left hover:bg-accent"
                                   onClick={() => {
-                                    setNovaTarefa((prev) => ({ ...prev, [projeto.id]: { ...draft, glpiChamadoId: c.id } }));
+                                    patchNovaTarefa(projeto.id, { glpiChamadoId: c.id });
                                     setBuscaChamado((prev) => ({ ...prev, [projeto.id]: `#${c.glpiTicketId} - ${c.titulo}` }));
                                   }}
                                 >
@@ -913,7 +944,16 @@ export function ProjetosClient({
                           ) : null}
                         </div>
 
-                        <Button onClick={() => criarTarefa(projeto.id)} disabled={!draft.titulo.trim() || !draft.responsavelGlpiId}>
+                        <Button
+                          type="button"
+                          onClick={() => criarTarefa(projeto.id)}
+                          disabled={!tituloTarefaOk}
+                          title={
+                            !tituloTarefaOk
+                              ? "Informe um título com pelo menos 3 caracteres (responsável GLPI é opcional)"
+                              : undefined
+                          }
+                        >
                           Adicionar tarefa
                         </Button>
                       </div>

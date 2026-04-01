@@ -3,17 +3,80 @@ import { getSession } from "@/lib/session";
 import { canRecurso } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { PerfilUsuario, RecursoPermissao } from "@prisma/client";
+import { glpiSearchUsers, glpiWithSession } from "@/lib/glpi-client";
+
+function normalizarBusca(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+async function upsertUsuariosGlpiCache(
+  entries: Array<{
+    id: number;
+    name: string;
+    fullName?: string | null;
+    login?: string | null;
+    email?: string | null;
+  }>
+) {
+  await Promise.all(
+    entries.map((u) =>
+      prisma.glpiUsuarioCache.upsert({
+        where: { id: u.id },
+        create: {
+          id: u.id,
+          nome: u.name,
+          nomeCompleto: u.fullName ?? null,
+          login: u.login ?? null,
+          email: u.email ?? null,
+          nomeBusca: normalizarBusca(u.name),
+          ativo: true,
+          sincronizadoEm: new Date(),
+        },
+        update: {
+          nome: u.name,
+          nomeCompleto: u.fullName ?? null,
+          login: u.login ?? null,
+          email: u.email ?? null,
+          nomeBusca: normalizarBusca(u.name),
+          ativo: true,
+          sincronizadoEm: new Date(),
+        },
+      })
+    )
+  );
+}
+
+function buscaNoCacheWhere(q: string, termos: string) {
+  if (q.length < 2) {
+    return { ativo: true };
+  }
+  return {
+    ativo: true,
+    OR: [
+      { nomeBusca: { contains: termos, mode: "insensitive" as const } },
+      { nome: { contains: q, mode: "insensitive" as const } },
+      { nomeCompleto: { contains: q, mode: "insensitive" as const } },
+      { login: { contains: q, mode: "insensitive" as const } },
+      { email: { contains: q, mode: "insensitive" as const } },
+    ],
+  };
+}
 
 export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ message: "Não autorizado" }, { status: 401 });
 
-  const pode = await canRecurso(
-    session.perfil as PerfilUsuario,
-    RecursoPermissao.CUSTOMIZACAO,
-    "visualizar"
-  );
-  if (!pode) return NextResponse.json({ message: "Sem permissão" }, { status: 403 });
+  const [podeCustomizacao, podeContratosEditar] = await Promise.all([
+    canRecurso(session.perfil as PerfilUsuario, RecursoPermissao.CUSTOMIZACAO, "visualizar"),
+    canRecurso(session.perfil as PerfilUsuario, RecursoPermissao.CONTRATOS, "editar"),
+  ]);
+  if (!podeCustomizacao && !podeContratosEditar) {
+    return NextResponse.json({ message: "Sem permissão" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") || "").trim();
@@ -27,16 +90,32 @@ export async function GET(request: Request) {
     .toLowerCase()
     .trim();
 
+  if (q.length >= 2) {
+    try {
+      const { items: glpiItems, hasMore } = await glpiWithSession((ctx) =>
+        glpiSearchUsers(ctx, { q, offset, limit })
+      );
+      if (glpiItems.length > 0) {
+        void upsertUsuariosGlpiCache(glpiItems).catch(() => {});
+        return NextResponse.json({
+          items: glpiItems.map((u) => ({
+            id: u.id,
+            name: (u.fullName && u.fullName.trim()) || u.name,
+          })),
+          offset,
+          limit,
+          hasMore,
+          totalEstimado: hasMore ? offset + glpiItems.length + 1 : offset + glpiItems.length,
+          nextCursor: hasMore ? String(offset + glpiItems.length) : null,
+        });
+      }
+    } catch {
+      /* GLPI indisponível ou não configurado: segue para cache local */
+    }
+  }
+
   try {
-    const where = q.length >= 2
-      ? {
-          ativo: true,
-          OR: [
-            { nomeBusca: { contains: termos, mode: "insensitive" as const } },
-            { nome: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-      : { ativo: true };
+    const where = buscaNoCacheWhere(q, termos);
     const [items, total] = await Promise.all([
       prisma.glpiUsuarioCache.findMany({
         where,
@@ -62,6 +141,7 @@ export async function GET(request: Request) {
         items: [],
         hasMore: false,
         totalEstimado: 0,
+        nextCursor: null,
       },
       { status: 502 }
     );
