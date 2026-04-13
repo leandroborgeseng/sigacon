@@ -57,6 +57,11 @@ export type GlpiTestInput = {
   userToken: string;
 };
 
+function pareceUrl(valor: string): boolean {
+  const v = valor.trim().toLowerCase();
+  return v.startsWith("http://") || v.startsWith("https://");
+}
+
 /**
  * initSession, getFullSession, killSession — sem teste de search/Ticket nesta tela.
  */
@@ -92,6 +97,16 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
     });
     return { ok: false, steps };
   }
+  if (pareceUrl(userToken)) {
+    steps.push({
+      id: "userToken",
+      label: "User Token",
+      ok: false,
+      detail:
+        "Valor inválido: parece uma URL. Cole a chave remota do usuário no GLPI (não a URL da API).",
+    });
+    return { ok: false, steps };
+  }
 
   steps.push({
     id: "userToken",
@@ -108,6 +123,16 @@ export async function testarConexaoGlpi(input: GlpiTestInput): Promise<{
       detail: "Vazio neste teste — obrigatório só se o GLPI tiver App-Token em Configuração → API.",
     });
   } else {
+    if (pareceUrl(appToken)) {
+      steps.push({
+        id: "appToken",
+        label: "App Token",
+        ok: false,
+        detail:
+          "Valor inválido: parece uma URL. Cole o token da aplicação do GLPI (Configuração -> Geral -> API).",
+      });
+      return { ok: false, steps };
+    }
     steps.push({
       id: "appToken",
       label: "App Token",
