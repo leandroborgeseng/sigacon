@@ -86,6 +86,39 @@ function errorMessageWithCause(err: unknown): string {
   return out;
 }
 
+/** Mensagem legível para UI/logs (encadeia Error.cause e códigos errno). */
+export function formatGlpiConnectError(err: unknown): string {
+  const chunks: string[] = [];
+  let cur: unknown = err;
+  let depth = 0;
+  while (cur instanceof Error && depth < 8) {
+    const msg = cur.message.trim();
+    if (msg) chunks.push(msg);
+    const code = (cur as NodeJS.ErrnoException).code;
+    if (typeof code === "string" && code && !chunks.includes(code)) {
+      chunks.push(code);
+    }
+    cur = (cur as Error & { cause?: unknown }).cause;
+    depth++;
+  }
+  if (chunks.length === 0) return String(err).slice(0, 500);
+  return chunks.join(" → ").slice(0, 500);
+}
+
+/** Dica quando o erro parece bloqueio de rede (não TLS). */
+export function glpiFirewallOuDestinoHint(detail: string): string {
+  const d = detail.toUpperCase();
+  const rede =
+    d.includes("ECONNREFUSED") ||
+    d.includes("ETIMEDOUT") ||
+    d.includes("ENETUNREACH") ||
+    d.includes("EHOSTUNREACH") ||
+    d.includes("ENOTFOUND") ||
+    d.includes("UND_ERR_CONNECT_TIMEOUT");
+  if (!rede) return "";
+  return " Se o teste funciona no seu computador mas falha aqui, a TI do GLPI pode precisar liberar o IPv4 de saída do servidor do app (ex.: Railway) no firewall/WAF.";
+}
+
 async function undiciGlpiHttps(url: string, init: RequestInit | undefined, dispatcher: Agent): Promise<Response> {
   const res = await undiciFetch(url, {
     ...(init ?? {}),

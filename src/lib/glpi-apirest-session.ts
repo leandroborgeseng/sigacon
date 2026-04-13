@@ -5,7 +5,9 @@
  */
 
 import {
+  formatGlpiConnectError,
   glpiFetch,
+  glpiFirewallOuDestinoHint,
   glpiRedeTlsOuFirewallHint,
   glpiTlsInsecureHintParaErroDeRede,
 } from "@/lib/glpi-fetch";
@@ -229,12 +231,12 @@ export async function glpiLegacyInitSession(
             },
           };
         } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          const aborted = attemptAc.signal.aborted || msg.includes("abort");
-          const core = aborted ? "Tempo esgotado ou requisição cancelada." : msg.slice(0, 200);
+          const formatted = formatGlpiConnectError(e);
+          const aborted = attemptAc.signal.aborted || formatted.toLowerCase().includes("abort");
+          const core = aborted ? "Tempo esgotado ou requisição cancelada." : formatted.slice(0, 400);
           const detail = aborted
             ? `${core} (limite ${perAttemptMs / 1000}s por tentativa).${glpiRedeTlsOuFirewallHint()}`
-            : `${core}${glpiTlsInsecureHintParaErroDeRede(msg)}`;
+            : `${core}${glpiTlsInsecureHintParaErroDeRede(formatted)}${glpiFirewallOuDestinoHint(formatted)}`;
           lastFail = {
             status: 0,
             body: "",

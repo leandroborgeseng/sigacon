@@ -36,6 +36,8 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
   const [urlFmt, setUrlFmt] = useState<UrlFmt>({ kind: "empty" });
   const [urlPing, setUrlPing] = useState<UrlPing>({ kind: "idle" });
   const [limparAppTokenSalvo, setLimparAppTokenSalvo] = useState(false);
+  const [egressLoading, setEgressLoading] = useState(false);
+  const [egressInfo, setEgressInfo] = useState<string | null>(null);
 
   const fmtTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -172,6 +174,28 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
     [baseUrl, appToken, userToken, limparAppTokenSalvo]
   );
 
+  async function consultarIpSaida() {
+    setEgressInfo(null);
+    setEgressLoading(true);
+    try {
+      const r = await fetch("/api/configuracao/glpi/egress", { cache: "no-store" });
+      const j = (await r.json()) as { ip?: string | null; message?: string };
+      if (!r.ok) {
+        setEgressInfo(j.message ?? "Não foi possível obter o IP de saída.");
+        return;
+      }
+      if (j.ip) {
+        setEgressInfo(`${j.ip} — ${j.message ?? ""}`.trim());
+      } else {
+        setEgressInfo(j.message ?? "IP não retornado.");
+      }
+    } catch {
+      setEgressInfo("Erro de rede ao consultar IP de saída.");
+    } finally {
+      setEgressLoading(false);
+    }
+  }
+
   function podeTestarCredenciais(): boolean {
     const urlOk = validarFormatoUrlApiGlpi(baseUrl).ok;
     const temUser = userToken.trim().length > 0 || userJaSalvo;
@@ -285,8 +309,7 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             . Tokens vazios mantêm o salvo. Variáveis no servidor:{" "}
             <code className="text-[11px]">GLPI_URL</code>, <code className="text-[11px]">GLPI_APP_TOKEN</code>,{" "}
             <code className="text-[11px]">GLPI_USER_TOKEN</code>. No deploy (ex.: Railway):{" "}
-            <code className="text-[11px]">GLPI_TLS_INSECURE=1</code> se o ping falhar (como <code className="text-[11px]">curl -k</code>);{" "}
-            <code className="text-[11px]">GLPI_FORCE_IPV4=1</code> se ainda falhar após isso.
+            <code className="text-[11px]">GLPI_TLS_INSECURE=1</code> no Railway se o erro parecer TLS/certificado. Se o Python no seu PC funciona e o app na nuvem não, use o botão &quot;Ver IPv4 de saída&quot; e peça liberação no firewall do GLPI.
           </p>
         </CardDescription>
       </CardHeader>
@@ -362,7 +385,26 @@ export function GlpiConfigClient({ podeEditar }: { podeEditar: boolean }) {
             <p className="text-xs text-emerald-700 dark:text-emerald-400">{urlPing.detail}</p>
           )}
           {urlFmt.kind === "ok" && urlPing.kind === "error" && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">{urlPing.detail}</p>
+            <div className="space-y-2">
+              <p className="text-xs text-amber-700 dark:text-amber-400">{urlPing.detail}</p>
+              {podeEditar && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit text-xs"
+                    disabled={egressLoading}
+                    onClick={() => void consultarIpSaida()}
+                  >
+                    {egressLoading ? "Consultando…" : "Ver IPv4 de saída do app (firewall)"}
+                  </Button>
+                  {egressInfo && (
+                    <p className="text-xs font-mono text-muted-foreground break-all">{egressInfo}</p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="space-y-2">

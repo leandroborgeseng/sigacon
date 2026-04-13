@@ -8,7 +8,12 @@
  */
 
 import { glpiLegacyInitSession, parseGlpiApiErrorBody } from "@/lib/glpi-apirest-session";
-import { glpiFetch, glpiTlsInsecureHintParaErroDeRede } from "@/lib/glpi-fetch";
+import {
+  formatGlpiConnectError,
+  glpiFetch,
+  glpiFirewallOuDestinoHint,
+  glpiTlsInsecureHintParaErroDeRede,
+} from "@/lib/glpi-fetch";
 import { validarFormatoUrlApiGlpi } from "@/lib/glpi-url-validation";
 
 export type GlpiTestStep = {
@@ -57,13 +62,13 @@ export async function pingGlpiApiEndpoint(rawUrl: string): Promise<{ ok: boolean
       };
     }
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("abort")) {
+    const formatted = formatGlpiConnectError(e);
+    if (formatted.toLowerCase().includes("abort")) {
       return { ok: false, detail: "Tempo esgotado ao contatar a URL." };
     }
     return {
       ok: false,
-      detail: `Não foi possível alcançar a URL: ${msg.slice(0, 180)}${glpiTlsInsecureHintParaErroDeRede(msg)}`,
+      detail: `Não foi possível alcançar a URL: ${formatted}${glpiTlsInsecureHintParaErroDeRede(formatted)}${glpiFirewallOuDestinoHint(formatted)}`,
     };
   } finally {
     clearTimeout(t);
