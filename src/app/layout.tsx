@@ -1,21 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { APP_BRAND } from "@/lib/branding";
 import { PwaRegister } from "@/components/pwa-register";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: `${APP_BRAND.name} — ${APP_BRAND.tagline}`,
@@ -50,7 +37,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} antialiased font-sans min-h-screen bg-background text-foreground`}
+        className="antialiased font-sans min-h-screen bg-background text-foreground"
       >
         <PwaRegister />
         {children}
