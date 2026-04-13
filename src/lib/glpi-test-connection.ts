@@ -1,7 +1,7 @@
 /**
  * Conforme documentação GLPI REST API (ficheiro apirest.md no projeto GLPI):
  * - Base do endpoint = URL onde os recursos são expostos (ex.: …/apirest.php, …/api.php/v1 ou …/api com rewrite no Apache/Nginx).
- * - initSession / killSession: GET, cabeçalho Content-Type: application/json, corpo vazio em GET.
+ * - initSession: GET ou POST com Content-Type application/json; POST com {} alinha com clientes como requests.
  * - Autenticação: Authorization: user_token …, opcional App-Token; demais chamadas exigem Session-Token.
  * - Erros textuais: ERROR_SESSION_TOKEN_MISSING, ERROR_WRONG_APP_TOKEN_PARAMETER, etc.
  * Código-fonte de referência: https://github.com/glpi-project/glpi/blob/main/apirest.md
@@ -22,23 +22,40 @@ export { validarFormatoUrlApiGlpi } from "@/lib/glpi-url-validation";
 
 /**
  * Verifica se o host responde em initSession (sem credenciais: costuma ser 400/401, o que já prova alcance).
+ * Se GET falhar na rede, tenta POST com corpo {} (mesmo padrão do script Python com requests.post).
  */
 export async function pingGlpiApiEndpoint(rawUrl: string): Promise<{ ok: boolean; detail: string }> {
   const v = validarFormatoUrlApiGlpi(rawUrl);
   if (!v.ok) return { ok: false, detail: v.message };
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 15000);
   try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 15000);
-    const r = await glpiFetch(`${v.normalized}/initSession`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-    });
-    clearTimeout(t);
-    return {
-      ok: true,
-      detail: `Servidor GLPI respondeu (HTTP ${r.status}). Credenciais ainda não foram testadas.`,
-    };
+    try {
+      const r = await glpiFetch(`${v.normalized}/initSession`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+      });
+      return {
+        ok: true,
+        detail: `Servidor GLPI respondeu (HTTP ${r.status}). Credenciais ainda não foram testadas.`,
+      };
+    } catch (e1) {
+      const msg1 = e1 instanceof Error ? e1.message : String(e1);
+      if (msg1.includes("abort")) {
+        return { ok: false, detail: "Tempo esgotado ao contatar a URL." };
+      }
+      const r2 = await glpiFetch(`${v.normalized}/initSession`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        signal: controller.signal,
+      });
+      return {
+        ok: true,
+        detail: `Servidor GLPI respondeu (HTTP ${r2.status}, via POST). Credenciais ainda não foram testadas.`,
+      };
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("abort")) {
@@ -48,6 +65,8 @@ export async function pingGlpiApiEndpoint(rawUrl: string): Promise<{ ok: boolean
       ok: false,
       detail: `Não foi possível alcançar a URL: ${msg.slice(0, 180)}${glpiTlsInsecureHintParaErroDeRede(msg)}`,
     };
+  } finally {
+    clearTimeout(t);
   }
 }
 

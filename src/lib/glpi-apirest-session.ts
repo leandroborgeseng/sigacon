@@ -1,7 +1,7 @@
 /**
- * initSession (GET, Content-Type application/json) — doc GLPI REST API: Authorization user_token, App-Token opcional.
+ * initSession — doc GLPI REST API: Authorization user_token, App-Token opcional.
+ * Tenta POST com corpo JSON vazio (como requests.post + json={}) antes de GET e query string.
  * Base pode ser …/api.php/v1, …/apirest.php ou …/api (rewrite).
- * Retries apenas no mesmo endpoint: variantes de barra final e tokens na query.
  */
 
 import {
@@ -63,6 +63,24 @@ type InitAttempt = { label: string; url: string; init: RequestInit };
 function buildInitAttempts(base: string, appToken: string, userToken: string): InitAttempt[] {
   const attempts: InitAttempt[] = [];
   const paths = [`${base}/initSession/`, `${base}/initSession`];
+
+  // POST primeiro — mesmo padrão de scripts com requests.post(..., json={}) + App-Token + Authorization.
+  // Alguns ambientes respondem a POST e falham em GET (proxy/WAF) ou o inverso; cobrimos os dois.
+  for (const url of paths) {
+    attempts.push({
+      label: `POST {} + Authorization user_token + App-Token (${url.endsWith("/") ? "/" : "sem /"})`,
+      url,
+      init: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `user_token ${userToken}`,
+          ...(appToken ? { "App-Token": appToken } : {}),
+        },
+        body: "{}",
+      },
+    });
+  }
 
   for (const url of paths) {
     attempts.push({
