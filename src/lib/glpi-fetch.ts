@@ -16,26 +16,10 @@ const ipv4First =
 if (ipv4First && typeof dns.setDefaultResultOrder === "function") {
   dns.setDefaultResultOrder("ipv4first");
 }
-
-/** Lookup só IPv4 — reduz falhas “fetch failed” quando o provedor cloud escolhe IPv6 e o GLPI não responde. */
-function lookupIpv4Only(
-  hostname: string,
-  _opts: object,
-  cb: (err: NodeJS.ErrnoException | null, address: string, family?: number) => void
-): void {
-  dns.lookup(hostname, { family: 4 }, (err, address, family) => {
-    if (err) {
-      cb(err, "", undefined);
-      return;
-    }
-    cb(null, address, family);
-  });
-}
-
-function connectOptsBase(): { rejectUnauthorized: boolean; lookup?: typeof lookupIpv4Only } {
+function connectOptsBase(): { rejectUnauthorized: boolean; family?: 4 } {
   return {
     rejectUnauthorized: true,
-    ...(ipv4First ? { lookup: lookupIpv4Only } : {}),
+    ...(ipv4First ? { family: 4 as const } : {}),
   };
 }
 
@@ -62,7 +46,7 @@ function getTlsInsecureAgent(): Agent {
     tlsInsecureAgent = new Agent({
       connect: {
         rejectUnauthorized: false,
-        ...(ipv4First ? { lookup: lookupIpv4Only } : {}),
+        ...(ipv4First ? { family: 4 as const } : {}),
       },
     });
   }
