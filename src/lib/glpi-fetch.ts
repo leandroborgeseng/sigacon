@@ -6,10 +6,11 @@
 import dns from "node:dns";
 import { Agent, fetch as undiciFetch } from "undici";
 
+const forceIpv4Env = process.env.GLPI_FORCE_IPV4?.trim().toLowerCase();
 const ipv4First =
-  process.env.GLPI_FORCE_IPV4?.trim().toLowerCase() === "1" ||
-  process.env.GLPI_FORCE_IPV4?.trim().toLowerCase() === "true" ||
-  process.env.GLPI_FORCE_IPV4?.trim().toLowerCase() === "yes";
+  forceIpv4Env == null
+    ? true
+    : forceIpv4Env === "1" || forceIpv4Env === "true" || forceIpv4Env === "yes";
 
 if (ipv4First && typeof dns.setDefaultResultOrder === "function") {
   dns.setDefaultResultOrder("ipv4first");
@@ -40,21 +41,51 @@ function requestUrlString(input: RequestInfo | URL): string {
   return (input as Request).url;
 }
 
+function errorMessageWithCause(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  let out = err.message || String(err);
+  const cause = (err as Error & { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    const code = (cause as Error & { code?: string }).code;
+    out += ` | cause: ${cause.message}${code ? ` (code: ${code})` : ""}`;
+  }
+  return out;
+}
+
 /**
  * fetch para o GLPI.
  * - GLPI_TLS_INSECURE=1: TLS como curl -k via Agent (sem NODE_TLS_REJECT_UNAUTHORIZED global).
  * - GLPI_FORCE_IPV4=1: prioriza IPv4 (ajuda quando IPv6 do servidor GLPI não responde ao Railway).
  */
 export async function glpiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = requestUrlString(input);
   if (glpiTlsInsecureEnabled()) {
-    const url = requestUrlString(input);
     const res = await undiciFetch(url, {
       ...(init ?? {}),
       dispatcher: getTlsInsecureAgent(),
     } as Parameters<typeof undiciFetch>[1]);
     return res as unknown as Response;
   }
-  return fetch(input, init);
+  try {
+    return await fetch(input, init);
+  } catch (strictError) {
+    if (!url.startsWith("https://")) {
+      throw strictError;
+    }
+    try {
+      const res = await undiciFetch(url, {
+        ...(init ?? {}),
+        dispatcher: getTlsInsecureAgent(),
+      } as Parameters<typeof undiciFetch>[1]);
+      return res as unknown as Response;
+    } catch (insecureError) {
+      const strictMsg = errorMessageWithCause(strictError);
+      const insecureMsg = errorMessageWithCause(insecureError);
+      throw new Error(
+        `fetch failed (TLS estrito e fallback inseguro falharam): strict="${strictMsg}" insecure="${insecureMsg}"`
+      );
+    }
+  }
 }
 
 /** Dica para mensagens de erro de rede/TLS quando TLS estrito ainda está ativo. */
